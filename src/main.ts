@@ -53,6 +53,7 @@ import {
   registerCalculationPostProcessor
 } from "./processors/calculation-lines";
 import { PdfCommands } from "./controllers/pdf-commands";
+import { PdfHighlightCommands } from "./controllers/pdf-highlights-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
 import { switchReadingEditing } from "./controllers/view-mode-switch";
 import { LlmCommands } from "./controllers/llm-commands";
@@ -215,6 +216,7 @@ export default class SchreibstubePlugin extends Plugin {
   /** Finished tasks dimmed or hidden on screen; the settings tab tells it when the setting moves. */
   doneTaskVisibility: DoneTaskVisibilityController | null = null;
   private pdf: PdfCommands | null = null;
+  private pdfHighlights: PdfHighlightCommands | null = null;
   private sums: SumsController | null = null;
 
   override async onload(): Promise<void> {
@@ -334,6 +336,12 @@ export default class SchreibstubePlugin extends Plugin {
     // PDF pays nothing for the feature but the bytes of this line.
     this.pdf = new PdfCommands(this.app, this.logger, (data) =>
       import("./pdf/pdf-reader").then((module) => module.readPdfText(data))
+    );
+    this.pdfHighlights = new PdfHighlightCommands(
+      this.app,
+      this.logger,
+      () => this.settings,
+      (data) => import("./pdf/pdf-reader").then((module) => module.readPdfMarks(data))
     );
     this.proofread = new ProofreadController(this.app, () => this.settings, this.logger, {
       get: (path) => this.settings.syncState[path],
@@ -1805,7 +1813,8 @@ export default class SchreibstubePlugin extends Plugin {
       selection: (view?.editor.getSelection().trim().length ?? 0) > 0,
       bound:
         file !== null && hasSourceBinding(this.app.metadataCache.getFileCache(file)?.frontmatter),
-      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0
+      explorerOpen: this.app.workspace.getLeavesOfType(EXPLORER_VIEW_TYPE).length > 0,
+      pdf: file?.extension === "pdf"
     };
   }
 
@@ -1943,6 +1952,16 @@ export default class SchreibstubePlugin extends Plugin {
         void this.pdf?.insertSummary(editor);
       }
     });
+
+    this.addGatedCommand(
+      "pdf-highlights-to-note",
+      t().commands.pdfHighlightsToNote,
+      "pdf-highlights",
+      () => {
+        const file = this.app.workspace.getActiveFile();
+        if (file) void this.pdfHighlights?.highlightsToNote(file);
+      }
+    );
 
     // One rename for whatever is open. The id is the note rename's, so a hotkey
     // bound to it keeps working and now renames a picture too.

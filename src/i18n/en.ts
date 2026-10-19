@@ -26,6 +26,7 @@ export const en = {
     tidyDoneTasks: "Tidy up done tasks",
     insertSlideshow: "Insert: slideshow",
     insertPdfSummary: "Insert: summary from the attached PDF",
+    pdfHighlightsToNote: "Create note from the PDF's highlights",
     rename: "Rename note with AI",
     summarize: "Insert: AI summary of the selection",
     table: "Insert: table from the selection",

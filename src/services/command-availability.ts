@@ -28,7 +28,8 @@ export type GatedCommand =
   | "print-selection"
   | "base-reading"
   | "collapse-explorer"
-  | "related";
+  | "related"
+  | "pdf-highlights";
 
 /** What the screen says, reduced to what the answers depend on. */
 export interface CommandContext {
@@ -46,6 +47,8 @@ export interface CommandContext {
   bound: boolean;
   /** The pane is open somewhere in the workspace. */
   explorerOpen: boolean;
+  /** The open file is a PDF. */
+  pdf: boolean;
 }
 
 export function commandAvailable(command: GatedCommand, context: CommandContext): boolean {
@@ -103,6 +106,10 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
       return context.base;
     case "collapse-explorer":
       return context.explorerOpen;
+    // The marks are read from the PDF in front; whether it has any is the
+    // command's to say once it has looked.
+    case "pdf-highlights":
+      return context.pdf;
   }
 }
 

@@ -162,6 +162,8 @@ export interface SchreibstubeSettings {
   dateFormat: string;
   /** Every note in this folder is a property set (services/property-sets). */
   propertySetFolder: string;
+  /** The note a PDF's highlights are written into a copy of (services/highlight-note); empty for none. */
+  pdfHighlightsTemplate: string;
   /** Show "Suggest tags" beside "Add property"; the command works either way. */
   tagSuggestControl: boolean;
   /** What clearing finished tasks does with them: to the back of their list, to the archive, or away. */

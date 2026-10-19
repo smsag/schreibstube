@@ -130,13 +130,22 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * spent down to the kilobyte by the Recommended list before it. What is left
  * is for the next feature, not a new normal.
  *
+ * Raised to 1540 KB at 1529 KB, for a PDF's highlights as a note (+9.5 KB on
+ * 1520): the rules that find the words under a highlight or an underline by
+ * their place on the page (3.3 KB), the command that fills the person's
+ * template with them (2 KB), the reader's second pass for annotations, and
+ * its words in two languages (3.3 KB). As with the summary, pdf.js is
+ * borrowed, not shipped. The 1520 ceiling had been spent to 0.2 KB, so no
+ * feature of any size could have landed under it; what is left is for the
+ * next one, not a new normal.
+ *
  * Twice the picker's icons (+38 KB on 1364) fit under that ceiling, at 1402 KB:
  * 215 glyphs for what the set had nothing for — a chapter's number, a
  * character, a scene's weather, a draft's mood — carried as font, which costs
  * about 180 bytes a glyph. A set that grows again by as much spends a third of
  * what is left.
  */
-const MAX_BUNDLE_KB = 1520;
+const MAX_BUNDLE_KB = 1540;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

@@ -8,6 +8,7 @@ import { activeLocale, t } from "../i18n";
 import { normalizeDoneTaskMode } from "../services/done-tasks";
 import { normalizeDoneTaskVisibility } from "../services/done-task-visibility";
 import { MAX_DIM_OPACITY, MIN_DIM_OPACITY } from "../services/focus-settings";
+import { normalizeVaultFolder } from "../services/file-name";
 import { normalizeTermFolder } from "../services/glossary-term-folder";
 import { createLogger } from "../services/logger";
 import { newDocLink } from "../services/new-note";
@@ -103,6 +104,28 @@ export function renderHelpers(ctx: SettingsContext): void {
       t().commands.linksSwitch
     ]
   });
+
+  renderPdfHighlights(ctx);
+}
+
+function renderPdfHighlights(ctx: SettingsContext): void {
+  const words = t().pdf;
+  section(ctx, {
+    name: words.highlightsHeading,
+    desc: words.highlightsDesc,
+    commands: [t().commands.pdfHighlightsToNote]
+  });
+
+  new Setting(ctx.containerEl)
+    .setName(words.highlightsTemplate)
+    .setDesc(words.highlightsTemplateDesc)
+    .addText((text) => {
+      text.setPlaceholder(words.highlightsTemplatePlaceholder);
+      text.setValue(ctx.plugin.settings.pdfHighlightsTemplate);
+      text.onChange(async (value) => {
+        await ctx.update({ pdfHighlightsTemplate: normalizeVaultFolder(value) ?? "" });
+      });
+    });
 }
 
 function renderDoneTasks(ctx: SettingsContext): void {

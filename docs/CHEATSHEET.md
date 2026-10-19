@@ -354,8 +354,8 @@ and published as pictures. A diagram that cannot be drawn prints as its source.
 
 - `Text[^1]` and `[^1]: Note` anywhere; printed at the foot of the page.
 - `[[Note]]` prints as its name; `[Text](https://…)` as a link.
-- `[[Bericht.pdf#page=12|↗]]` opens a PDF at a page (written by
-  **Insert: summary from the attached PDF**).
+- `[[Bericht.pdf#page=12|↗]]` opens a PDF at a page (**Insert: summary from the attached PDF**).
+- Highlights template: `{{schreibstube-highlights}}` for the text, `{{schreibstube-pdf}}` for the PDF.
 
 ## 8. Mail
 

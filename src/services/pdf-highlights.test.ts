@@ -1,0 +1,284 @@
+import { describe, expect, it } from "vitest";
+import {
+  collectExcerpts,
+  countedMarks,
+  counts,
+  isYellow,
+  markedCharacters,
+  MAX_BOXES_PER_MARK,
+  MAX_MARKS_PER_PAGE,
+  quadBoxes,
+  runningText,
+  toMark,
+  toPlacedRun,
+  type PdfBox,
+  type PdfMark,
+  type PdfMarkedPage,
+  type PdfPlacedRun
+} from "./pdf-highlights";
+
+/** Every character one point wide, so a box's x is a character index. */
+function line(
+  text: string,
+  y: number,
+  options: { x?: number; endsLine?: boolean } = {}
+): PdfPlacedRun {
+  return {
+    text,
+    endsLine: options.endsLine ?? true,
+    x: options.x ?? 0,
+    y,
+    width: Array.from(text).length,
+    height: 10
+  };
+}
+
+/** A box over characters `from` to `to` (exclusive) of the line at `y`, the line's full height. */
+function over(from: number, to: number, y: number): PdfBox {
+  return { x0: from, x1: to, y0: y - 2, y1: y + 9 };
+}
+
+const PREVIEW_YELLOW: [number, number, number] = [250, 205, 90];
+const PREVIEW_RED: [number, number, number] = [236, 40, 20];
+
+function highlight(...boxes: PdfBox[]): PdfMark {
+  return { kind: "highlight", color: PREVIEW_YELLOW, boxes };
+}
+
+function page(runs: PdfPlacedRun[], marks: PdfMark[], number = 1): PdfMarkedPage {
+  return { page: number, runs, marks };
+}
+
+describe("which colours are yellow", () => {
+  it("takes the yellows the reading apps write", () => {
+    expect(isYellow(PREVIEW_YELLOW)).toBe(true);
+    expect(isYellow([255, 255, 0])).toBe(true);
+    expect(isYellow([255, 226, 0])).toBe(true);
+    expect(isYellow([252, 244, 120])).toBe(true);
+  });
+
+  it("leaves out the other highlight colours", () => {
+    expect(isYellow([120, 220, 90])).toBe(false); // green
+    expect(isYellow([90, 170, 250])).toBe(false); // blue
+    expect(isYellow([250, 120, 180])).toBe(false); // pink
+    expect(isYellow([190, 120, 240])).toBe(false); // purple
+    expect(isYellow([255, 140, 0])).toBe(false); // orange
+    expect(isYellow(PREVIEW_RED)).toBe(false);
+  });
+
+  it("leaves out what is too dull or too dark to be a marker", () => {
+    expect(isYellow([240, 235, 215])).toBe(false); // beige
+    expect(isYellow([120, 110, 20])).toBe(false); // olive
+    expect(isYellow([255, 255, 255])).toBe(false);
+    expect(isYellow(null)).toBe(false);
+  });
+
+  it("counts every underline and only yellow highlights", () => {
+    expect(counts({ kind: "underline", color: PREVIEW_RED, boxes: [] })).toBe(true);
+    expect(counts({ kind: "underline", color: null, boxes: [] })).toBe(true);
+    expect(counts({ kind: "highlight", color: PREVIEW_YELLOW, boxes: [] })).toBe(true);
+    expect(counts({ kind: "highlight", color: [90, 170, 250], boxes: [] })).toBe(false);
+  });
+});
+
+describe("reading what pdf.js hands over", () => {
+  it("turns each eight numbers of a quad list into a box", () => {
+    const quads = new Float32Array([
+      84, 561, 454, 561, 84, 548, 454, 548, 84, 547, 300, 547, 84, 534, 300, 534
+    ]);
+    expect(quadBoxes(quads)).toEqual([
+      { x0: 84, x1: 454, y0: 548, y1: 561 },
+      { x0: 84, x1: 300, y0: 534, y1: 547 }
+    ]);
+  });
+
+  it("refuses a quad list that is not numbers, and drops a half quad at the end", () => {
+    expect(quadBoxes("84,561")).toEqual([]);
+    expect(quadBoxes([1, 2, 3, Number.NaN, 5, 6, 7, 8])).toEqual([]);
+    expect(quadBoxes([0, 1, 1, 1, 0, 0, 1, 0, 9, 9])).toHaveLength(1);
+  });
+
+  it("stops at the bound on boxes per mark", () => {
+    const quads = Array.from({ length: (MAX_BOXES_PER_MARK + 5) * 8 }, (_, i) => i % 8);
+    expect(quadBoxes(quads)).toHaveLength(MAX_BOXES_PER_MARK);
+  });
+
+  it("reads a highlight and an underline, and nothing else", () => {
+    const quadPoints = [0, 10, 5, 10, 0, 0, 5, 0];
+    expect(
+      toMark({ subtype: "Highlight", color: new Uint8ClampedArray(PREVIEW_YELLOW), quadPoints })
+    ).toEqual({
+      kind: "highlight",
+      color: PREVIEW_YELLOW,
+      boxes: [{ x0: 0, x1: 5, y0: 0, y1: 10 }]
+    });
+    expect(toMark({ subtype: "Underline", quadPoints })?.kind).toBe("underline");
+    expect(toMark({ subtype: "Underline", quadPoints })?.color).toBeNull();
+    expect(toMark({ subtype: "Link", quadPoints })).toBeNull();
+    expect(toMark({ subtype: "StrikeOut", quadPoints })).toBeNull();
+    expect(toMark({ subtype: "Highlight" })).toBeNull();
+    expect(toMark(null)).toBeNull();
+    expect(toMark("Highlight")).toBeNull();
+  });
+
+  it("keeps a colour inside the range a colour can have", () => {
+    const mark = toMark({
+      subtype: "Highlight",
+      color: [300, -4, 90, 1],
+      quadPoints: [0, 1, 1, 1, 0, 0, 1, 0]
+    });
+    expect(mark?.color).toEqual([255, 0, 90]);
+  });
+
+  it("reads a text item with its place, and refuses one without", () => {
+    expect(
+      toPlacedRun({
+        str: "Ecosystems",
+        hasEOL: true,
+        transform: [10, 0, 0, 10, 84, 548],
+        width: 52,
+        height: 10
+      })
+    ).toEqual({ text: "Ecosystems", endsLine: true, x: 84, y: 548, width: 52, height: 10 });
+    expect(toPlacedRun({ str: "x", transform: [1, 0, 0, 1, 0, 0] })?.width).toBe(0);
+    expect(
+      toPlacedRun({ str: "x", transform: [1, 0, 0, 11, 0, 0], width: 1, height: 0 })?.height
+    ).toBe(11);
+    expect(toPlacedRun({ str: "x" })).toBeNull();
+    expect(toPlacedRun({ str: 4, transform: [1, 0, 0, 1, 0, 0] })).toBeNull();
+    expect(toPlacedRun(undefined)).toBeNull();
+  });
+});
+
+describe("which characters a mark covers", () => {
+  it("takes the characters whose middle is inside the box", () => {
+    const run = line("one two three", 100);
+    const marked = markedCharacters(run, [over(4, 7, 100)]);
+    expect(marked.map((on, i) => (on ? run.text[i] : "")).join("")).toBe("two");
+  });
+
+  it("completes a word more than half marked, and drops one half marked or less", () => {
+    const run = line("But then In", 100);
+    // "ut then I": two of three letters of "But", one of two of "In".
+    const marked = markedCharacters(run, [over(1, 10, 100)]);
+    expect(marked.map((on, i) => (on ? run.text[i] : "")).join("")).toBe("But then ");
+  });
+
+  it("does not reach the line below or above", () => {
+    const upper = line("upper line", 112);
+    const lower = line("lower line", 100);
+    const box = over(0, 10, 100);
+    expect(markedCharacters(upper, [box]).some(Boolean)).toBe(false);
+    expect(markedCharacters(lower, [box]).every(Boolean)).toBe(true);
+  });
+
+  it("takes an underline drawn as a thin strip under the baseline", () => {
+    const run = line("under", 100);
+    const strip: PdfBox = { x0: 0, x1: 5, y0: 98.5, y1: 99.5 };
+    expect(markedCharacters(run, [strip]).every(Boolean)).toBe(true);
+  });
+
+  it("marks nothing in an empty run or without boxes", () => {
+    expect(markedCharacters(line("", 100), [over(0, 5, 100)])).toEqual([]);
+    expect(markedCharacters(line("abc", 100), [])).toEqual([false, false, false]);
+  });
+});
+
+describe("the excerpts of a document", () => {
+  it("joins marked lines into prose and closes up a word split across them", () => {
+    const runs = [line("The organi-", 100), line("zation of firms", 88), line("is next.", 76)];
+    const marks = [highlight(over(0, 11, 100), over(0, 15, 88))];
+    expect(collectExcerpts([page(runs, marks)])).toEqual(["The organization of firms"]);
+  });
+
+  it("separates two marks with unmarked words between them", () => {
+    const runs = [line("First part, skipped words, second part.", 100)];
+    const marks = [highlight(over(0, 10, 100)), highlight(over(27, 39, 100))];
+    const excerpts = collectExcerpts([page(runs, marks)]);
+    expect(excerpts).toEqual(["First part", "second part."]);
+    expect(runningText(excerpts)).toBe("First part […] second part.");
+  });
+
+  it("quotes text that is both underlined and highlighted once", () => {
+    const runs = [line("Shared words here.", 100)];
+    const marks: PdfMark[] = [
+      highlight(over(0, 18, 100)),
+      { kind: "underline", color: PREVIEW_RED, boxes: [over(0, 12, 100)] }
+    ];
+    expect(collectExcerpts([page(runs, marks)])).toEqual(["Shared words here."]);
+  });
+
+  it("makes one excerpt of marks that meet", () => {
+    const runs = [line("alpha beta gamma", 100)];
+    const marks: PdfMark[] = [
+      highlight(over(0, 6, 100)),
+      { kind: "underline", color: PREVIEW_RED, boxes: [over(6, 16, 100)] }
+    ];
+    expect(collectExcerpts([page(runs, marks)])).toEqual(["alpha beta gamma"]);
+  });
+
+  it("keeps an unmarked comma between marked words, and drops one before the first", () => {
+    const runs = [line("so, I believe, the key", 100)];
+    // Marked: ", I believe" and "the key", with the second comma left out.
+    const marks = [highlight(over(2, 13, 100), over(15, 22, 100))];
+    expect(collectExcerpts([page(runs, marks)])).toEqual(["I believe, the key"]);
+  });
+
+  it("leaves out highlights of another colour", () => {
+    const runs = [line("yellow blue", 100)];
+    const marks: PdfMark[] = [
+      highlight(over(0, 6, 100)),
+      { kind: "highlight", color: [90, 170, 250], boxes: [over(7, 11, 100)] }
+    ];
+    expect(collectExcerpts([page(runs, marks)])).toEqual(["yellow"]);
+  });
+
+  it("goes through the pages in order, the page furniture between them ending an excerpt", () => {
+    const first = page(
+      [line("End of page one", 100), line("12", 20)],
+      [highlight(over(0, 15, 100))],
+      1
+    );
+    const second = page([line("Top of page two", 700)], [highlight(over(0, 15, 700))], 2);
+    expect(collectExcerpts([first, second])).toEqual(["End of page one", "Top of page two"]);
+  });
+
+  it("carries an excerpt over a page break with nothing unmarked between", () => {
+    const first = page([line("runs on", 100)], [highlight(over(0, 7, 100))], 1);
+    const second = page([line("to the next page", 700)], [highlight(over(0, 16, 700))], 2);
+    expect(collectExcerpts([first, second])).toEqual(["runs on to the next page"]);
+  });
+
+  it("reads runs that share a line without inventing a space", () => {
+    const runs = [line("Inter", 100, { endsLine: false }), line("estingly so", 100, { x: 5 })];
+    expect(collectExcerpts([page(runs, [highlight(over(0, 16, 100))])])).toEqual([
+      "Interestingly so"
+    ]);
+  });
+
+  it("ignores marks past the bound on a page", () => {
+    const runs = [line("word", 100)];
+    const blue: PdfMark = { kind: "highlight", color: [90, 170, 250], boxes: [] };
+    const marks = [
+      ...Array.from({ length: MAX_MARKS_PER_PAGE }, () => blue),
+      highlight(over(0, 4, 100))
+    ];
+    expect(collectExcerpts([page(runs, marks)])).toEqual([]);
+    expect(countedMarks([page(runs, marks)])).toBe(0);
+  });
+
+  it("counts only the marks that count", () => {
+    const marks: PdfMark[] = [
+      highlight(over(0, 1, 100)),
+      { kind: "highlight", color: [90, 170, 250], boxes: [] },
+      { kind: "underline", color: PREVIEW_RED, boxes: [] }
+    ];
+    expect(countedMarks([page([], marks), page([], marks, 2)])).toBe(4);
+  });
+
+  it("finds nothing where nothing is marked", () => {
+    expect(collectExcerpts([page([line("plain", 100)], [])])).toEqual([]);
+    expect(collectExcerpts([])).toEqual([]);
+    expect(runningText([])).toBe("");
+  });
+});

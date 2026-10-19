@@ -24,6 +24,7 @@ export const de: Messages = {
     tidyDoneTasks: "Erledigte Aufgaben aufräumen",
     insertSlideshow: "Einfügen: Diaschau",
     insertPdfSummary: "Einfügen: Zusammenfassung aus dem angehängten PDF",
+    pdfHighlightsToNote: "Notiz aus den Markierungen des PDFs erstellen",
     rename: "Notiz mit KI umbenennen",
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
@@ -1889,7 +1890,33 @@ export const de: Messages = {
     inserted: (count: number) =>
       count === 1 ? "1 Textstelle eingefügt." : `${count} Textstellen eingefügt.`,
     noteChanged:
-      "inzwischen liegt eine andere Notiz vorn, darum wurden die Textstellen nicht eingefügt."
+      "inzwischen liegt eine andere Notiz vorn, darum wurden die Textstellen nicht eingefügt.",
+    highlightsHeading: "Markierungen aus einem PDF",
+    highlightsDesc:
+      "Bei geöffnetem PDF sammelt dieser Befehl den gelb markierten oder unterstrichenen Text zu " +
+      "einem Fließtext, mit […] zwischen den Stellen, und schreibt ihn in eine neue Notiz im Ordner " +
+      "für neue Notizen.",
+    highlightsTemplate: "Vorlage für die Notiz",
+    highlightsTemplateDesc:
+      "Eine Notiz, aus der die neue entsteht, samt Frontmatter. {{title}} und {{date}} werden wie " +
+      "von Obsidians Vorlagen gefüllt, Templater-Code läuft, wenn Templater installiert ist, " +
+      "{{schreibstube-highlights}} markiert, wohin der Text kommt, und {{schreibstube-pdf}}, wo " +
+      "das PDF eingebettet wird. Ohne Ersteres kommt der Text ans Ende.",
+    highlightsTemplatePlaceholder: "Vorlagen/Lesenotiz",
+    noMarks: (name: string) =>
+      `${name} hat keinen gelb markierten oder unterstrichenen Text. In Obsidian gesetzte ` +
+      "Markierungen stehen nicht im PDF und können hier nicht gelesen werden.",
+    marksWithoutText: (name: string) =>
+      `${name} hat Markierungen, aber keinen Text darunter — ein Scan ist für alles, was Text liest, ein Bild.`,
+    highlightsCreated: (count: number, name: string) =>
+      `${count === 1 ? "1 Textstelle" : `${count} Textstellen`} in ${name} geschrieben.`,
+    templateMissing: (path: string) =>
+      `die Vorlage ${path} wurde nicht gefunden; die Notiz entstand ohne sie.`,
+    templaterMissing:
+      "die Vorlage enthält Templater-Code, Templater ist aber nicht installiert; der Code blieb, wie er war.",
+    templaterFailed: (reason: string) =>
+      `Templater konnte die Vorlage nicht füllen (${reason}); ihr Code blieb, wie er war.`,
+    createFailed: (path: string) => `${path} konnte nicht angelegt werden.`
   },
 
   sums: {
