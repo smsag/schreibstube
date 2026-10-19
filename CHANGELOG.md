@@ -2,7 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.86.0 - 2026-10-19
+
+A note can now leave the vault as a link. **Share note as a link** puts it
+at a two-word address under a publishing site, for a day, a week, a month,
+three months or until taken down, and asks every search engine, crawler and
+AI not to keep or learn from it. With a password, which is filled in for
+you, the page is encrypted and opened in the reader's browser, so neither
+the web host nor the bridge ever holds the note in the clear. **Update**
+puts the note as it is now behind the same address, and **Manage shared
+links** takes any of them down. And CSV and TSV files are no longer
+invisible: Obsidian had no view for them, so they now open as a table in a
+tab, and its own file list shows them.
+
+Mobile checklist: not run. What to try first: on a phone, share a note with
+a password and open the link in the phone's browser; the password field
+should stay above the keyboard and the note should read as it does in the
+vault. Then open a `.csv` file from the Explorer; the table should scroll
+sideways inside the tab while the header row stays put.
+
+The bridge moves from 3.1.1 to 3.3.0, and the protocol from 8 to 9, which
+shared links need. An older bridge still publishes, but the plugin says
+once that it should be redeployed. The bridge also takes the updates in its
+runtime group and a newer Node base image.
 
 ### Added
 
