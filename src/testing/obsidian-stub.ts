@@ -232,6 +232,7 @@ interface MenuItemStub {
 
 export class MarkdownView {}
 export class ItemView {}
+export class FileView {}
 
 /** Tests run where no Obsidian is; a test that cares sets the flags it needs. */
 export const Platform = {

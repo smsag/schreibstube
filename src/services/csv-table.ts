@@ -8,6 +8,7 @@
  * decimal point. Everything here decides; reading the file and the clipboard
  * are the controller's.
  */
+import { t } from "../i18n";
 import { escapeCell } from "./markdown-table";
 import type { MarkdownTable } from "./text-to-table";
 
@@ -37,8 +38,28 @@ export function isCsvExtension(extension: string): boolean {
 
 export type CsvRefusal = "empty" | "malformed" | "too-many-rows" | "too-many-columns";
 
+/** Why a file is not a table, in the words that follow "cannot be shown" or a notice. */
+export function csvRefusal(reason: CsvRefusal): string {
+  const words = t().explorer.csv;
+  switch (reason) {
+    case "empty":
+      return words.empty;
+    case "malformed":
+      return words.malformed;
+    case "too-many-rows":
+      return words.tooManyRows(MAX_CSV_ROWS);
+    case "too-many-columns":
+      return words.tooManyColumns(MAX_CSV_COLUMNS);
+  }
+}
+
 export type CsvTableOutcome =
   { ok: true; markdown: string; rows: number; columns: number } | { ok: false; reason: CsvRefusal };
+
+/** The file as a grid, before it is written as Markdown: what the CSV view draws. */
+export type CsvGridOutcome =
+  | { ok: true; table: MarkdownTable; columns: number; numeric: boolean[] }
+  | { ok: false; reason: CsvRefusal };
 
 /** Invents a header for a file whose first row turned out to be data. */
 export type ColumnLabel = (index: number) => string;
@@ -46,6 +67,22 @@ export type ColumnLabel = (index: number) => string;
 const defaultLabel: ColumnLabel = (index) => `Column ${index}`;
 
 export function csvToMarkdown(text: string, label: ColumnLabel = defaultLabel): CsvTableOutcome {
+  const grid = csvToGrid(text, label);
+  if (!grid.ok) return grid;
+  return {
+    ok: true,
+    markdown: renderAlignedTable(grid.table),
+    rows: grid.table.rows.length,
+    columns: grid.columns
+  };
+}
+
+/**
+ * The header and rows a file holds, every row as wide as the widest, and which
+ * columns are numbers — under the same limits as a copy, so a file the view
+ * shows is one that also copies.
+ */
+export function csvToGrid(text: string, label: ColumnLabel = defaultLabel): CsvGridOutcome {
   const source = text.replace(/^\uFEFF/, "");
   if (!source.trim()) return { ok: false, reason: "empty" };
 
@@ -69,12 +106,7 @@ export function csvToMarkdown(text: string, label: ColumnLabel = defaultLabel): 
     : { header: first, rows: rest };
   if (table.rows.length > MAX_CSV_ROWS) return { ok: false, reason: "too-many-rows" };
 
-  return {
-    ok: true,
-    markdown: renderAlignedTable(table),
-    rows: table.rows.length,
-    columns: width
-  };
+  return { ok: true, table, columns: width, numeric: numericColumns(table) };
 }
 
 type ReadRecords = { records: string[][] } | { refusal: CsvRefusal };
@@ -278,10 +310,7 @@ function isYear(cell: string): boolean {
 export function renderAlignedTable({ header, rows }: MarkdownTable): string {
   const head = header.map(asCell);
   const body = rows.map((row) => row.map(asCell));
-  const right = head.map((_, column) => {
-    const values = rows.map((row) => row[column] ?? "").filter((cell) => cell.trim() !== "");
-    return values.length > 0 && values.every(isNumeric);
-  });
+  const right = numericColumns({ header, rows });
   const widths = head.map((cell, column) =>
     Math.min(
       MAX_PAD_WIDTH,
@@ -299,6 +328,14 @@ export function renderAlignedTable({ header, rows }: MarkdownTable): string {
   );
 
   return [line(head), `| ${rule.join(" | ")} |`, ...body.map(line)].join("\n");
+}
+
+/** Per column, whether every filled cell below the header is a number: set flush right. */
+export function numericColumns({ header, rows }: MarkdownTable): boolean[] {
+  return header.map((_, column) => {
+    const values = rows.map((row) => row[column] ?? "").filter((cell) => cell.trim() !== "");
+    return values.length > 0 && values.every(isNumeric);
+  });
 }
 
 /**

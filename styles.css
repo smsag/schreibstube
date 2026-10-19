@@ -4328,3 +4328,53 @@
   color: var(--text-muted);
   font-size: var(--font-ui-small);
 }
+
+/* A CSV file as its table. The table scrolls inside the tab in both
+   directions, so a hundred columns never push the tab header away, and the
+   header row stays in sight while the rows scroll under it. */
+.schreibstube-csv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-csv-summary,
+.schreibstube-csv-refused {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+}
+
+.schreibstube-csv-scroll {
+  overflow: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.schreibstube-csv-scroll table {
+  border-collapse: collapse;
+  font-size: var(--font-text-size);
+  user-select: text;
+}
+
+.schreibstube-csv-scroll th,
+.schreibstube-csv-scroll td {
+  border: var(--border-width) solid var(--table-border-color, var(--background-modifier-border));
+  padding: var(--size-4-1) var(--size-4-2);
+  text-align: start;
+  vertical-align: top;
+  white-space: pre-wrap;
+  max-width: 32em;
+}
+
+.schreibstube-csv-scroll th {
+  position: sticky;
+  top: 0;
+  background: var(--background-secondary);
+  font-weight: var(--table-header-weight, var(--font-semibold));
+}
+
+.schreibstube-csv-scroll .is-number {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

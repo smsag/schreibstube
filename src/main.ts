@@ -94,6 +94,7 @@ import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
 import { FOLDER_TILES_VIEW_TYPE, FolderTilesView } from "./ui/folder-tiles-view";
+import { CSV_EXTENSIONS, CSV_VIEW_TYPE, CsvView } from "./ui/csv-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import { uninstallIconFont } from "./ui/icon-font";
 import {
@@ -446,6 +447,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
     this.registerView(RELATED_NOTES_VIEW_TYPE, (leaf) => this.createRelatedNotesView(leaf));
     this.registerView(FOLDER_TILES_VIEW_TYPE, (leaf) => this.createFolderTilesView(leaf));
+    this.registerCsvView();
     this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
@@ -1255,6 +1257,30 @@ export default class SchreibstubePlugin extends Plugin {
       });
     }
     return view;
+  }
+
+  /**
+   * Spreadsheet exports open as tables. An extension another plugin already
+   * shows is left to it: Obsidian refuses a second claim with a throw, and
+   * the other plugin was chosen for that file type on purpose.
+   */
+  private registerCsvView(): void {
+    this.registerView(
+      CSV_VIEW_TYPE,
+      (leaf) =>
+        new CsvView(leaf, {
+          copyTable: async (file) => {
+            await this.explorer?.copyCsvTable(file);
+          }
+        })
+    );
+    for (const extension of CSV_EXTENSIONS) {
+      try {
+        this.registerExtensions([extension], CSV_VIEW_TYPE);
+      } catch (error) {
+        this.logger.debug(`.${extension} is shown by another plugin:`, error);
+      }
+    }
   }
 
   private createTagNotesView(leaf: WorkspaceLeaf): TagNotesView {
