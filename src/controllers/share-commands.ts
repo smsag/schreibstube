@@ -4,13 +4,14 @@ import type { PublishAccount, SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
 import { createShare, listShares, revokeShare } from "../platform/publish-client";
 import type { PublishBridgeConfig } from "../services/publish-protocol";
-import { isInsideFolder, referencedAttachments, resolveNote } from "../services/publish-index";
+import { resolveNote } from "../services/publish-index";
 import { sourceForUpload } from "../services/publish-source";
 import {
   bytesToBase64,
-  expiresAtFor,
   linksOfNote,
   pickShareAssets,
+  shareAccountFor,
+  shareReferences,
   type ShareCandidate,
   type SharedLink
 } from "../services/share-link";
@@ -18,6 +19,9 @@ import { PublishAccountModal } from "../ui/publish-modals";
 import { ShareListModal, ShareModal, ShareResultModal, type ShareChoice } from "../ui/share-modals";
 import type { PublishCommands } from "./publish-commands";
 import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
+
+/** Told each time the plugin learns a target's whole list of links. */
+export type ShareListener = (target: string, links: readonly SharedLink[]) => void;
 
 /**
  * Shared links: one note at a short address under a publish account's site.
@@ -27,9 +31,6 @@ import { NO_FORMULAS, type NoteFormulas } from "./sums-controller";
  * the site. The note is read when the link is written and not again: a link
  * shows what was sent, and updating it is asking to send again.
  */
-/** Told each time the plugin learns a target's whole list of links. */
-export type ShareListener = (target: string, links: readonly SharedLink[]) => void;
-
 export class ShareCommands {
   private busy = false;
   private formulas: NoteFormulas = NO_FORMULAS;
@@ -75,8 +76,7 @@ export class ShareCommands {
   }
 
   async manageShares(): Promise<void> {
-    const active = this.app.workspace.getActiveFile();
-    await this.withAccount(active?.path ?? null, async (account) => {
+    await this.withAccount(null, async (account) => {
       const bridge = await this.connect();
       if (!bridge) return;
       const links = await this.list(bridge, account);
@@ -147,7 +147,7 @@ export class ShareCommands {
         source: sourceForUpload(content),
         assets,
         ...(choice.password ? { password: choice.password } : {}),
-        expiresAt: expiresAtFor(choice.expiry, Date.now()),
+        expiresAt: choice.expiresAt,
         ...(themeCss !== undefined ? { themeCss } : {})
       });
       notice.hide();
@@ -163,7 +163,7 @@ export class ShareCommands {
   /** The files the note embeds, with their size, in the order it embeds them. Notes are not files to carry. */
   private candidates(content: string, sourcePath: string): ShareCandidate[] {
     const found: ShareCandidate[] = [];
-    for (const reference of referencedAttachments(content)) {
+    for (const reference of shareReferences(content)) {
       const target = this.app.metadataCache.getFirstLinkpathDest(reference, sourcePath);
       if (target instanceof TFile && target.extension !== "md") {
         found.push({ path: target.path, bytes: target.stat.size });
@@ -213,10 +213,7 @@ export class ShareCommands {
     }
   }
 
-  /**
-   * The account whose folder holds the note, if one does; the only account
-   * when there is one; otherwise the question. The note need be in no folder.
-   */
+  /** The account `shareAccountFor` names, or the one the person picks. */
   private async withAccount(
     path: string | null,
     work: (account: PublishAccount) => Promise<void>
@@ -226,12 +223,9 @@ export class ShareCommands {
       new Notice(t().common.notice(t().publish.noAccount));
       return;
     }
-    const holding = path
-      ? accounts.filter((account) => account.folder && isInsideFolder(path, account.folder))
-      : [];
-    const [only] = holding.length === 1 ? holding : accounts.length === 1 ? accounts : [];
-    if (only) {
-      await work(only);
+    const chosen = shareAccountFor(accounts, path);
+    if (chosen) {
+      await work(chosen);
       return;
     }
     new PublishAccountModal(this.app, accounts, (account) => void work(account)).open();

@@ -9,7 +9,11 @@ import {
   MAX_SHARE_ASSETS,
   MAX_SHARE_DAYS,
   newShareCode,
-  nextExpiry,
+  maxShareRequestBytes,
+  MAX_SHARE_PAGE_BYTES,
+  nextSweep,
+  openShares,
+  SHARE_CSP,
   normalizeShares,
   renderShare,
   SHARE_CODE_ALPHABET,
@@ -22,6 +26,7 @@ import {
   shareUrl
 } from "./share.mjs";
 import { decryptPayload, readPayload, WrongPasswordError } from "./client/share-unlock.mjs";
+import { checkIndex } from "./site.mjs";
 
 const NOW = Date.parse("2026-10-19T12:00:00Z");
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
@@ -188,22 +193,49 @@ describe("normalizeShares", () => {
   });
 });
 
-describe("expiredShares and nextExpiry", () => {
+describe("closed links and the sweep", () => {
   const shares = normalizeShares({
     shares: [
       { code: "ABCDEFGHJK", expiresAt: "2026-10-19T11:00:00.000Z" },
       { code: "BCDEFGHJKL", expiresAt: "2026-10-21T00:00:00.000Z" },
-      { code: "CDEFGHJKLM" }
+      { code: "CDEFGHJKLM" },
+      { code: "DEFGHJKLMN", revoked: true }
     ]
   });
 
-  it("names the links whose time is up", () => {
-    expect(expiredShares(shares, NOW)).toEqual(["ABCDEFGHJK"]);
+  it("names the links whose time is up and those taken down", () => {
+    expect(expiredShares(shares, NOW)).toEqual(["ABCDEFGHJK", "DEFGHJKLMN"]);
   });
 
-  it("says when the next one runs out, or that none will", () => {
-    expect(nextExpiry(shares)).toBe(Date.parse("2026-10-19T11:00:00.000Z"));
-    expect(nextExpiry(normalizeShares({ shares: [{ code: "CDEFGHJKLM" }] }))).toBeNull();
+  it("tells the plugin only of links a reader can open", () => {
+    expect(openShares(shares, NOW).map((share) => share.code)).toEqual([
+      "BCDEFGHJKL",
+      "CDEFGHJKLM"
+    ]);
+  });
+
+  it("looks again when the next link runs out, or never when none will", () => {
+    const open = normalizeShares({
+      shares: [
+        { code: "BCDEFGHJKL", expiresAt: "2026-10-21T00:00:00.000Z" },
+        { code: "CDEFGHJKLM" }
+      ]
+    });
+    expect(nextSweep(open, NOW, 900_000)).toBe(Date.parse("2026-10-21T00:00:00.000Z"));
+    expect(nextSweep(normalizeShares({ shares: [{ code: "CDEFGHJKLM" }] }), NOW, 1)).toBeNull();
+  });
+
+  it("waits a while before it tries a closed link the host kept again", () => {
+    expect(nextSweep(shares, NOW, 900_000)).toBe(NOW + 900_000);
+  });
+});
+
+describe("maxShareRequestBytes", () => {
+  it("admits the largest request the parts allow, and grows with the note's allowance", () => {
+    const pictures = Math.ceil((20_000_000 * 4) / 3);
+    const escaped = 6 * (2_000_000 + 1_000_000);
+    expect(maxShareRequestBytes(2_000_000)).toBeGreaterThan(pictures + escaped);
+    expect(maxShareRequestBytes(10_000_000)).toBeGreaterThan(maxShareRequestBytes(2_000_000));
   });
 });
 
@@ -229,6 +261,13 @@ describe("apacheTime and shareHtaccess", () => {
     expect(text).toContain("Require all denied");
     expect(text).toContain("noindex");
     expect(text).toContain("no-store");
+    expect(text).toContain(`Content-Security-Policy "${SHARE_CSP}"`);
+    expect(text).toContain("nosniff");
+  });
+
+  it("allows no inline script, so a note's own handlers stay inert", () => {
+    expect(SHARE_CSP).toContain("script-src 'self'");
+    expect(SHARE_CSP).not.toMatch(/script-src[^;]*unsafe-inline/);
   });
 
   it("denies nothing for a link without an end", () => {
@@ -251,6 +290,17 @@ describe("renderShare", () => {
       { sourcePath: "Anhänge/bild.png", extension: "png", bytes: PNG }
     ]);
     expect(html).toContain(`src="data:image/png;base64,${PNG.toString("base64")}"`);
+  });
+
+  it("puts a picture shown twice in twice, and refuses a page past its bound", () => {
+    const picture = { sourcePath: "bild.png", extension: "png", bytes: PNG };
+    const { html } = render("![[bild.png]] ![[bild.png]]\n", [picture]);
+    expect(html.split("data:image/png;base64,")).toHaveLength(3);
+    expect(html).not.toContain("schreibstube-share-asset-");
+
+    const big = { ...picture, bytes: Buffer.concat([PNG, Buffer.alloc(2_000_000)]) };
+    const many = "![[bild.png]]\n".repeat(Math.ceil(MAX_SHARE_PAGE_BYTES / 2_600_000) + 1);
+    expect(() => render(many, [big])).toThrow(ShareError);
   });
 
   it("names a picture it does not carry, and shows a diagram as its source", () => {
@@ -278,6 +328,13 @@ describe("sharePage", () => {
     expect(page).toContain('href="katex/katex.css"');
     expect(page).toContain('src="slideshow.js"');
     expect(page).not.toContain("unlock.js");
+    expect(page).toContain('<meta http-equiv="Content-Security-Policy"');
+    expect(page).toMatch(/script-src (&#39;|')self(&#39;|');/);
+  });
+
+  it("leaves the policy to a host that sends it as a header", () => {
+    const page = sharePage({ title: "A", body: "", expiresAt: null, csp: null });
+    expect(page).not.toContain("Content-Security-Policy");
   });
 
   it("does not print the title twice when the note opens with its own", () => {
@@ -318,5 +375,13 @@ describe("encryptShare", () => {
     await expect(decryptPayload(payload, "Müller-1234")).resolves.toMatchObject({
       title: "T"
     });
+  });
+});
+
+describe("the share directory", () => {
+  it("is an address no published note may take", () => {
+    const note = (slug) => ({ sourcePath: `${slug}.md`, sha256: "a".repeat(64), slug });
+    expect(() => checkIndex({ notes: [note("s")], assets: [] })).toThrow("kept for shared links");
+    expect(() => checkIndex({ notes: [note("so")], assets: [] })).not.toThrow();
   });
 });

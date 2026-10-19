@@ -3,6 +3,10 @@ import {
   bytesToBase64,
   checkSharePassword,
   expiresAtFor,
+  expiryForChoice,
+  passwordForChoice,
+  shareAccountFor,
+  shareReferences,
   generateSharePassword,
   linksOfNote,
   MAX_SHARE_ASSET_BYTES,
@@ -138,5 +142,86 @@ describe("linksOfNote", () => {
     const newer = link();
     const other = link({ code: "CDEFGHJKLM", sourcePath: "Anderes.md" });
     expect(linksOfNote([older, other, newer], "Kunden/Angebot.md")).toEqual([newer, older]);
+  });
+});
+
+describe("expiryForChoice", () => {
+  it("counts a new link's time from now", () => {
+    expect(expiryForChoice({ expiry: "1d", edited: false, now: NOW })).toBe(
+      "2026-10-20T12:00:00.000Z"
+    );
+  });
+
+  it("keeps an updated link's time unless another was chosen", () => {
+    const open = link({ expiresAt: "2026-12-01T00:00:00.000Z" });
+    expect(expiryForChoice({ expiry: "7d", edited: false, link: open, now: NOW })).toBe(
+      "2026-12-01T00:00:00.000Z"
+    );
+    expect(expiryForChoice({ expiry: "7d", edited: false, link: link(), now: NOW })).toBeNull();
+    expect(expiryForChoice({ expiry: "1d", edited: true, link: open, now: NOW })).toBe(
+      "2026-10-20T12:00:00.000Z"
+    );
+  });
+
+  it("counts from now for a link whose time has already run out", () => {
+    const past = link({ expiresAt: "2026-10-01T00:00:00.000Z" });
+    expect(expiryForChoice({ expiry: "1d", edited: false, link: past, now: NOW })).toBe(
+      "2026-10-20T12:00:00.000Z"
+    );
+  });
+});
+
+describe("passwordForChoice", () => {
+  it("takes the field as it is for a new link", () => {
+    expect(passwordForChoice({ password: "abcd-efgh", chosen: false })).toBe("abcd-efgh");
+  });
+
+  it("asks for the password before a protected link is updated, and keeps an open one open", () => {
+    expect(passwordForChoice({ password: "drawn-one", chosen: false, link: link() })).toBeNull();
+    expect(
+      passwordForChoice({ password: "drawn-one", chosen: false, link: link({ protected: false }) })
+    ).toBe("");
+    expect(passwordForChoice({ password: "the-old-one", chosen: true, link: link() })).toBe(
+      "the-old-one"
+    );
+  });
+});
+
+describe("shareReferences", () => {
+  it("reads only what is sent: no picture named in a comment or the frontmatter", () => {
+    const note =
+      "---\ncover: '![[titel.png]]'\n---\n![[bild.png]]\n%%![[privat.png]]%%\n![](plan.jpg)\n";
+    expect(shareReferences(note)).toEqual(["bild.png", "plan.jpg"]);
+  });
+});
+
+describe("shareAccountFor", () => {
+  const account = (id: string, folder: string) => ({
+    id,
+    name: id,
+    folder,
+    target: id,
+    writeBack: false,
+    aiDescription: false,
+    headerTags: []
+  });
+  const blog = account("blog", "Blog");
+  const clients = account("clients", "Kunden");
+  const vault = account("vault", "");
+
+  it("takes the account whose folder holds the note", () => {
+    expect(shareAccountFor([blog, clients], "Kunden/Angebot.md")).toBe(clients);
+  });
+
+  it("asks when no folder or more than one holds it, or when no note says", () => {
+    expect(shareAccountFor([blog, clients], "Privat/Brief.md")).toBeNull();
+    expect(shareAccountFor([blog, account("blog2", "Blog")], "Blog/a.md")).toBeNull();
+    expect(shareAccountFor([blog, clients], null)).toBeNull();
+  });
+
+  it("takes the only account there is, and never counts the whole vault as a folder", () => {
+    expect(shareAccountFor([blog], null)).toBe(blog);
+    expect(shareAccountFor([blog, vault], "Privat/Brief.md")).toBeNull();
+    expect(shareAccountFor([], "a.md")).toBeNull();
   });
 });

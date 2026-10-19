@@ -318,7 +318,7 @@ export const en = {
     intro:
       "Writes this note, as it is now, to a page under the website's address that only someone " +
       "with the link finds. Links to other notes become plain text and pictures travel inside " +
-      "the page; videos and diagrams are left out.",
+      "the page; videos are left out, and diagrams show as their source.",
     password: "Password",
     passwordDesc:
       "The reader needs it to open the page, which is encrypted with it. Send it through another " +
@@ -337,7 +337,9 @@ export const en = {
     },
     existing: "Links to this note",
     existingDesc:
-      "Update one to put the note as it is now behind the same address. The password and the time are set anew; the bridge never stores a password.",
+      "Update one to put the note as it is now behind the same address. It keeps its time unless you choose another. Enter the password you sent with it, or a new one: the bridge never stores a password.",
+    updatePassword:
+      "Enter the password you sent with this link, or a new one, then update. A drawn password would lock out whoever holds the old one.",
     update: "Update",
     create: "Create link",
     revoke: "Take down",

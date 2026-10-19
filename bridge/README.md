@@ -388,7 +388,8 @@ A shared link is one note at `<BASE_URL>/s/<code>/`, written beside the site
 rather than as part of it. Its files are recorded in `<state>/shares.json`, not
 in the manifest, so a publish neither sees nor removes them, and a share never
 waits for a publish; `s/index.html`, an empty page, keeps a host that lists
-directories from listing the codes. A code is ten characters of an alphabet
+directories from listing the codes, and no published note may take the slug
+`s`. A code is ten characters of an alphabet
 without the letters that read alike, 58 bits, and is drawn afresh for every
 link. Each target keeps at most 200.
 
@@ -398,7 +399,12 @@ MB together, each within `PUBLISH_MAX_IMAGE_BYTES`) folded in as data URLs.
 Diagrams stay their source and videos are named, since either would need a
 file or a script beside the page. A theme the plugin sends dresses it; KaTeX
 and the slideshow script are copied into the link's directory when it uses
-them.
+them. A picture shown twice is in the page twice, so the page itself is held
+to 64 MB, counted before it is put together. Every share page carries a
+policy that allows no inline script or event handler: as a `<meta>` tag, or,
+on a target with `HTACCESS=true`, as a header in the link's own `.htaccess`
+(the target's `CSP` when it sets one), since a target used only for sharing
+has no root file to inherit one from.
 
 With a `password` (8 to 256 characters) the page is ciphertext: AES-256-GCM
 under a key derived by PBKDF2-SHA256 with 600,000 rounds and a fresh salt, the
@@ -414,12 +420,15 @@ tried again in 15 minutes. Listing the links removes those that are due as
 well. On a target with `HTACCESS=true` each link also gets its own `.htaccess`
 that refuses it from that time while the bridge is down, sends `noindex`,
 `no-referrer` and `no-store`, and needs the host to allow `Require` in
-`.htaccess` files. Apache reads the time in the server's local time, and the
+`.htaccess` files. A link taken down whose files the host would not let go
+of is listed no more, and the sweep tries those files again every 15 minutes
+rather than every minute. Apache reads the time in the server's local time, and the
 bridge writes UTC: a host east of Greenwich refuses the link early by its
 offset, never late.
 
-A share request is one JSON body of at most 30 MB, with up to 180 seconds to
-be written. Rewriting a link by its `code` keeps its address and its creation
+A share request is one JSON body, held to what its parts allow — the pictures
+as base64 and the note and the theme as JSON may write them, about 45 MB with
+the default `PUBLISH_MAX_SOURCE_BYTES` — with up to 180 seconds to be written. Rewriting a link by its `code` keeps its address and its creation
 time; the files it no longer needs go once the new ones are in place, and a
 file the host would not delete stays in the record, so the next sweep tries
 again.

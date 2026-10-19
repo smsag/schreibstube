@@ -19,6 +19,7 @@ import { promisify } from "node:util";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { escapeHtml, key } from "./render/obsidian.mjs";
 import { extensionOf, slugify } from "./path.mjs";
+import { decodedLength, isBase64 } from "../base64.mjs";
 import { hasSignature } from "./signatures.mjs";
 import { isSafeSvg } from "./svg-guard.mjs";
 
@@ -42,12 +43,30 @@ export const MAX_SHARES = 200;
 /** How many pictures one share carries, and how much they may weigh together. */
 export const MAX_SHARE_ASSETS = 50;
 export const MAX_SHARE_ASSET_BYTES = 20_000_000;
-/** The request: the pictures as base64, which is a third larger, plus the note. */
-export const MAX_SHARE_REQUEST_BYTES = 30_000_000;
+/**
+ * The largest page a share may come to. A picture shown twice is in the page
+ * twice, so the inputs' limits do not bound it; this does, before the page is
+ * put together.
+ */
+export const MAX_SHARE_PAGE_BYTES = 64_000_000;
 /** The longest a link may stay open. A share that should outlive a year is a page. */
 export const MAX_SHARE_DAYS = 366;
 export const MAX_SHARE_TITLE_LENGTH = 200;
 export const MAX_SHARE_THEME_BYTES = 1_000_000;
+
+/**
+ * The largest request body, from its parts: the pictures as base64, a third
+ * larger, and the note and the theme as JSON writes them, where a control
+ * character takes six bytes. Derived, so a larger PUBLISH_MAX_SOURCE_BYTES
+ * raises it with the note it allows.
+ */
+export function maxShareRequestBytes(maxSourceBytes) {
+  return (
+    Math.ceil((MAX_SHARE_ASSET_BYTES * 4) / 3) +
+    6 * (maxSourceBytes + MAX_SHARE_THEME_BYTES) +
+    64_000
+  );
+}
 /**
  * A password the reader types, so it may be short; the derivation is what
  * makes guessing it offline slow. Six hundred thousand rounds of PBKDF2 is
@@ -170,17 +189,16 @@ function checkShareAssets(value, maxImageBytes) {
     if (!SHARE_IMAGE_TYPES.has(extension)) {
       throw new ShareError(`Not a picture a share can carry: ${sourcePath}.`);
     }
-    if (typeof asset.data !== "string" || !isBase64(asset.data)) {
-      throw new ShareError(`${sourcePath}: data must be base64.`);
-    }
-    const bytes = Buffer.from(asset.data, "base64");
-    if (bytes.length > maxImageBytes) {
+    if (!isBase64(asset.data)) throw new ShareError(`${sourcePath}: data must be base64.`);
+    const size = decodedLength(asset.data);
+    if (size > maxImageBytes) {
       throw new ShareError(`${sourcePath} exceeds ${maxImageBytes} bytes.`);
     }
-    total += bytes.length;
+    total += size;
     if (total > MAX_SHARE_ASSET_BYTES) {
       throw new ShareError(`The pictures exceed ${MAX_SHARE_ASSET_BYTES} bytes together.`);
     }
+    const bytes = Buffer.from(asset.data, "base64");
     // Shown in an <img>, where an SVG runs nothing; checked all the same, as
     // a published one is, since a reader may open the picture on its own.
     const fits =
@@ -190,10 +208,6 @@ function checkShareAssets(value, maxImageBytes) {
     if (!fits) throw new ShareError(`${sourcePath} is not the ${extension} it is named.`);
     return { sourcePath, extension, bytes };
   });
-}
-
-function isBase64(text) {
-  return text.length % 4 === 0 && /^[A-Za-z0-9+/]*={0,2}$/.test(text);
 }
 
 function checkPassword(value) {
@@ -248,6 +262,8 @@ export function normalizeShares(raw) {
       updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : "",
       expiresAt,
       protected: entry.protected === true,
+      // Taken down, with files the host would not yet let go of.
+      ...(entry.revoked === true ? { revoked: true } : {}),
       files
     });
   }
@@ -258,20 +274,35 @@ export function serializeShares(target, shares) {
   return JSON.stringify({ version: 1, target, shares: [...shares.values()] }, null, 2);
 }
 
-/** The codes whose time is up. */
-export function expiredShares(shares, now) {
-  return [...shares.values()]
-    .filter((share) => share.expiresAt !== null && Date.parse(share.expiresAt) <= now)
-    .map((share) => share.code);
+/** Whether a link is no longer to be read: taken down, or its time is up. */
+export function isClosed(share, now) {
+  return share.revoked === true || (share.expiresAt !== null && Date.parse(share.expiresAt) <= now);
 }
 
-/** When the next share runs out, or null when none will. */
-export function nextExpiry(shares) {
+/** The codes of the links to take down. */
+export function expiredShares(shares, now) {
+  return [...shares.values()].filter((share) => isClosed(share, now)).map((share) => share.code);
+}
+
+/** The links a reader can still open, which is all the plugin is told of. */
+export function openShares(shares, now) {
+  return [...shares.values()].filter((share) => !isClosed(share, now));
+}
+
+/**
+ * When the sweep should next look, or null when nothing will ever be due: the
+ * next link to run out, or — for a closed link whose files the host kept —
+ * a while from now, so a file that cannot be deleted is not tried every minute.
+ */
+export function nextSweep(shares, now, retryMs) {
   let next = null;
   for (const share of shares.values()) {
-    if (share.expiresAt === null) continue;
-    const at = Date.parse(share.expiresAt);
-    if (next === null || at < next) next = at;
+    const at = isClosed(share, now)
+      ? now + retryMs
+      : share.expiresAt === null
+        ? null
+        : Date.parse(share.expiresAt);
+    if (at !== null && (next === null || at < next)) next = at;
   }
   return next;
 }
@@ -298,20 +329,40 @@ export function describeShare(share, baseUrl) {
  */
 export function renderShare({ source, sourcePath, assets, allowHtml }) {
   const md = createRenderer({ allowHtml, allowDiagrams: false });
+  // Rendered with a short stand-in for each picture, so the page's size can
+  // be counted before a picture shown a thousand times is a thousand copies.
   const table = new Map();
-  for (const asset of assets) {
+  const urls = assets.map(
+    (asset) =>
+      `data:${SHARE_IMAGE_TYPES.get(asset.extension)};base64,${asset.bytes.toString("base64")}`
+  );
+  assets.forEach((asset, index) => {
     const name = asset.sourcePath.split("/").pop();
-    const entry = {
-      url: `data:${SHARE_IMAGE_TYPES.get(asset.extension)};base64,${asset.bytes.toString("base64")}`,
-      name,
-      kind: "image"
-    };
+    const entry = { url: `${ASSET_MARK}${index}-`, name, kind: "image" };
     table.set(key(asset.sourcePath), entry);
     table.set(key(name), entry);
-  }
+  });
   const site = { notes: new Map(), assets: table, slugify };
-  return renderMarkdown(md, source, site, { sourcePath });
+  const rendered = renderMarkdown(md, source, site, { sourcePath });
+
+  const marks = new RegExp(`${ASSET_MARK}(\\d+)-`, "g");
+  let size = rendered.html.length;
+  for (const match of rendered.html.matchAll(marks)) {
+    size += (urls[Number(match[1])]?.length ?? 0) - match[0].length;
+  }
+  if (size > MAX_SHARE_PAGE_BYTES) {
+    throw new ShareError(
+      `The page would come to more than ${MAX_SHARE_PAGE_BYTES} bytes; show fewer pictures, or each fewer times.`
+    );
+  }
+  return {
+    ...rendered,
+    html: rendered.html.replace(marks, (mark, index) => urls[Number(index)] ?? mark)
+  };
 }
+
+/** What a picture is called in the page until the page's size is known. */
+const ASSET_MARK = "schreibstube-share-asset-";
 
 /**
  * The page's text, encrypted with a key derived from the password: AES-GCM,
@@ -344,9 +395,21 @@ export async function encryptShare(plaintext, password, { random = randomBytes }
  * asks for the password. Neither kind is to be indexed or to pass its address
  * on to a site it links to.
  */
-export function sharePage({ title, body, encrypted = null, expiresAt, usedMath, usedSlideshow }) {
+export function sharePage({
+  title,
+  body,
+  encrypted = null,
+  expiresAt,
+  usedMath,
+  usedSlideshow,
+  csp = SHARE_CSP
+}) {
   const head = [
     `<meta charset="utf-8">`,
+    // Before anything it governs. A host that sends the policy as a header
+    // gets none here: the two would both apply, and the target's own
+    // policy, which may allow a theme's web font, could only be narrowed.
+    csp ? `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(csp)}">` : null,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
     `<meta name="robots" content="noindex, nofollow">`,
     `<meta name="referrer" content="no-referrer">`,
@@ -399,6 +462,25 @@ export function sharePlaintext({ title, body }) {
   return JSON.stringify({ title, html: `${heading}${body}` });
 }
 
+/**
+ * What a share page needs and no more: its own scripts, inline styles for
+ * KaTeX, pictures as data URLs. No inline script and no inline event handler,
+ * so raw HTML in a note — inserted by the unlock script too — runs nothing.
+ */
+export const SHARE_CSP = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "media-src 'self' https:",
+  "font-src 'self' data:",
+  "frame-src https:",
+  "object-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'"
+].join("; ");
+
 const SHARE_CSS =
   ".share-unlock{max-width:22rem;margin:4rem auto;display:grid;gap:.6rem}" +
   ".share-unlock input,.share-unlock button{font:inherit;padding:.5rem .6rem}" +
@@ -414,13 +496,17 @@ const SHARE_CSS =
  * in Europe — closes the link early by its offset, never late; the bridge
  * removes the files at the minute itself.
  */
-export function shareHtaccess({ expiresAt }) {
+export function shareHtaccess({ expiresAt, csp = SHARE_CSP }) {
   const lines = ["# Written by the Schreibstube bridge for one shared link; removed with it."];
   if (expiresAt) {
     lines.push(`<If "%{TIME} >= '${apacheTime(expiresAt)}'">`, "  Require all denied", "</If>");
   }
   lines.push(
     "<IfModule mod_headers.c>",
+    // Set here, not left to the site's root: a target used only for sharing
+    // has never been published, and has no root file to inherit.
+    `  Header always set Content-Security-Policy "${csp}"`,
+    '  Header always set X-Content-Type-Options "nosniff"',
     '  Header always set X-Robots-Tag "noindex, nofollow"',
     '  Header always set Referrer-Policy "no-referrer"',
     '  Header always set Cache-Control "no-store"',

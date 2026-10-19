@@ -192,7 +192,7 @@ describe("sharing the open note", () => {
 
   it("sends the note as a page shows it, with its pictures, and says what stayed behind", async () => {
     await setup().shareActiveNote();
-    dialogs.share[0]?.submit({ password: "korrekt-pferd", expiry: "never" });
+    dialogs.share[0]?.submit({ password: "korrekt-pferd", expiresAt: null });
     await vi.waitFor(() => expect(dialogs.result).toHaveLength(1));
 
     const [, request] = client.create.mock.calls[0] ?? [];
@@ -215,12 +215,16 @@ describe("sharing the open note", () => {
 
   it("rewrites a link by its code, and sends no password for an open one", async () => {
     await setup().shareActiveNote();
-    dialogs.share[0]?.submit({ code: "ABCDEFGHJK", password: "", expiry: "7d" });
+    dialogs.share[0]?.submit({
+      code: "ABCDEFGHJK",
+      password: "",
+      expiresAt: "2026-12-01T00:00:00.000Z"
+    });
     await vi.waitFor(() => expect(client.create).toHaveBeenCalled());
     const [, request] = client.create.mock.calls[0] ?? [];
     expect(request.code).toBe("ABCDEFGHJK");
     expect(request).not.toHaveProperty("password");
-    expect(Date.parse(request.expiresAt)).toBeGreaterThan(Date.now());
+    expect(request.expiresAt).toBe("2026-12-01T00:00:00.000Z");
   });
 
   it("asks which account when no folder holds the note", async () => {
@@ -259,6 +263,12 @@ describe("sharing the open note", () => {
 });
 
 describe("managing links", () => {
+  it("asks which site with several accounts, whatever note is open", async () => {
+    await setup().manageShares();
+    expect(dialogs.chosen).toHaveLength(1);
+    await vi.waitFor(() => expect(dialogs.list).toHaveLength(1));
+  });
+
   it("lists the account's links, and says when a revoke left a file behind", async () => {
     await setup({ accounts: [clients] }).manageShares();
     expect(dialogs.list[0]?.name).toBe("Clients");
@@ -277,7 +287,7 @@ describe("telling the file pane", () => {
   it("passes on each list, and the list as a share or a revoke leaves it", async () => {
     client.create.mockResolvedValueOnce({ ...LINK, code: "CDEFGHJKLM" });
     await setup().shareActiveNote();
-    dialogs.share[0]?.submit({ password: "korrekt-pferd", expiry: "7d" });
+    dialogs.share[0]?.submit({ password: "korrekt-pferd", expiresAt: null });
     await vi.waitFor(() => expect(heard).toHaveLength(2));
     expect(heard).toEqual([
       { target: "kunden", codes: ["ABCDEFGHJK", "BCDEFGHJKL"] },

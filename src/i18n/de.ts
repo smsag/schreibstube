@@ -304,7 +304,7 @@ export const de: Messages = {
     intro:
       "Schreibt diese Notiz, wie sie jetzt ist, auf eine Seite unter der Adresse der Website, die " +
       "nur findet, wer den Link hat. Links auf andere Notizen werden zu Text, Bilder reisen in der " +
-      "Seite mit; Videos und Diagramme bleiben weg.",
+      "Seite mit; Videos bleiben weg, Diagramme erscheinen als ihr Quelltext.",
     password: "Passwort",
     passwordDesc:
       "Damit öffnet der Empfänger die Seite, die damit verschlüsselt ist. Schick es auf einem " +
@@ -323,7 +323,9 @@ export const de: Messages = {
     },
     existing: "Links auf diese Notiz",
     existingDesc:
-      "Aktualisieren legt die Notiz, wie sie jetzt ist, hinter dieselbe Adresse. Passwort und Frist werden neu gesetzt; die Bridge speichert kein Passwort.",
+      "Aktualisieren legt die Notiz, wie sie jetzt ist, hinter dieselbe Adresse. Die Frist bleibt, wenn du keine andere wählst. Gib das Passwort ein, das du mitgeschickt hast, oder ein neues: Die Bridge speichert kein Passwort.",
+    updatePassword:
+      "Gib das Passwort ein, das du zu diesem Link geschickt hast, oder ein neues, und aktualisiere dann. Ein gewürfeltes Passwort sperrte aus, wer das alte hat.",
     update: "Aktualisieren",
     create: "Link erstellen",
     revoke: "Zurückziehen",

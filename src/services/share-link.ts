@@ -6,8 +6,10 @@
  * (`bridge/publish/share.mjs`), so a note the bridge would refuse is refused
  * here first, with a message that names the vault's own files.
  */
+import type { PublishAccount } from "../types";
 import { asRecord, str } from "./bridge-protocol";
-import { isPublishableAttachment } from "./publish-index";
+import { isInsideFolder, isPublishableAttachment, referencedAttachments } from "./publish-index";
+import { sourceForUpload } from "./publish-source";
 
 /** The bridge allows a share 180 s to write; the plugin waits a little longer. */
 export const SHARE_REQUEST_TIMEOUT_MS = 200_000;
@@ -35,6 +37,49 @@ const EXPIRY_DAYS: Record<ShareExpiry, number | null> = {
   "90d": 90,
   never: null
 };
+
+/**
+ * When a link closes once it is written: the time chosen, counted from now —
+ * or, for a link being updated whose time nobody touched, the time it already
+ * had, so updating the text neither shortens nor lengthens what was promised.
+ */
+export function expiryForChoice({
+  expiry,
+  edited,
+  link,
+  now
+}: {
+  expiry: ShareExpiry;
+  edited: boolean;
+  link?: SharedLink;
+  now: number;
+}): string | null {
+  if (link && !edited) {
+    if (link.expiresAt === null) return null;
+    if (Date.parse(link.expiresAt) > now) return link.expiresAt;
+  }
+  return expiresAtFor(expiry, now);
+}
+
+/**
+ * The password a link is written with, or null when the person has to enter
+ * one first. An update keeps what the link had unless the person changed it:
+ * the password drawn when the dialog opened would lock out a reader holding
+ * the old one, so a protected link waits for one to be entered, the old or a
+ * new; an open link stays open.
+ */
+export function passwordForChoice({
+  password,
+  chosen,
+  link
+}: {
+  password: string;
+  chosen: boolean;
+  link?: SharedLink;
+}): string | null {
+  if (!link || chosen) return password;
+  return link.protected ? null : "";
+}
 
 /** When a link chosen now closes, as the bridge reads it. */
 export function expiresAtFor(choice: ShareExpiry, now: number): string | null {
@@ -74,6 +119,34 @@ export function checkSharePassword(value: string): PasswordCheck {
   if (length < MIN_SHARE_PASSWORD_LENGTH) return "short";
   if (length > MAX_SHARE_PASSWORD_LENGTH) return "long";
   return "ok";
+}
+
+/**
+ * The files a shared note embeds, read from what is sent rather than from the
+ * note: a picture named only in a `%%comment%%` or the frontmatter is not on
+ * the page, so it is neither sent nor counted against the budget.
+ */
+export function shareReferences(content: string): string[] {
+  return referencedAttachments(sourceForUpload(content));
+}
+
+/**
+ * Which account a note is shared through, or null when the person has to say:
+ * the one whose folder holds the note, if exactly one does; the only account,
+ * if there is one. With no note — managing the links — only the second holds,
+ * since an open note says nothing about which site's links are wanted.
+ */
+export function shareAccountFor(
+  accounts: readonly PublishAccount[],
+  path: string | null
+): PublishAccount | null {
+  if (path) {
+    const holding = accounts.filter(
+      (account) => account.folder !== "" && isInsideFolder(path, account.folder)
+    );
+    if (holding.length === 1) return holding[0] ?? null;
+  }
+  return accounts.length === 1 ? (accounts[0] ?? null) : null;
 }
 
 /** A picture a note embeds, as far as a share is concerned. */

@@ -158,11 +158,26 @@ describe("POST /publish/share", () => {
     expect(opened.title).toBe("Angebot");
   });
 
-  it("writes the closing rule for a host that reads .htaccess", async () => {
+  it("writes the closing rule and the policy for a host that reads .htaccess", async () => {
     const { host, share } = setup({ htaccess: true });
     const answer = await share({ ...note, expiresAt: "2026-10-26T12:00:00Z" });
     expect(answer.expiresAt).toBe("2026-10-26T12:00:00.000Z");
-    expect(host.text(`/site/s/${answer.code}/.htaccess`)).toContain("20261026120000");
+    const rules = host.text(`/site/s/${answer.code}/.htaccess`);
+    expect(rules).toContain("20261026120000");
+    expect(rules).toContain("Content-Security-Policy");
+    expect(host.text(`/site/s/${answer.code}/index.html`)).not.toContain("http-equiv");
+  });
+
+  it("refuses a page that would grow past its bound, as a bad request", async () => {
+    const { share } = setup();
+    const picture = Buffer.concat([PNG, Buffer.alloc(90_000)]).toString("base64");
+    await expect(
+      share({
+        ...note,
+        source: "![[bild.png]]\n".repeat(6_000),
+        assets: [{ sourcePath: "bild.png", data: picture }]
+      })
+    ).rejects.toMatchObject({ status: 400, code: "invalid_share" });
   });
 
   it("guards a state directory inside the web root", async () => {
@@ -249,8 +264,26 @@ describe("POST /publish/share/revoke", () => {
     await expect(revoke(answer.code)).resolves.toEqual({ code: answer.code, revoked: false });
     expect(record().shares[0]).toMatchObject({
       files: [`s/${answer.code}/theme.css`],
-      expiresAt: "1970-01-01T00:00:00.000Z"
+      revoked: true,
+      expiresAt: null
     });
+  });
+
+  it("lists a link the host kept a file of as gone, and the sweep tries it again later, not every minute", async () => {
+    const { share, revoke, list, shares, clock, logged } = setup({
+      fail: (path) => path.endsWith("theme.css")
+    });
+    const answer = await share(note);
+    await revoke(answer.code);
+    expect((await list()).shares).toEqual([]);
+
+    const tries = () => logged.filter((entry) => entry.message.includes("file(s) left")).length;
+    clock.at += 60_000;
+    await shares.sweep();
+    expect(tries()).toBe(0);
+    clock.at += SWEEP_RETRY_MS;
+    await shares.sweep();
+    expect(tries()).toBe(1);
   });
 });
 

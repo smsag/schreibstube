@@ -894,7 +894,7 @@ async function appendHistory(remote, summary) {
 }
 
 /** Put the deny file into the state directory, unless one is there. */
-async function guardState(remote) {
+export async function guardState(remote) {
   const path = remote.stateAbsolute(STATE_GUARD_FILE);
   if (await remote.exists(path)) return;
   await remote.writeAbsolute(path, Buffer.from(STATE_GUARD, "utf8"));

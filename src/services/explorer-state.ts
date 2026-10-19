@@ -197,8 +197,10 @@ export function recordSharedLinks(
   const wanted = new Map<string, number>();
   for (const link of links) {
     if (!exists(link.sourcePath)) continue;
+    // 0 stands for "until taken down" below, so a time is taken only when it
+    // lies ahead: a closed link, or one dated 1970, marks nothing.
     const at = link.expiresAt === null ? 0 : Date.parse(link.expiresAt);
-    if (!Number.isFinite(at)) continue;
+    if (link.expiresAt !== null && !(at > now)) continue;
     const known = wanted.get(link.sourcePath);
     wanted.set(link.sourcePath, known === 0 || at === 0 ? 0 : Math.max(known ?? at, at));
   }

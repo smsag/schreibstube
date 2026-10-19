@@ -16,20 +16,22 @@ import { generatorAssets } from "./assets.mjs";
 import { createConnectionPool } from "./connection-pool.mjs";
 import { checkRelativePath } from "./path.mjs";
 import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
-import { exclusive, openRemote, STATE_GUARD, targetFor, withRemote } from "./routes.mjs";
+import { exclusive, guardState, openRemote, targetFor, withRemote } from "./routes.mjs";
 import {
   checkShareRequest,
   describeShare,
   encryptShare,
   expiredShares,
   isShareCode,
-  MAX_SHARE_REQUEST_BYTES,
   MAX_SHARES,
+  maxShareRequestBytes,
   newShareCode,
-  nextExpiry,
+  nextSweep,
   normalizeShares,
+  openShares,
   renderShare,
   serializeShares,
+  SHARE_CSP,
   SHARE_DIRECTORY,
   SHARE_INDEX_GUARD,
   shareDirectory,
@@ -91,7 +93,7 @@ export function createShareRoutes(
       remote.stateAbsolute(SHARES_FILE),
       Buffer.from(serializeShares(target.name, shares), "utf8")
     );
-    due.set(target.name, nextExpiry(shares));
+    due.set(target.name, nextSweep(shares, now(), SWEEP_RETRY_MS));
   }
 
   /** The files that could not be removed; a missing one is removed already. */
@@ -127,14 +129,6 @@ export function createShareRoutes(
     return codes.length;
   }
 
-  async function guardState(remote, target) {
-    if (!target.stateInsideRoot) return;
-    const path = remote.stateAbsolute(".htaccess");
-    if (!(await remote.exists(path))) {
-      await remote.writeAbsolute(path, Buffer.from(STATE_GUARD, "utf8"));
-    }
-  }
-
   async function freshCode(remote, shares) {
     for (let attempt = 0; attempt < CODE_ATTEMPTS; attempt += 1) {
       const code = newShareCode(random);
@@ -160,7 +154,7 @@ export function createShareRoutes(
           withRemote(pool, target, config.requestTimeoutMs, async (remote) => {
             const shares = await load(remote);
             if ((await settle(remote, target, shares, log)) > 0) await save(remote, target, shares);
-            else due.set(target.name, nextExpiry(shares));
+            else due.set(target.name, nextSweep(shares, now(), SWEEP_RETRY_MS));
           })
         );
       } catch (err) {
@@ -191,10 +185,12 @@ export function createShareRoutes(
         withRemote(pool, target, config.requestTimeoutMs, async (remote) => {
           const shares = await load(remote);
           if ((await settle(remote, target, shares, say)) > 0) await save(remote, target, shares);
-          else due.set(target.name, nextExpiry(shares));
+          else due.set(target.name, nextSweep(shares, now(), SWEEP_RETRY_MS));
+          // A link the host kept a file of is closed all the same, and the
+          // plugin is told only of links a reader can open.
           return {
             target: target.name,
-            shares: [...shares.values()]
+            shares: openShares(shares, now())
               .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
               .map((share) => describeShare(share, target.baseUrl))
           };
@@ -205,7 +201,7 @@ export function createShareRoutes(
     route(
       "POST",
       "/publish/share",
-      MAX_SHARE_REQUEST_BYTES,
+      maxShareRequestBytes(publish.maxSourceBytes),
       "json",
       async ({ body, log: say, authorization }) => {
         const target = targetFor(publish, body?.target, authorization);
@@ -216,11 +212,11 @@ export function createShareRoutes(
             maxImageBytes: publish.maxImageBytes
           })
         );
-        const rendered = renderShare({ ...request, allowHtml: target.allowHtml });
+        const rendered = checked(() => renderShare({ ...request, allowHtml: target.allowHtml }));
 
         return exclusive(busy, target.name, () =>
           withRemote(pool, target, writeTimeoutMs, async (remote) => {
-            await guardState(remote, target);
+            if (target.stateInsideRoot) await guardState(remote);
             const shares = await load(remote);
             await settle(remote, target, shares, say);
 
@@ -294,12 +290,7 @@ export function createShareRoutes(
             if (!share) throw httpError(404, "unknown_share", `No such share: ${body.code}.`);
             const left = await removeFiles(remote, share.files);
             if (left.length === 0) shares.delete(share.code);
-            else
-              shares.set(share.code, {
-                ...share,
-                files: left,
-                expiresAt: new Date(0).toISOString()
-              });
+            else shares.set(share.code, { ...share, files: left, revoked: true });
             await save(remote, target, shares);
             say("info", `share ${target.name}/${share.code}: revoked, ${left.length} file(s) left`);
             return { code: share.code, revoked: left.length === 0 };
@@ -326,11 +317,14 @@ export async function shareFiles({ code, request, rendered, target, random }) {
     usedMath: rendered.usedMath,
     usedSlideshow: rendered.usedSlideshow
   };
+  // A host that reads .htaccess is sent the policy as a header (below).
+  const csp = target.htaccess ? null : SHARE_CSP;
   const page =
     request.password === null
-      ? sharePage({ ...shown, body: rendered.html })
+      ? sharePage({ ...shown, csp, body: rendered.html })
       : sharePage({
           ...shown,
+          csp,
           encrypted: await encryptShare(
             sharePlaintext({ title: request.title, body: rendered.html }),
             request.password,
@@ -355,7 +349,10 @@ export async function shareFiles({ code, request, rendered, target, random }) {
   if (target.htaccess) {
     files.set(
       `${directory}/.htaccess`,
-      Buffer.from(shareHtaccess({ expiresAt: request.expiresAt }), "utf8")
+      Buffer.from(
+        shareHtaccess({ expiresAt: request.expiresAt, csp: target.csp ?? SHARE_CSP }),
+        "utf8"
+      )
     );
   }
   return files;

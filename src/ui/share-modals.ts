@@ -4,9 +4,11 @@ import type { Logger } from "../services/logger";
 import {
   checkSharePassword,
   DEFAULT_SHARE_EXPIRY,
+  expiryForChoice,
   generateSharePassword,
   MAX_SHARE_PASSWORD_LENGTH,
   MIN_SHARE_PASSWORD_LENGTH,
+  passwordForChoice,
   SHARE_EXPIRY_CHOICES,
   type ShareExpiry,
   type SharedLink
@@ -17,7 +19,8 @@ export interface ShareChoice {
   /** The link to rewrite, or none for a new one. */
   code?: string;
   password: string;
-  expiry: ShareExpiry;
+  /** When the link closes, null for never. */
+  expiresAt: string | null;
 }
 
 /** What a link says about itself in a list: whether it asks for a password, and until when. */
@@ -36,7 +39,11 @@ export function linkSummary(link: SharedLink): string {
 export class ShareModal extends Modal {
   private password = generateSharePassword();
   private expiry: ShareExpiry = DEFAULT_SHARE_EXPIRY;
+  /** Whether the person chose the password, rather than taking the one drawn. */
+  private passwordChosen = false;
+  private expiryChosen = false;
   private warning: HTMLElement | null = null;
+  private field: { setValue(value: string): unknown } | null = null;
 
   constructor(
     app: App,
@@ -54,21 +61,22 @@ export class ShareModal extends Modal {
     contentEl.createEl("h3", { text: t().share.title(this.noteTitle) });
     contentEl.createEl("p", { text: t().share.intro });
 
-    let field: { setValue(value: string): unknown } | null = null;
     new Setting(contentEl)
       .setName(t().share.password)
       .setDesc(t().share.passwordDesc)
       .addText((text) => {
-        field = text;
+        this.field = text;
         text.setValue(this.password).onChange((value) => {
           this.password = value;
+          this.passwordChosen = true;
           this.validate();
         });
       })
       .addButton((button) =>
         button.setButtonText(t().share.passwordGenerate).onClick(() => {
           this.password = generateSharePassword();
-          field?.setValue(this.password);
+          this.passwordChosen = true;
+          this.field?.setValue(this.password);
           this.validate();
         })
       );
@@ -82,6 +90,7 @@ export class ShareModal extends Modal {
         }
         dropdown.setValue(this.expiry).onChange((value) => {
           this.expiry = value as ShareExpiry;
+          this.expiryChosen = true;
         });
       });
 
@@ -97,7 +106,7 @@ export class ShareModal extends Modal {
           .setName(link.url)
           .setDesc(linkSummary(link))
           .addButton((button) =>
-            button.setButtonText(t().share.update).onClick(() => this.submit(link.code))
+            button.setButtonText(t().share.update).onClick(() => this.submit(link))
           )
           .addButton((button) =>
             button
@@ -132,10 +141,31 @@ export class ShareModal extends Modal {
     return message === "";
   }
 
-  private submit(code?: string): void {
+  /** Write the link, once the password is one to write it with (`passwordForChoice`). */
+  private submit(link?: SharedLink): void {
     if (!this.validate()) return;
+    const password = passwordForChoice({
+      password: this.password,
+      chosen: this.passwordChosen,
+      ...(link ? { link } : {})
+    });
+    if (password === null) {
+      this.password = "";
+      this.field?.setValue("");
+      this.warning?.setText(t().share.updatePassword);
+      return;
+    }
     this.close();
-    this.onSubmit({ ...(code ? { code } : {}), password: this.password, expiry: this.expiry });
+    this.onSubmit({
+      ...(link ? { code: link.code } : {}),
+      password,
+      expiresAt: expiryForChoice({
+        expiry: this.expiry,
+        edited: this.expiryChosen,
+        ...(link ? { link } : {}),
+        now: Date.now()
+      })
+    });
   }
 
   override onClose(): void {

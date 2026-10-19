@@ -602,6 +602,20 @@ describe("shared links", () => {
     expect(data.entries["Brief.md"]).toEqual({ icon: "mail", updatedAt: T0 + 2 * MINUTE });
   });
 
+  it("marks nothing for a link that is already closed, a 1970 one included", () => {
+    const data = recordSharedLinks(
+      emptyExplorerData(),
+      "blog",
+      [
+        { sourcePath: "Brief.md", expiresAt: "1970-01-01T00:00:00.000Z" },
+        { sourcePath: "Kunden/Preise.md", expiresAt: at(T0 - MINUTE) }
+      ],
+      T0,
+      exists
+    );
+    expect(data.entries).toEqual({});
+  });
+
   it("changes nothing when the list says what the marks already say", () => {
     const links = [{ sourcePath: "Brief.md", expiresAt: null }];
     const data = recordSharedLinks(emptyExplorerData(), "blog", links, T0, exists);

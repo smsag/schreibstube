@@ -115,8 +115,10 @@ export function boot(doc, win = doc.defaultView) {
     say(LABELS.opening);
     try {
       const opened = await decryptPayload(payload, input.value, win.crypto.subtle);
-      // The bridge rendered this markup, as it renders every published page;
-      // inserted, a script in it would not run.
+      // The bridge rendered this markup, as it renders every published page.
+      // Inserted this way a <script> stays inert, but an inline handler on
+      // raw HTML from the note would fire; the page's policy, which allows
+      // no inline script, is what stops that.
       content.innerHTML = opened.html;
       content.hidden = false;
       form.remove();
