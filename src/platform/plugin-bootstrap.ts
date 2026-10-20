@@ -5,6 +5,7 @@ import { createTaskFoldExtension } from "../processors/task-fold";
 import { createTaskFoldPostProcessor } from "../processors/task-fold-reading";
 import { registerTaskRibbon } from "../processors/task-ribbon";
 import { registerNoteIndex } from "../processors/note-index";
+import { setTextWithIcons } from "../processors/icon-shortcode";
 import { registerSlideshow, type SlideshowPictureActions } from "../processors/slideshow";
 import type { EditorViewportUpdate } from "../processors/editor-extension";
 import type { SchreibstubeSettings } from "../types";
@@ -31,7 +32,9 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   plugin.registerEditorExtension(createTaskFoldExtension());
   plugin.registerMarkdownPostProcessor(createTaskFoldPostProcessor());
   registerTaskRibbon(plugin);
-  registerNoteIndex(plugin);
+  registerNoteIndex(plugin, (el, text) =>
+    setTextWithIcons(el, text, handlers.getSettings().iconShortcodes)
+  );
   registerSlideshow(plugin, handlers.pictureActions);
 
   // Switching a note to reading view is a layout change, and takes the

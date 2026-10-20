@@ -10,6 +10,7 @@
  * author, who sees it in the note, and a reader can do nothing about it.
  */
 import { escapeAttribute, escapeHtml } from "./html.mjs";
+import { textWithIcons } from "./icons.mjs";
 
 export const NOTE_INDEX_LANGUAGE = "schreibstube-index";
 
@@ -116,6 +117,8 @@ export function pageHeadings(tokens) {
     const words = (inline?.children ?? [])
       .map((child) => {
         if (child.type === "text" || child.type === "code_inline") return child.content;
+        // The icon a heading carries is part of its entry, as in the vault.
+        if (child.type === "icon_shortcode") return `:${child.meta.name}:`;
         return child.type === "softbreak" || child.type === "hardbreak" ? " " : "";
       })
       .join("")
@@ -161,7 +164,7 @@ function nestedList(entries) {
       html += "</li>\n";
       for (; depth > entry.indent; depth -= 1) html += "</ul>\n</li>\n";
     }
-    html += `<li><a href="#${escapeAttribute(entry.id)}">${escapeHtml(entry.text)}</a>`;
+    html += `<li><a href="#${escapeAttribute(entry.id)}">${textWithIcons(entry.text)}</a>`;
   }
   html += "</li>\n";
   for (; depth > 0; depth -= 1) html += "</ul>\n</li>\n";

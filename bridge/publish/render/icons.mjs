@@ -8,9 +8,10 @@
  * it uses and loads nothing for them.
  *
  * Where a shortcode counts follows the plugin: a name that starts with a
- * letter and is in the set, outside code and outside a link. Anything else is
- * left as the text it was — `:note:` in a sentence about notes is a sentence,
- * and `10:30:45` is a time.
+ * letter and is in the set, outside code, and in a link only in the words a
+ * person gave it — `[:folder: Ablage](…)`, `[[Ablage|:folder: Ablage]]` — not
+ * in an address the link shows. Anything else is left as the text it was —
+ * `:note:` in a sentence about notes is a sentence, and `10:30:45` is a time.
  */
 import { escapeHtml } from "./html.mjs";
 import { ICON_SHAPES } from "./icons.generated.mjs";
@@ -92,17 +93,26 @@ export function iconShortcodes(md) {
   md.renderer.rules.icon_shortcode = (tokens, index) => iconSvg(tokens[index].meta.name);
 }
 
+/** A link whose words are its address: linkify's and `<https://…>`. */
+function showsAddress(token) {
+  return token.info === "auto" || token.markup === "linkify" || token.markup === "autolink";
+}
+
+/** Words that read as an address, whatever link they stand in. */
+const ADDRESS = /^\s*(?:[a-z][a-z0-9+.-]*:\/\/|www\.|mailto:)/i;
+
 function withIcons(children, Token) {
   const out = [];
-  let linkDepth = 0;
+  const links = [];
   for (const child of children) {
-    if (child.type === "link_open") linkDepth += 1;
-    if (child.type === "link_close") linkDepth = Math.max(0, linkDepth - 1);
+    if (child.type === "link_open") links.push(showsAddress(child));
+    if (child.type === "link_close") links.pop();
 
     const plain =
       child.type === "text" &&
-      linkDepth === 0 &&
+      !links.includes(true) &&
       !child.meta?.fromLink &&
+      !(links.length > 0 && ADDRESS.test(child.content)) &&
       child.content.includes(":");
     const parts = plain ? splitShortcodes(child.content) : [];
     if (!parts.some((part) => part.icon)) {
