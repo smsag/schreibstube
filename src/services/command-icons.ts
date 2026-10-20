@@ -19,6 +19,7 @@ export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "tidy-done-tasks": "check-check",
   "insert-slideshow": "gallery-horizontal",
   "insert-pdf-summary": "file-text",
+  "pdf-highlights-to-note": "highlighter",
   "explorer-focus-filter": "search",
   "explorer-orphaned-descriptions": "image-off",
   "folder-tiles": "layout-grid",

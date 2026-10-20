@@ -789,6 +789,68 @@ export function templaterRenderer(app: App): TemplaterRender | null {
 }
 
 /**
+ * Templater as the maker of a new note from a template.
+ *
+ * `create_new_note_from_template(template, folder, name, open)` creates the
+ * note, renders the template into it and returns the file. Going through it
+ * rather than creating the note and rendering into it matters for one
+ * reason: Templater's own "trigger on new file creation" watches every new
+ * note, and fills an empty one from a folder template or runs the code in a
+ * full one. A note Templater makes itself is marked as its own while it
+ * works, and the trigger leaves it alone. It deletes the note again when the
+ * template fails, and gives back nothing; so does this. Null when Templater
+ * is not installed or has changed shape.
+ */
+export type TemplaterCreate = (
+  template: TFile,
+  folder: string,
+  name: string
+) => Promise<TFile | null>;
+
+export function templaterCreator(app: App): TemplaterCreate | null {
+  const plugin = (app as unknown as { plugins?: { plugins?: Record<string, unknown> } }).plugins
+    ?.plugins?.[TEMPLATER_ID] as { templater?: Record<string, unknown> } | undefined;
+  const templater = plugin?.templater;
+  const create = templater?.create_new_note_from_template;
+  if (typeof create !== "function") return null;
+  return async (template, folder, name) => {
+    const created: unknown = await create.call(templater, template, folder, name, false);
+    return isFileLike(created) ? (created as TFile) : null;
+  };
+}
+
+function isFileLike(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { path?: unknown }).path === "string" &&
+    typeof (value as { basename?: unknown }).basename === "string"
+  );
+}
+
+/**
+ * The date and time formats of Obsidian's core Templates plugin, so that
+ * `{{date}}` and `{{time}}` come out here as "Insert template" writes them.
+ * The plugin's options are not public; each is read only when it is a
+ * non-empty string, and the core plugin's own defaults stand in otherwise.
+ */
+export function coreTemplateFormats(app: App): { date: string; time: string } {
+  const internal = (
+    app as unknown as {
+      internalPlugins?: { getPluginById?: (id: string) => unknown };
+    }
+  ).internalPlugins;
+  const plugin =
+    typeof internal?.getPluginById === "function"
+      ? (internal.getPluginById("templates") as { instance?: { options?: unknown } } | null)
+      : null;
+  const options = (plugin?.instance?.options ?? {}) as Record<string, unknown>;
+  const text = (value: unknown, fallback: string): string =>
+    typeof value === "string" && value.trim() !== "" ? value : fallback;
+  return { date: text(options.dateFormat, "YYYY-MM-DD"), time: text(options.timeFormat, "HH:mm") };
+}
+
+/**
  * Obsidian's "Add property" control at the foot of a Properties widget, and
  * the widget around it. Class names, read here only; a build that renames
  * them leaves Schreibstube's own control out rather than misplaced.

@@ -15,6 +15,7 @@ function screen(overrides: Partial<CommandContext> = {}): CommandContext {
     selection: false,
     bound: false,
     explorerOpen: false,
+    pdf: false,
     ...overrides
   };
 }
@@ -30,7 +31,8 @@ function offered(context: CommandContext): GatedCommand[] {
     "send-mail",
     "fetch-replies",
     "collapse-explorer",
-    "related"
+    "related",
+    "pdf-highlights"
   ];
 
   return all.filter((command) => commandAvailable(command, context));
@@ -46,6 +48,11 @@ describe("what the palette offers", () => {
       "fetch-replies",
       "related"
     ]);
+  });
+
+  it("offers taking the highlights out of a PDF only while a PDF is open", () => {
+    expect(offered(screen({ markdown: false, pdf: true }))).toEqual(["pdf-highlights"]);
+    expect(offered(screen())).not.toContain("pdf-highlights");
   });
 
   it("offers a note bound to a source the check for it", () => {

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **The highlights of a PDF become a note.** With a PDF open, **Create note from the PDF's highlights** collects the text that is both highlighted in yellow and underlined — as Preview, the iOS Documents app and Acrobat store the marks in the file — into one running text, with `[…]` between passages, and writes it into a new note in the folder Obsidian puts new notes in. Text with only one of the two marks is left out, and a word marked only in part is taken whole when most of it was marked. The note is made from a template set in the settings under Writing helpers → Highlights from a PDF: `{{title}}`, `{{date}}` and `{{time}}` are filled as Obsidian's templates fill them, in the formats set there, Templater makes the note when the template has its code, and `{{schreibstube-highlights}}` and `{{schreibstube-pdf}}` mark where the text and the embedded PDF go. Text from the PDF and its file name are escaped, so nothing in them can run as Templater code or hide the rest of the note. Highlights made in Obsidian are not stored in the PDF and are not read.
+
 ## 1.86.0 - 2026-10-19
 
 A note can now leave the vault as a link. **Share note as a link** puts it

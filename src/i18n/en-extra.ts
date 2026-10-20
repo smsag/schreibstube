@@ -1382,7 +1382,39 @@ export const enExtra = {
       `read the first ${read} of ${total} pages; later pages were not offered.`,
     inserted: (count: number) =>
       count === 1 ? "1 passage inserted." : `${count} passages inserted.`,
-    noteChanged: "another note is in front now, so the passages were not inserted."
+    noteChanged: "another note is in front now, so the passages were not inserted.",
+    highlightsHeading: "Highlights from a PDF",
+    highlightsDesc:
+      "With a PDF open, this command collects the text that is both highlighted in yellow and " +
+      "underlined into one running text, with […] between passages, and writes it into a new note in the folder " +
+      "for new notes.",
+    highlightsTemplate: "Template for the note",
+    highlightsTemplateDesc:
+      "A note the new one is made from, with its frontmatter. {{title}} and {{date}} are filled as " +
+      "Obsidian's templates fill them, Templater code is run when Templater is installed, " +
+      "{{schreibstube-highlights}} marks where the text goes and {{schreibstube-pdf}} where the " +
+      "PDF is embedded. Without the first, the text goes at the end.",
+    highlightsTemplatePlaceholder: "Templates/Reading Note",
+    noMarks: (name: string) =>
+      `${name} has no text both highlighted in yellow and underlined. Highlights made in Obsidian are ` +
+      "not stored in the PDF and cannot be read here.",
+    marksWithoutText: (name: string) =>
+      `${name} has highlights, but no text under them — a scan is a picture to anything that reads text.`,
+    highlightsCreated: (count: number, name: string) =>
+      `${count === 1 ? "1 passage" : `${count} passages`} written to ${name}.`,
+    templateMissing: (path: string) =>
+      `the template ${path} was not found; the note was made without it.`,
+    templaterMissing:
+      "the template has Templater code, but Templater is not installed; the code was left as written.",
+    templaterFailed: (reason: string) =>
+      `Templater could not make the note from the template (${reason}); no note was made.`,
+    templaterNoNote: (path: string) =>
+      `Templater made no note from ${path}; its own notice says why.`,
+    fillFailed: (path: string) =>
+      `${path} was made from the template, but the text could not be written into it.`,
+    templatePathInvalid:
+      "Not a path in the vault: no folder may start with a dot, and none may be empty. The saved template stays as it was.",
+    createFailed: (path: string) => `${path} could not be created.`
   },
 
   sums: {

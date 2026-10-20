@@ -1,0 +1,364 @@
+/**
+ * The text a person marked twice in a PDF, as one running excerpt.
+ *
+ * A reader highlights in yellow as they go, and underlines what still holds
+ * on a second pass. What is both highlighted and underlined is what they
+ * want to keep; either mark alone is a step on the way, and is left out.
+ *
+ * A highlight or an underline in a PDF is an annotation: a colour and a set
+ * of quadrilaterals on the page, and nothing else. Preview, the iOS
+ * Documents app and Acrobat all store it that way, and none of them stores
+ * the words underneath. So the words are found again by geometry — a
+ * character counts when it sits inside a yellow highlight's quadrilateral
+ * and inside an underline's — and that is the one decision this module makes.
+ *
+ * It works on characters rather than on annotations, because the two marks
+ * rarely cover the same span: the underline is drawn over a part of the
+ * highlight, or runs a little past it. Only the characters under both count.
+ *
+ * Nothing here imports pdf.js. The reader hands over plain runs with their
+ * position and plain marks, read through `toPlacedRun` and `toMark` below, so
+ * every rule can be tested without a PDF.
+ */
+
+import type { PdfTextRun } from "./pdf-passages";
+
+/** One text run with where pdf.js placed it, in PDF points from the page's bottom left. */
+export interface PdfPlacedRun extends PdfTextRun {
+  x: number;
+  /** The baseline. */
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** A rectangle on the page, in the same points as the runs. */
+export interface PdfBox {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** A highlight or an underline: its colour and the areas it covers. */
+export interface PdfMark {
+  kind: "highlight" | "underline";
+  /** Red, green and blue, 0–255; null when the file names none. */
+  color: [number, number, number] | null;
+  boxes: PdfBox[];
+}
+
+/** One page as the reader hands it over. */
+export interface PdfMarkedPage {
+  /** Physical page, 1-based. */
+  page: number;
+  runs: PdfPlacedRun[];
+  marks: PdfMark[];
+}
+
+/**
+ * Bounds on what one page may bring.
+ *
+ * A page with a thousand annotations is a form or a machine-made file, not a
+ * person reading; past the bound the rest is ignored rather than measured
+ * against every character of the page. The quad bound is the same idea for
+ * one annotation: a highlight over a whole page of two columns is about a
+ * hundred lines.
+ */
+export const MAX_MARKS_PER_PAGE = 1000;
+export const MAX_BOXES_PER_MARK = 400;
+
+/** What goes between two excerpts, as an editor marks an omission. */
+export const EXCERPT_SEPARATOR = " […] ";
+
+/**
+ * Whether a colour reads as yellow.
+ *
+ * Every app has its own yellow: Preview writes 250/205/90, others a purer
+ * 255/255/0 or a paler one, and a file that went through a second app may
+ * come back shifted. So yellow is a range of hue — between orange and green —
+ * that is saturated and bright enough not to be beige or olive, rather than
+ * one value.
+ */
+export function isYellow(color: readonly [number, number, number] | null): boolean {
+  if (!color) return false;
+  const [r, g, b] = color.map((channel) => channel / 255) as [number, number, number];
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const chroma = max - min;
+  if (max < 0.6 || chroma / max < 0.3) return false;
+  // Yellow sits where red is the largest or green is, so these two branches of
+  // the usual hue formula are the only ones that can answer yes.
+  let hue: number;
+  if (max === r) hue = 60 * (((g - b) / chroma) % 6);
+  else if (max === g) hue = 60 * ((b - r) / chroma + 2);
+  else return false;
+  return hue >= 40 && hue <= 70;
+}
+
+/**
+ * The two layers a character has to be under to count: the yellow
+ * highlights, and the underlines of any colour. Highlights of another colour
+ * are neither.
+ */
+export function markLayers(marks: readonly PdfMark[]): [PdfBox[], PdfBox[]] {
+  const kept = marks.slice(0, MAX_MARKS_PER_PAGE);
+  return [
+    kept
+      .filter((mark) => mark.kind === "highlight" && isYellow(mark.color))
+      .flatMap((m) => m.boxes),
+    kept.filter((mark) => mark.kind === "underline").flatMap((m) => m.boxes)
+  ];
+}
+
+function finite(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function numbers(value: unknown): number[] | null {
+  // pdf.js hands over typed arrays for colours and quads; a plain array is
+  // what a test or another build may give. Both are read the same way.
+  if (!Array.isArray(value) && !ArrayBuffer.isView(value)) return null;
+  const list = Array.from(value as ArrayLike<unknown>);
+  return list.every(finite) ? list : null;
+}
+
+/** The boxes in pdf.js's flat quad list: eight numbers, four corners, per box. */
+export function quadBoxes(quadPoints: unknown): PdfBox[] {
+  const list = numbers(quadPoints);
+  if (!list) return [];
+  const boxes: PdfBox[] = [];
+  for (let i = 0; i + 8 <= list.length && boxes.length < MAX_BOXES_PER_MARK; i += 8) {
+    const xs = [list[i], list[i + 2], list[i + 4], list[i + 6]] as number[];
+    const ys = [list[i + 1], list[i + 3], list[i + 5], list[i + 7]] as number[];
+    boxes.push({
+      x0: Math.min(...xs),
+      x1: Math.max(...xs),
+      y0: Math.min(...ys),
+      y1: Math.max(...ys)
+    });
+  }
+  return boxes;
+}
+
+/**
+ * An annotation as pdf.js describes it, read into a mark, or null when it is
+ * not a highlight or an underline or carries nothing to measure. The file is
+ * whatever the person was sent, so every field is checked rather than
+ * trusted.
+ */
+export function toMark(annotation: unknown): PdfMark | null {
+  if (typeof annotation !== "object" || annotation === null) return null;
+  const record = annotation as Record<string, unknown>;
+  const kind =
+    record.subtype === "Highlight"
+      ? "highlight"
+      : record.subtype === "Underline"
+        ? "underline"
+        : null;
+  if (!kind) return null;
+
+  const boxes = quadBoxes(record.quadPoints);
+  if (boxes.length === 0) return null;
+
+  const rgb = numbers(record.color);
+  const color =
+    rgb && rgb.length >= 3
+      ? (rgb.slice(0, 3).map((channel) => Math.min(255, Math.max(0, channel))) as [
+          number,
+          number,
+          number
+        ])
+      : null;
+  return { kind, color, boxes };
+}
+
+/**
+ * A text item as pdf.js describes it, with its place on the page, or null
+ * when it has no text or no position to measure. `transform` is the item's
+ * matrix: its last two numbers are where the baseline starts.
+ */
+export function toPlacedRun(item: unknown): PdfPlacedRun | null {
+  if (typeof item !== "object" || item === null) return null;
+  const record = item as Record<string, unknown>;
+  if (typeof record.str !== "string") return null;
+  const matrix = numbers(record.transform);
+  const x = matrix?.[4];
+  const y = matrix?.[5];
+  if (x === undefined || y === undefined) return null;
+  const width = finite(record.width) ? Math.max(0, record.width) : 0;
+  const scale = matrix?.[3];
+  const height = finite(record.height) && record.height > 0 ? record.height : Math.abs(scale ?? 0);
+  return { text: record.str, endsLine: record.hasEOL === true, x, y, width, height };
+}
+
+/**
+ * Whether a box covers a character, given the character's middle and its
+ * vertical extent.
+ *
+ * Across, the middle has to be inside: a mark that stops halfway through a
+ * letter has marked the half before it. Up and down, more than half of the
+ * smaller of the two has to overlap, because apps disagree on what an
+ * underline covers — a thin strip under the baseline in one, the whole line
+ * in another — and both have to land on the line they belong to, not the
+ * one beneath.
+ */
+function covers(box: PdfBox, middle: number, bottom: number, top: number): boolean {
+  if (middle < box.x0 || middle > box.x1) return false;
+  const overlap = Math.min(top, box.y1) - Math.max(bottom, box.y0);
+  const smaller = Math.min(top - bottom, box.y1 - box.y0);
+  return smaller > 0 ? overlap / smaller > 0.5 : overlap >= 0;
+}
+
+const WORD_CHARACTER = /[\p{L}\p{N}]/u;
+
+/**
+ * Which characters of a run are marked — under a box of every one of
+ * `layers` — with partly marked words settled.
+ *
+ * A mark drawn by hand rarely starts and ends on a word boundary: it begins
+ * on the second letter, or runs one letter into the next word. A word counts
+ * as marked when more than half of its letters are, and then counts whole —
+ * "ut" becomes "But", and the stray "I" of a mark that slipped into the next
+ * sentence's "In" is left out. Positions are estimated by dividing the run's
+ * width evenly among its characters, which proportional type makes rough,
+ * and which the word rule then smooths over.
+ */
+export function markedCharacters(
+  run: PdfPlacedRun,
+  layers: readonly (readonly PdfBox[])[]
+): boolean[] {
+  const characters = Array.from(run.text);
+  const length = characters.length;
+  // A run's height is the font's size, measured up from the baseline; the
+  // descenders hang below it, so the extent starts a little lower.
+  const bottom = run.y - run.height * 0.2;
+  const top = run.y + run.height * 0.8;
+  // Only the boxes on this line can cover any of its characters. Sorting them
+  // out once per run, rather than once per character, keeps a page of many
+  // marks from costing characters times boxes.
+  const near = layers.map((boxes) =>
+    boxes.filter(
+      (box) => box.y1 > bottom && box.y0 < top && box.x1 >= run.x && box.x0 <= run.x + run.width
+    )
+  );
+  if (length === 0 || near.length === 0 || near.some((boxes) => boxes.length === 0)) {
+    return characters.map(() => false);
+  }
+
+  const step = run.width / length;
+  const hit = characters.map((_, index) => {
+    const middle = run.x + step * (index + 0.5);
+    return near.every((boxes) => boxes.some((box) => covers(box, middle, bottom, top)));
+  });
+
+  const marked = [...hit];
+  let start = 0;
+  while (start < length) {
+    if (!WORD_CHARACTER.test(characters[start] ?? "")) {
+      start += 1;
+      continue;
+    }
+    let end = start;
+    while (end < length && WORD_CHARACTER.test(characters[end] ?? "")) end += 1;
+    let count = 0;
+    for (let index = start; index < end; index += 1) if (hit[index]) count += 1;
+    const whole = count * 2 > end - start;
+    for (let index = start; index < end; index += 1) marked[index] = whole;
+    start = end;
+  }
+  return marked;
+}
+
+/**
+ * Join what was collected into prose: a word split across lines closed up,
+ * a line break a space, and anything before the first word dropped — a mark
+ * that starts on the comma before a clause has not quoted the comma.
+ */
+function finishExcerpt(raw: string): string {
+  return raw
+    .replace(/(\p{L})-\n(?=\p{Ll})/gu, "$1")
+    .replace(/\s+/g, " ")
+    .replace(/^[^\p{L}\p{N}"'“„‚‘«(]+/u, "")
+    .trim();
+}
+
+/**
+ * The marked text of a document, as excerpts in reading order.
+ *
+ * The text runs are walked in the order the file draws them, which is the
+ * order pdf.js reads them in and, for a book or an article, the order a
+ * person reads them in. An excerpt grows as long as marked words follow one
+ * another; a word that is not marked ends it. A space or a comma that is not
+ * marked does not: it is only what stood between two marked words, and the
+ * excerpt keeps it. So two marked passages that meet are one excerpt, and the
+ * gap between two that do not is where the separator goes.
+ *
+ * A page ends an excerpt. The last run of a page rarely says it ends a line,
+ * so carrying an excerpt over would glue the last word of one page to the
+ * first of the next; and from the marks alone, a passage marked on into the
+ * next page cannot be told from two passages that happen to sit on either
+ * side of the break. The separator is the safe reading of both: it never
+ * joins what was apart, and costs a passage that ran on only a `[…]`.
+ */
+export function collectExcerpts(pages: readonly PdfMarkedPage[]): string[] {
+  const excerpts: string[] = [];
+  let current = "";
+  let pending = "";
+
+  const close = (): void => {
+    const text = finishExcerpt(current);
+    if (text !== "") excerpts.push(text);
+    current = "";
+    pending = "";
+  };
+
+  for (const page of pages) {
+    const layers = markLayers(page.marks);
+
+    for (const run of page.runs) {
+      const characters = Array.from(run.text);
+      const marked = markedCharacters(run, layers);
+      characters.forEach((character, index) => {
+        if (marked[index]) {
+          if (current !== "") current += pending;
+          current += character;
+          pending = "";
+        } else if (WORD_CHARACTER.test(character)) {
+          if (current !== "") close();
+        } else if (current !== "") {
+          pending += character;
+        }
+      });
+      if (run.endsLine && current !== "") pending += "\n";
+    }
+    if (current !== "") close();
+  }
+  return excerpts;
+}
+
+/**
+ * Whether a page has both kinds of mark, and so any text worth reading. The
+ * reader asks before it reads the text layer: a book with three pages
+ * marked is three pages of work, not two hundred.
+ */
+export function marksBothWays(marks: readonly PdfMark[]): boolean {
+  const [highlights, underlines] = markLayers(marks);
+  return highlights.length > 0 && underlines.length > 0;
+}
+
+/**
+ * Whether a document has marks of both kinds over a page without any text:
+ * the one case where nothing was found because there was nothing to read,
+ * which a scan is, rather than because nothing was marked twice.
+ */
+export function marksWithoutText(pages: readonly PdfMarkedPage[]): boolean {
+  return pages.some(
+    (page) => marksBothWays(page.marks) && !page.runs.some((run) => run.text.trim() !== "")
+  );
+}
+
+/** The excerpts as one running text, an omission mark between each two. */
+export function runningText(excerpts: readonly string[]): string {
+  return excerpts.join(EXCERPT_SEPARATOR);
+}

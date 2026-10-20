@@ -14,6 +14,14 @@
 
 import { loadPdfJs } from "obsidian";
 import type { PdfPageRuns, PdfTextRun } from "../services/pdf-passages";
+import {
+  marksBothWays,
+  toMark,
+  toPlacedRun,
+  type PdfMark,
+  type PdfMarkedPage,
+  type PdfPlacedRun
+} from "../services/pdf-highlights";
 
 /**
  * How many pages are read before the reader stops.
@@ -53,17 +61,45 @@ function toRun(item: TextContentItem): PdfTextRun | null {
  * It contributes no runs, which makes it indistinguishable from a page of
  * pictures — correct, because to a reader looking for text it is one.
  */
-export async function readPdfText(data: ArrayBuffer): Promise<ReadResult> {
+export function readPdfText(data: ArrayBuffer): Promise<ReadResult> {
+  return readPages(data, async (document, number) => ({
+    page: number,
+    runs: await runsOfPage(document, number)
+  }));
+}
+
+export interface MarkedReadResult {
+  pages: PdfMarkedPage[];
+  totalPages: number;
+  truncated: boolean;
+}
+
+/**
+ * Read the highlights and underlines of `data`, and the text layer, with each
+ * run's place, of the pages that have both.
+ *
+ * As with the plain reading, a page that cannot be read costs that page: it
+ * comes back with no runs and no marks, and the excerpt simply has nothing
+ * from it.
+ */
+export function readPdfMarks(data: ArrayBuffer): Promise<MarkedReadResult> {
+  return readPages(data, (document, number) => markedPage(document, number));
+}
+
+async function readPages<Page>(
+  data: ArrayBuffer,
+  readPage: (document: unknown, number: number) => Promise<Page>
+): Promise<{ pages: Page[]; totalPages: number; truncated: boolean }> {
   const pdfjs = await loadPdfJs();
   const document = await pdfjs.getDocument({ data }).promise;
 
   try {
     const totalPages: number = document.numPages;
     const readable = Math.min(totalPages, MAX_PAGES_READ);
-    const pages: PdfPageRuns[] = [];
+    const pages: Page[] = [];
 
     for (let number = 1; number <= readable; number += 1) {
-      pages.push({ page: number, runs: await runsOfPage(document, number) });
+      pages.push(await readPage(document, number));
     }
 
     return { pages, totalPages, truncated: totalPages > readable };
@@ -71,6 +107,35 @@ export async function readPdfText(data: ArrayBuffer): Promise<ReadResult> {
     // pdf.js holds a worker per document; a command that ran and returned
     // should not leave one behind.
     await document.destroy?.();
+  }
+}
+
+interface PdfJsPage {
+  getTextContent(): Promise<{ items?: unknown }>;
+  getAnnotations?: () => Promise<unknown>;
+  cleanup?: () => void;
+}
+
+async function markedPage(document: unknown, number: number): Promise<PdfMarkedPage> {
+  try {
+    const doc = document as { getPage(n: number): Promise<unknown> };
+    const page = (await doc.getPage(number)) as PdfJsPage;
+    const annotations = (await page.getAnnotations?.()) ?? [];
+    const marks = (Array.isArray(annotations) ? annotations : [])
+      .map(toMark)
+      .filter((mark): mark is PdfMark => mark !== null);
+    // The text layer is the expensive part, and only a page marked both ways
+    // can give anything; every other page is left unread.
+    let runs: PdfPlacedRun[] = [];
+    if (marksBothWays(marks)) {
+      const content = await page.getTextContent();
+      const items: unknown[] = Array.isArray(content.items) ? content.items : [];
+      runs = items.map(toPlacedRun).filter((run) => run !== null);
+    }
+    page.cleanup?.();
+    return { page: number, runs, marks };
+  } catch {
+    return { page: number, runs: [], marks: [] };
   }
 }
 
