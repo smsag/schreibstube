@@ -19,6 +19,12 @@ export interface NoteIndexActions {
   toggle(collapsed: boolean): void;
   /** An entry was pressed: the reader wants the section at this line. */
   jump(line: number): void;
+  /**
+   * Puts a heading's words into its entry. The heading's `:folder:` should be
+   * the glyph here as it is in the heading, and drawing it is the icon
+   * processor's; plain text when this is not given.
+   */
+  drawText?(el: HTMLElement, text: string): void;
 }
 
 export function drawNoteIndex(
@@ -91,9 +97,10 @@ function drawList(
     item.style.setProperty("--schreibstube-index-indent", String(entry.indent));
     const link = item.createEl("a", {
       cls: `${NOTE_INDEX_CLASS}-link`,
-      text: entry.text,
       attr: { href: "#", "data-line": String(entry.line) }
     });
+    if (actions.drawText) actions.drawText(link, entry.text);
+    else link.setText(entry.text);
     pressable(link, () => actions.jump(entry.line));
   }
 

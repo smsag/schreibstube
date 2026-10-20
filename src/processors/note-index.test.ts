@@ -69,6 +69,7 @@ interface Setup {
   host?: ReturnType<typeof fakeView>;
   source?: string;
   section?: { lineStart: number; lineEnd: number };
+  drawText?: (el: HTMLElement, text: string) => void;
 }
 
 function mount(setup: Setup) {
@@ -103,7 +104,7 @@ function mount(setup: Setup) {
       processor = handler;
     }
   } as unknown as Plugin;
-  registerNoteIndex(plugin);
+  registerNoteIndex(plugin, setup.drawText);
 
   const el = (setup.host?.containerEl ?? document.body).createDiv();
   const children: MarkdownRenderChild[] = [];
@@ -140,6 +141,13 @@ describe("the index block, kept current", () => {
     const { entries } = mount({ file: "## Alt", views: [view], host: view });
     await settle();
     expect(entries().map((a) => a.textContent)).toEqual(["Neu"]);
+  });
+
+  it("puts each heading's words in through the drawing it was given", async () => {
+    const drawText = (el: HTMLElement, text: string) => el.setText(text.replace(":folder:", "📁"));
+    const { entries } = mount({ file: "## Werkzeugkasten :folder:", drawText });
+    await settle();
+    expect(entries().map((a) => a.textContent)).toEqual(["Werkzeugkasten 📁"]);
   });
 
   it("reads the file when no editor holds the note", async () => {

@@ -8,7 +8,10 @@
  * glyph and every other reader sees as a word that says what was meant.
  *
  * Two decisions live here and nowhere else. Where in a document a shortcode
- * counts: not in code, not in a link, not in a URL, not in a time. And when
+ * counts: not in code, not in a link's target, not in a URL, not in a time —
+ * but in the words a link shows, `[:folder: Ablage](…)` and
+ * `[[Ablage|:folder: Ablage]]`, since those are prose a person wrote and the
+ * icon is what they wanted to see there. And when
  * a colon someone is typing is the start of one: German prose is full of
  * colons — "Beispiel: der Fall" — and a picker that opened on every one of
  * them would be turned off within the hour.
@@ -35,25 +38,43 @@ export interface ShortcodeHit {
 const SHORTCODE = /:([a-z][a-z0-9-]*):/g;
 
 /**
- * Every shortcode in `text` that names an icon, outside code and links.
+ * The words a wikilink shows instead of its target: the part after `|`. An
+ * embed's is a size or a caption, never words in the line, and is left out.
+ */
+function wikilinkAliases(text: string): { from: number; to: number }[] {
+  const aliases: { from: number; to: number }[] = [];
+  for (const match of text.matchAll(/(?<!!)\[\[[^\]|\n]*\|([^\]\n]+)\]\]/g)) {
+    const alias = match[1] ?? "";
+    const to = match.index + match[0].length - 2;
+    aliases.push({ from: to - alias.length, to });
+  }
+  return aliases;
+}
+
+/**
+ * Every shortcode in `text` that names an icon, outside code and link targets.
  *
  * The document is cut into prose blocks first, the way the proofreader cuts
  * it: fenced code and frontmatter are not prose and never reach the regex,
- * and inline code, links and tags are protected ranges inside a block that
- * a match may not touch. A name the font does not have is left as text:
- * `:note:` in a sentence about notes is a sentence, not a missing icon.
+ * and inline code, link targets and tags are protected ranges inside a block
+ * that a match may not touch. A wikilink is protected whole, for the
+ * proofreader's sake; its alias is let through here, as a Markdown link's
+ * label already is. A name the font does not have is left as text: `:note:`
+ * in a sentence about notes is a sentence, not a missing icon.
  */
 export function findShortcodes(text: string, isIcon: (name: string) => boolean): ShortcodeHit[] {
   const hits: ShortcodeHit[] = [];
 
   for (const block of segmentMarkdown(text).blocks) {
+    const aliases = wikilinkAliases(block.text);
     SHORTCODE.lastIndex = 0;
     let match: RegExpExecArray | null;
     while ((match = SHORTCODE.exec(block.text)) !== null) {
       const name = match[1] ?? "";
       const from = match.index;
       const to = from + match[0].length;
-      if (!isIcon(name) || overlapsAny(block.protectedRanges, from, to)) {
+      const inAlias = aliases.some((alias) => alias.from <= from && to <= alias.to);
+      if (!isIcon(name) || (!inAlias && overlapsAny(block.protectedRanges, from, to))) {
         // A match that ends in a colon may be the start of the next one:
         // `:a::b:` is `:a:` and `:b:`. Step back over the closing colon.
         SHORTCODE.lastIndex = to - 1;
@@ -65,6 +86,19 @@ export function findShortcodes(text: string, isIcon: (name: string) => boolean):
   }
 
   return hits;
+}
+
+/**
+ * Whether the words of a rendered link are a label a person wrote, which may
+ * carry icons, rather than the address itself: a bare URL, an autolink or a
+ * mail address shows its target, and a shortcode-shaped run inside it is part
+ * of the address.
+ */
+export function isLinkLabel(text: string, href: string | null): boolean {
+  const words = text.trim();
+  if (words === "") return false;
+  if (href !== null && (words === href.trim() || `mailto:${words}` === href.trim())) return false;
+  return !/^(?:[a-z][a-z0-9+.-]*:\/\/|www\.|mailto:)/i.test(words);
 }
 
 /** How much of a name has to be typed before the picker opens. */

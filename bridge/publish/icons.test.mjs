@@ -71,10 +71,11 @@ describe(":name: on a published page", () => {
     expect(render("Eine :notiz: ohne Symbol.\n")).toBe("<p>Eine :notiz: ohne Symbol.</p>\n");
   });
 
-  it("leaves code, links and URLs alone", () => {
+  it("leaves code, link targets and URLs alone", () => {
     const html = render(
       [
-        "`:folder:` im Code, [ein :star: im Link](https://x.de), https://x.de/:folder:/",
+        "`:folder:` im Code, [Link](https://x.de/:folder:/), https://x.de/:folder:/,",
+        "<https://x.de/:star:/> und [https://x.de/:star:/](https://x.de/:star:/)",
         "",
         "```",
         ":folder:",
@@ -85,11 +86,19 @@ describe(":name: on a published page", () => {
     expect(drawn(html)).toEqual([]);
   });
 
-  it("leaves a wikilink's words alone, published or not", () => {
-    const notes = [{ key: "ziel", url: "ziel/", title: "Ziel" }];
-    expect(
-      drawn(render("[[Ziel|:folder: Ziel]] und [[Fehlt|:star: Fehlt]]\n", site(notes)))
-    ).toEqual([]);
+  it("draws the icons in a link's label, in a heading too", () => {
+    const html = render(
+      "## Werkzeugkasten [:folder:](https://x.de)\n\n[ein :star: im Link](https://x.de)\n"
+    );
+    expect(drawn(html)).toEqual(["folder", "star"]);
+    expect(html).toContain(`rel="noopener">${iconSvg("folder")}</a>`);
+  });
+
+  it("draws the icons in a wikilink's alias, published or not, and none in its target", () => {
+    const notes = [{ key: "ziel", url: "ziel/", title: "Ziel :star:" }];
+    const source =
+      "[[Ziel|:folder: Ziel]], [[Fehlt|:star: Fehlt]], [[Ziel]] und ![[Ziel|:folder:]]\n";
+    expect(drawn(render(source, site(notes)))).toEqual(["folder", "star"]);
   });
 
   it("keeps a heading's id the one a link to it computes", () => {

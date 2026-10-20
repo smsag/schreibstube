@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   completedShortcode,
   findShortcodes,
+  isLinkLabel,
   MIN_TRIGGER_CHARS,
   rankIcons,
   shortcodeTrigger
@@ -41,6 +42,19 @@ describe("findShortcodes", () => {
     expect(findShortcodes("[Ordner](https://example.org/:folder:)", isIcon)).toEqual([]);
   });
 
+  it("finds one in a link's label", () => {
+    const text = "## Werkzeugkasten [:folder:](https://example.org)";
+    const [hit] = findShortcodes(text, isIcon);
+
+    expect(text.slice(hit?.from, hit?.to)).toBe(":folder:");
+  });
+
+  it("finds one in a wikilink's alias, but not in its target or an embed's", () => {
+    const text = "[[Ablage|:folder: Ablage]] [[Ziel#:key:]] ![[bild.png|:alarm:]]";
+
+    expect(findShortcodes(text, isIcon).map((hit) => hit.name)).toEqual(["folder"]);
+  });
+
   it("does not mistake a time or a URL for a shortcode", () => {
     expect(findShortcodes("um 10:30:45 auf http://x", isIcon)).toEqual([]);
   });
@@ -50,6 +64,20 @@ describe("findShortcodes", () => {
     const [hit] = findShortcodes(text, isIcon);
 
     expect(text.slice(hit?.from, hit?.to)).toBe(":alarm:");
+  });
+});
+
+describe("isLinkLabel", () => {
+  it("is the words a person gave a link", () => {
+    expect(isLinkLabel(":folder: Ablage", "https://x.de")).toBe(true);
+    expect(isLinkLabel(":star:", "Ablage")).toBe(true);
+  });
+
+  it("is not the address a link shows, or nothing at all", () => {
+    expect(isLinkLabel("https://x.de/:folder:", "https://x.de/:folder:")).toBe(false);
+    expect(isLinkLabel("a:folder:@x.de", "mailto:a:folder:@x.de")).toBe(false);
+    expect(isLinkLabel("www.x.de/:folder:", "http://www.x.de/:folder:")).toBe(false);
+    expect(isLinkLabel("  ", null)).toBe(false);
   });
 });
 

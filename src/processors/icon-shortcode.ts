@@ -5,8 +5,9 @@
  * replaced by a widget holding the glyph, except where the cursor or a
  * selection touches it, which is when a person is editing it and needs to
  * see the colons. Reading view is HTML: the text nodes are walked and each
- * shortcode becomes a span, skipping code, links and anything else that is
- * not prose.
+ * shortcode becomes a span, skipping code, a link that shows its own address
+ * and anything else that is not prose. A link's label is prose: `[:folder:
+ * Ablage](…)` shows the icon, as it does in the editor.
  *
  * Where a shortcode counts is decided once, in `services/icon-shortcode`,
  * over the same prose segmentation the proofreader uses. This file only
@@ -23,7 +24,7 @@ import {
   type ViewUpdate
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
-import { findShortcodes, type ShortcodeHit } from "../services/icon-shortcode";
+import { findShortcodes, isLinkLabel, type ShortcodeHit } from "../services/icon-shortcode";
 import { applyIcon, iconGlyph, installIconFont } from "../ui/icon-font";
 import { MAX_LIVE_CHARS } from "./live-limits";
 
@@ -121,7 +122,13 @@ export function createIconShortcodeExtension(enabled: () => boolean): Extension 
 }
 
 /** Elements whose text is never prose, however it reads. */
-const NOT_PROSE = "code, pre, a, .math, .frontmatter, .cm-inline-code";
+const NOT_PROSE = "code, pre, .math, .frontmatter, .cm-inline-code";
+
+/** Whether a text node is the address a link shows, which is not prose. */
+function inAddress(text: Text): boolean {
+  const link = text.parentElement?.closest("a");
+  return link ? !isLinkLabel(link.textContent, link.getAttribute("href")) : false;
+}
 
 /**
  * Reading view: shortcodes in the rendered HTML become glyph spans.
@@ -139,7 +146,7 @@ export function registerIconShortcodePostProcessor(plugin: Plugin, enabled: () =
     const nodes: Text[] = [];
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
       const text = node as Text;
-      if (text.parentElement?.closest(NOT_PROSE)) continue;
+      if (text.parentElement?.closest(NOT_PROSE) || inAddress(text)) continue;
       if (text.data.includes(":")) nodes.push(text);
     }
     if (nodes.length === 0) return;
@@ -150,15 +157,21 @@ export function registerIconShortcodePostProcessor(plugin: Plugin, enabled: () =
 }
 
 function drawInto(node: Text, doc: Document): void {
-  const hits = findShortcodes(node.data, isIcon);
-  if (hits.length === 0) return;
-
   const parent = node.parentNode;
   if (!parent) return;
+  const pieces = withIcons(node.data, doc);
+  if (pieces) parent.replaceChild(pieces, node);
+}
+
+/** The text as words and glyph spans, or null when it names no icon. */
+function withIcons(text: string, doc: Document): DocumentFragment | null {
+  const hits = findShortcodes(text, isIcon);
+  if (hits.length === 0) return null;
+
   const pieces = doc.createDocumentFragment();
   let at = 0;
   for (const hit of hits) {
-    if (hit.from > at) pieces.appendChild(doc.createTextNode(node.data.slice(at, hit.from)));
+    if (hit.from > at) pieces.appendChild(doc.createTextNode(text.slice(at, hit.from)));
     const span = doc.createElement("span");
     span.className = "schreibstube-icon-shortcode";
     span.title = `:${hit.name}:`;
@@ -166,6 +179,22 @@ function drawInto(node: Text, doc: Document): void {
     pieces.appendChild(span);
     at = hit.to;
   }
-  if (at < node.data.length) pieces.appendChild(doc.createTextNode(node.data.slice(at)));
-  parent.replaceChild(pieces, node);
+  if (at < text.length) pieces.appendChild(doc.createTextNode(text.slice(at)));
+  return pieces;
+}
+
+/**
+ * Set an element's text with its shortcodes drawn, for text the plugin draws
+ * itself rather than Obsidian — a heading in the index block — which no
+ * post-processor ever walks. Plain text when the setting is off.
+ */
+export function setTextWithIcons(el: HTMLElement, text: string, enabled: boolean): void {
+  const pieces = enabled ? withIcons(text, el.doc) : null;
+  if (!pieces) {
+    el.setText(text);
+    return;
+  }
+  installIconFont(el.doc);
+  el.empty();
+  el.appendChild(pieces);
 }

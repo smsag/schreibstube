@@ -19,9 +19,12 @@ import { MAX_LIVE_CHARS } from "./live-limits";
  * on an entry goes to its section; a press on the heading line folds the list
  * and writes that into the block, so the note remembers it.
  */
-export function registerNoteIndex(plugin: Plugin): void {
+export function registerNoteIndex(
+  plugin: Plugin,
+  drawText?: (el: HTMLElement, text: string) => void
+): void {
   plugin.registerMarkdownCodeBlockProcessor(NOTE_INDEX_LANGUAGE, (source, el, ctx) => {
-    ctx.addChild(new NoteIndex(plugin.app, el, ctx, source));
+    ctx.addChild(new NoteIndex(plugin.app, el, ctx, source, drawText));
   });
 }
 
@@ -43,7 +46,8 @@ class NoteIndex extends LiveNoteBlock {
     containerEl: HTMLElement,
     private readonly ctx: MarkdownPostProcessorContext,
     /** The block's text as the note holds it now, which a press must find again. */
-    private source: string
+    private source: string,
+    private readonly drawText?: (el: HTMLElement, text: string) => void
   ) {
     super(app, containerEl, ctx.sourcePath);
     this.options = parseNoteIndexOptions(source);
@@ -63,7 +67,8 @@ class NoteIndex extends LiveNoteBlock {
         this.options.collapsed = collapsed;
         void this.writeCollapsed(collapsed);
       },
-      jump: (line) => this.jump(line, plan)
+      jump: (line) => this.jump(line, plan),
+      ...(this.drawText ? { drawText: this.drawText } : {})
     });
   }
 

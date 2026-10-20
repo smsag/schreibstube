@@ -95,7 +95,7 @@ function pushEmbed(state, { path, alias, site }) {
   // page that is published in its own right, and would need loop detection.
   const note = site.notes?.get(key(path));
   if (note) {
-    pushAnchor(state, note.url, label || note.title);
+    pushAnchor(state, note.url, label || note.title, false);
     return;
   }
 
@@ -254,29 +254,30 @@ function isRemote(src) {
 function pushLink(state, { path, heading, alias, site }) {
   const note = site.notes?.get(key(path));
   if (!note) {
-    pushText(state, alias || path);
+    pushText(state, alias || path, Boolean(alias));
     return;
   }
   const fragment = heading ? `#${site.slugify(heading)}` : "";
-  pushAnchor(state, `${note.url}${fragment}`, alias || note.title);
+  pushAnchor(state, `${note.url}${fragment}`, alias || note.title, Boolean(alias));
 }
 
-function pushAnchor(state, href, text) {
+function pushAnchor(state, href, text, label) {
   const open = state.push("link_open", "a", 1);
   open.attrs = [
     ["href", href],
     ["class", "internal"]
   ];
-  pushText(state, text);
+  pushText(state, text, label);
   state.push("link_close", "a", -1);
 }
 
-function pushText(state, value) {
+function pushText(state, value, label = false) {
   const token = state.push("text", "", 0);
   token.content = value;
-  // A wikilink's words, even where the note is not published and no anchor
-  // is drawn: what was a link in the vault draws no icon on the site either.
-  token.meta = { fromLink: true };
+  // A wikilink's own words — its alias — are prose and draw their icons, as
+  // they do in the vault. Its target or the note's title stands for a file
+  // and draws none, published or not.
+  token.meta = { fromLink: !label };
 }
 
 /**

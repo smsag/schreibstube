@@ -341,7 +341,7 @@ styles, coloured by the template:
 
 ### Icons in the text
 
-`:name:` is drawn as an icon in Obsidian and on the website, and stays the word in a mail. Use
+`:name:` is drawn as an icon in Obsidian and on the website, in headings, the index and a link's words (`[:folder: Ablage](…)`, `[[Ablage|:folder: Ablage]]`) too, and stays the word in a mail. Use
 only names you are sure of: `:home:`, `:building:`, `:key:`, `:map-pin:`, `:phone:`, `:mail:`,
 `:calendar:`, `:folder:`, `:star:`. Typing `:` and two letters in Obsidian lists all of them.
 
