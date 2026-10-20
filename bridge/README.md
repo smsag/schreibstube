@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.4.x  | 9        | 1.8.0 and later | `:folder:` in a link's words and in the index is drawn as the icon; render version 8                 |
 | 3.3.x  | 9        | 1.8.0 and later | A shared link's address is two words (and a number without a password); no-index and no-AI signals   |
 | 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links    |
 | 3.1.x  | 8        | 1.8.0 and later | A `schreibstube-index` block becomes a foldable list of the page's sections                          |
@@ -316,8 +317,12 @@ Mermaid needs JavaScript, and only on pages that contain a diagram, from a
 bundle the bridge writes itself rather than from a content delivery network.
 
 An **icon in the text** — `:folder:`, any name the plugin's icon picker offers —
-is drawn as that icon, inline, where Obsidian draws it: not in code, not in a
-link, and not for a name the set does not have, which stays the text it was.
+is drawn as that icon, inline, where Obsidian draws it: in prose, in a heading,
+in the index block's entries, and in the words a link shows — `[:folder:
+Ablage](…)`, `[[Ablage|:folder: Ablage]]` — but not in code, not in a link
+that shows its own address, and not for a name the set does not have, which
+stays the text it was. Since 3.4.0 the render version is 8, so every page is
+drawn again on the next publish and gains the icons in its links.
 The drawings are Tabler's own strokes, from the release the plugin's font was
 cut from, written into `publish/render/icons.generated.mjs` by the plugin's
 `npm run build:icons`, so the site and the picker cannot know different names.
