@@ -2,7 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.87.0 - 2026-10-20
+
+The text you marked twice in a PDF becomes a note. With a PDF open,
+**Create note from the PDF's highlights** collects what is both highlighted
+in yellow and underlined — as Preview, the iOS Documents app and Acrobat
+store it — into one running text, with `[…]` between passages, and writes it
+into a note made from your own template, where `{{schreibstube-highlights}}`
+and `{{schreibstube-pdf}}` say where the text and the PDF go. And `:folder:`
+now shows as the icon in the words of a link and in the index block, in
+Reading view and on the website, where it stayed a bare shortcode before.
+
+Mobile checklist: not run. What to try first: on a phone, open a PDF marked
+in the iOS Documents app and run the command; the note should open with the
+passages, and a template with Templater code should be filled. Then open a
+note whose heading carries an icon as a link, `## Titel [:folder:](…)`, in
+Reading view and in its index block.
+
+The bridge moves from 3.3.0 to 3.4.0 for the icons in links and in the
+index; the protocol stays at 9. Its render version moves to 8, so every
+page is drawn again on the next publish.
 
 ### Added
 
