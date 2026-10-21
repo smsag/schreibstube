@@ -47,6 +47,7 @@ export const en = {
     proofread: "Proof-read note",
     syncAll: "Update all notes",
     syncNote: "Update note",
+    readingUpdate: "Update reading history",
     sendMail: "Send note as mail",
     queryMailbox: "Search mailbox",
     fetchReplies: "Fetch replies into note",

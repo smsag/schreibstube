@@ -10,6 +10,7 @@ import { renderSemantic } from "./semantic";
 import { renderAiModel, renderDescriptions, renderRename, renderSummarize } from "./ai";
 import { renderProofreading } from "./proofreading";
 import { renderSync } from "./sync";
+import { renderReading } from "./reading";
 import { renderMail } from "./mail";
 import { renderPublish } from "./publish";
 import { renderPrint } from "./print";
@@ -56,6 +57,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     renderSummarize(ctx);
     renderProofreading(ctx);
     renderSync(ctx);
+    renderReading(ctx);
     renderMail(ctx);
     renderPublish(ctx);
     renderPrint(ctx);

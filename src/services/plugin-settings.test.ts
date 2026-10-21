@@ -423,6 +423,28 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({}).githubSecretName).toBe("");
   });
 
+  it("keeps the reading history off, without a token, until chosen", () => {
+    const settings = normalizeSettings({});
+    expect(settings.readingEnabled).toBe(false);
+    expect(settings.instapaperSecretName).toBe("");
+    expect(settings.readingSummaries).toBe(false);
+  });
+
+  it("switches reading history and its summaries on only for a real true", () => {
+    expect(normalizeSettings({ readingEnabled: "yes" as never }).readingEnabled).toBe(false);
+    expect(normalizeSettings({ readingSummaries: 1 as never }).readingSummaries).toBe(false);
+    const on = normalizeSettings({
+      readingEnabled: true,
+      readingSummaries: true,
+      instapaperSecretName: "instapaper"
+    });
+    expect([on.readingEnabled, on.readingSummaries, on.instapaperSecretName]).toEqual([
+      true,
+      true,
+      "instapaper"
+    ]);
+  });
+
   it("defaults the last poll time to zero", () => {
     expect(normalizeSettings({}).syncLastPollAt).toBe(0);
     expect(normalizeSettings({ syncLastPollAt: "nope" as never }).syncLastPollAt).toBe(0);

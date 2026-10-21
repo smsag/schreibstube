@@ -135,6 +135,9 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   syncPollCron: "0 * * * *",
   syncLastPollAt: 0,
   githubSecretName: "",
+  readingEnabled: false,
+  instapaperSecretName: "",
+  readingSummaries: false,
   syncState: {},
   explorerForeignMenu: "submenu",
   explorerBookmarksEnabled: true,
@@ -351,6 +354,12 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
       typeof loaded?.githubSecretName === "string"
         ? loaded.githubSecretName
         : DEFAULT_SETTINGS.githubSecretName,
+    readingEnabled: loaded?.readingEnabled === true,
+    instapaperSecretName:
+      typeof loaded?.instapaperSecretName === "string"
+        ? loaded.instapaperSecretName
+        : DEFAULT_SETTINGS.instapaperSecretName,
+    readingSummaries: loaded?.readingSummaries === true,
     syncState: syncStateOrDefault(loaded?.syncState),
     explorerForeignMenu: foreignMenuOrDefault(loaded?.explorerForeignMenu),
     explorerBookmarksEnabled:

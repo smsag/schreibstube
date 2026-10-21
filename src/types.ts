@@ -123,6 +123,12 @@ export interface SchreibstubeSettings {
   iconShortcodes: boolean;
   /** Secret-storage name of a GitHub token, for private repositories. */
   githubSecretName: string;
+  /** Reading history: notes that list what Instapaper's archive gains. */
+  readingEnabled: boolean;
+  /** Secret-storage name of the Instapaper access token. */
+  instapaperSecretName: string;
+  /** Summarize an article's highlights with the AI provider; it sends them there. */
+  readingSummaries: boolean;
   /** Per-note sync state, keyed by vault path. Persisted, not user-editable. */
   syncState: Record<string, SyncRecord>;
   mailBridgeUrl: string;

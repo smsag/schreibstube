@@ -337,7 +337,25 @@ export const enExtra = {
     syncScheduleDesc: (examples: string) =>
       "Five cron fields: minute, hour, day of month, month, day of week. Evaluated in local " +
       `time. A schedule that came due while Obsidian was closed runs once on the next start. ` +
-      `Examples: ${examples}.`
+      `Examples: ${examples}.`,
+
+    readingHeading: "Reading history",
+    readingIntro:
+      "A note with schreibstubeReadingFrom: instapaper:archive in its frontmatter lists every " +
+      "article you archive in Instapaper: title, link and number of highlights, newest first. " +
+      "The first check lists the last 100.",
+    readingEnabled: "Enable reading history",
+    readingEnabledDesc:
+      "Off by default. Reading notes are checked every six hours, or as often as their " +
+      "schreibstubeSyncEvery says.",
+    readingToken: "Instapaper token",
+    readingTokenDesc:
+      "A personal access token from your application at instapaper.com/developers. Stored in " +
+      "Obsidian's secret storage and sent to Instapaper only.",
+    readingSummaries: "Summarize highlights",
+    readingSummariesDesc:
+      "Write a one-line summary of at most 140 characters under each article with highlights. " +
+      "Sends the highlights to the AI provider chosen under AI model."
   },
 
   ai: {
@@ -653,6 +671,29 @@ export const enExtra = {
         cron === null ? `Checked at most ${words}` : `Checked at most ${words} (${cron})`,
       panelCron: (cron: string) => `Checked on the note's own schedule (${cron})`
     }
+  },
+
+  reading: {
+    sourceMissing: "No reading list given.",
+    sourceUnknown:
+      'schreibstubeReadingFrom could not be read. Write "instapaper:archive" or "instapaper:liked".',
+    disabled: "reading history is off. Turn it on in Settings → Schreibstube → Reading history.",
+    busy: "the reading history is already being checked.",
+    noToken: "no Instapaper token chosen. Choose one in Settings → Schreibstube → Reading history.",
+    denied: (status: number) =>
+      `Instapaper refused the token (HTTP ${status}). Generate a new one and choose it again.`,
+    rateLimited: "Instapaper's rate limit was reached. The next check tries again.",
+    httpStatus: (status: number) => `Instapaper answered with HTTP ${status}.`,
+    tooLarge: "Instapaper's answer exceeds the size limit.",
+    malformed: "Instapaper's answer could not be read.",
+    timeout: (seconds: number) => `Instapaper did not answer within ${seconds}s.`,
+    networkError: "Network error.",
+    /** The count after an entry's date. */
+    highlights: (count: number) => (count === 1 ? "1 highlight" : `${count} highlights`),
+    noneChecked: "no reading notes were checked.",
+    checked: (checked: number, added: number, failed: number) =>
+      `${checked} reading note(s) checked, ${added} article(s) added, ${failed} failed.`,
+    failed: (reason: string) => `the reading history could not be updated: ${reason}`
   },
 
   mailNotices: {
