@@ -394,7 +394,7 @@ slug: hallo-welt
 ```
 
 - All but `published` are optional; slideshows, diagrams, index and totals carry over. Never `slug: s`
-  (shared links). `schreibstubeHome: true`: the start page; `schreibstubeHomeList: true`: others beneath.
+  (shared links). `schreibstubeHome: true`: start page (`schreibstubeHomeList: true` lists the rest); `schreibstubeFooter: true`: footer of every page; `lang: en`: page language.
 - Leave `description` out rather than guess: an empty one may be written by
   the AI when the note is published.
 - **Share note as a link** (`Notiz als Link teilen`) needs no key: any note, as written. On the
@@ -494,7 +494,7 @@ template's folder; a missing one is left out with a warning.
 - `####` for columns — columns are `###`; the count makes the layout.
 - Speaker text on the slide — put it in `> [!notes]`.
 - HTML for layout (`<div>`, `<br>` grids) — use headings, columns and comments listed here.
-- Invented keys (`schreibstubeTheme`, `schreibstubeFooter`) — ignored.
+- Invented keys (`schreibstubeTheme`, `schreibstubeMenu`) — ignored.
 - A slideshow block with `![[…]]` lines — write `![Alt](file)` instead.
 - `recipient:` or `subject:` at the top level of a letter — they belong
   under `schreibstubePrint:`.

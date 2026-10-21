@@ -51,6 +51,10 @@ export interface PublishNote {
   tags?: string[];
   /** The site's start page, served as index.html. At most one note. Protocol 10. */
   home?: true;
+  /** Drawn beneath every page, with no page of its own. At most one note. Protocol 10. */
+  footer?: true;
+  /** The page's language when it differs from the site's. Protocol 10. */
+  language?: string;
 }
 
 export interface PublishAsset {
@@ -72,6 +76,8 @@ export interface PublishIndex {
   headerTags?: string[];
   /** The other notes listed beneath the start page's text. Protocol 10. */
   homeList?: boolean;
+  /** The language of the site's pages, as a language tag. Protocol 10. */
+  language?: string;
 }
 
 export interface PublishTarget {

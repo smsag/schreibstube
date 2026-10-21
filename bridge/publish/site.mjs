@@ -9,7 +9,7 @@
  */
 import { createHash } from "node:crypto";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
-import { homePage, indexPage, notePage, tagPage } from "./render/page.mjs";
+import { DEFAULT_LANGUAGE, homePage, indexPage, notePage, tagPage } from "./render/page.mjs";
 import {
   assetPath,
   extensionOf,
@@ -56,12 +56,16 @@ export function checkIndex(index) {
   if (index.homeList !== undefined && typeof index.homeList !== "boolean") {
     throw new IndexError("homeList must be true or false.");
   }
+  if (index.language !== undefined && !isLanguageTag(index.language)) {
+    throw new IndexError(`Unusable language ${JSON.stringify(index.language)}.`);
+  }
 
   const headerTags = checkHeaderTags(index.headerTags);
 
   const seen = new Map();
   const notes = [];
   let home = null;
+  let footer = null;
   for (const note of index.notes) {
     if (!note?.sourcePath || typeof note.sourcePath !== "string") {
       throw new IndexError("A note is missing its sourcePath.");
@@ -91,6 +95,22 @@ export function checkIndex(index) {
       throw new IndexError(`Two notes claim the start page: ${home} and ${note.sourcePath}.`);
     }
     if (note.home) home = note.sourcePath;
+    if (note.footer !== undefined && note.footer !== true) {
+      throw new IndexError(`${note.sourcePath}: footer must be true when it is given.`);
+    }
+    if (note.footer && footer) {
+      throw new IndexError(`Two notes claim the footer: ${footer} and ${note.sourcePath}.`);
+    }
+    // The start page is a page; the footer is part of every page and none.
+    if (note.footer && note.home) {
+      throw new IndexError(`${note.sourcePath}: a note is the start page or the footer, not both.`);
+    }
+    if (note.footer) footer = note.sourcePath;
+    if (note.language !== undefined && !isLanguageTag(note.language)) {
+      throw new IndexError(
+        `${note.sourcePath}: unusable language ${JSON.stringify(note.language)}.`
+      );
+    }
     const previous = seen.get(note.slug);
     if (previous) {
       throw new IndexError(
@@ -112,7 +132,9 @@ export function checkIndex(index) {
         date: note.date,
         description: note.description,
         tags: note.tags,
-        home: note.home
+        home: note.home,
+        footer: note.footer,
+        language: note.language
       })
     );
   }
@@ -154,6 +176,7 @@ export function checkIndex(index) {
     themeCss: index.themeCss,
     headerTags: index.headerTags,
     homeList: index.homeList,
+    language: index.language,
     notes,
     assets
   });
@@ -199,7 +222,7 @@ export function headerNav(index) {
       label: tagLabel(tag),
       slug: slugify(tag),
       path: tagPagePath(tag),
-      notes: ordered.filter((note) => note.tags?.includes(tag))
+      notes: ordered.filter((note) => !note.footer && note.tags?.includes(tag))
     }))
     .filter((entry) => entry.notes.length > 0);
 }
@@ -220,11 +243,34 @@ export function orderNotes(notes) {
  * and is never uploaded twice.
  */
 export async function buildSite(index, sources, options = {}) {
-  const ordered = orderNotes(index.notes);
+  // A note marked as the footer is drawn beneath every page and is no page
+  // of its own; the rest are pages.
+  const footerNote = index.notes.find((note) => note.footer) ?? null;
+  const ordered = orderNotes(index.notes.filter((note) => note !== footerNote));
   const site = lookups(index, options.thumbnails, "../");
   const md = createRenderer(options);
   // A note marked as home is the start page, served from the site's root.
   const home = ordered.find((note) => note.home) ?? null;
+  const siteLanguage = index.language ?? DEFAULT_LANGUAGE;
+
+  // Rendered once for each depth a page sits at, since its links are relative.
+  const footers = new Map();
+  const footerAt = (up) => {
+    if (!footerNote) return null;
+    if (!footers.has(up)) {
+      const source = sources.get(footerNote.sha256);
+      if (source === undefined) {
+        throw new IndexError(`Source not uploaded for ${footerNote.sourcePath}.`);
+      }
+      footers.set(
+        up,
+        renderMarkdown(md, source, lookups(index, options.thumbnails, up), {
+          sourcePath: footerNote.sourcePath
+        })
+      );
+    }
+    return footers.get(up);
+  };
 
   const nav = headerNav(index);
   const siteIcon = siteIconFromTheme(index.themeCss);
@@ -265,7 +311,9 @@ export async function buildSite(index, sources, options = {}) {
             icon,
             usedMath: rendered.usedMath,
             usedMermaid: rendered.usedMermaid,
-            usedSlideshow: rendered.usedSlideshow
+            usedSlideshow: rendered.usedSlideshow,
+            lang: note.language ?? siteLanguage,
+            footer: footerAt("")
           }),
           "utf8"
         )
@@ -284,7 +332,9 @@ export async function buildSite(index, sources, options = {}) {
           icon,
           usedMath: rendered.usedMath,
           usedMermaid: rendered.usedMermaid,
-          usedSlideshow: rendered.usedSlideshow
+          usedSlideshow: rendered.usedSlideshow,
+          lang: note.language ?? siteLanguage,
+          footer: footerAt("../")
         }),
         "utf8"
       )
@@ -294,14 +344,41 @@ export async function buildSite(index, sources, options = {}) {
   if (!home) {
     files.set(
       "index.html",
-      Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle, nav, icon }), "utf8")
+      Buffer.from(
+        indexPage({
+          notes: ordered,
+          siteTitle: index.siteTitle,
+          nav,
+          icon,
+          lang: siteLanguage,
+          footer: footerAt("")
+        }),
+        "utf8"
+      )
     );
   }
   for (const entry of nav) {
     files.set(
       entry.path,
-      Buffer.from(tagPage({ entry, siteTitle: index.siteTitle, nav, icon }), "utf8")
+      Buffer.from(
+        tagPage({
+          entry,
+          siteTitle: index.siteTitle,
+          nav,
+          icon,
+          lang: siteLanguage,
+          footer: footerAt("../../")
+        }),
+        "utf8"
+      )
     );
+  }
+
+  // The footer's needs count wherever it was drawn.
+  for (const footer of footers.values()) {
+    usedMath = usedMath || footer.usedMath;
+    usedMermaid = usedMermaid || footer.usedMermaid;
+    usedSlideshow = usedSlideshow || footer.usedSlideshow;
   }
 
   for (const [path, content] of await generatorAssets({
@@ -328,6 +405,9 @@ export async function buildSite(index, sources, options = {}) {
 function lookups(index, thumbnails = new Set(), up = "../") {
   const notes = new Map();
   for (const note of index.notes) {
+    // The footer has no page of its own, so a link to it is plain text, as a
+    // link to an unpublished note is.
+    if (note.footer) continue;
     const url = note.home ? up || "./" : `${up}${note.slug}/`;
     const entry = { url, title: note.title, slug: note.slug };
     for (const alias of aliases(note.sourcePath)) notes.set(alias, entry);
@@ -363,6 +443,19 @@ function aliases(sourcePath) {
 
 function basename(path) {
   return String(path).split("/").pop() ?? String(path);
+}
+
+/**
+ * A language tag as a page's `lang` takes it: `de`, `en`, `en-GB`, `pt-BR`.
+ * Only its shape is checked; a browser treats a tag it does not know as
+ * unknown, which is harmless, but a quote in one would break the page.
+ */
+export function isLanguageTag(value) {
+  return (
+    typeof value === "string" &&
+    value.length <= 35 &&
+    /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,4}$/.test(value)
+  );
 }
 
 function isHash(value) {

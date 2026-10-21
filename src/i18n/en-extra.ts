@@ -451,7 +451,9 @@ export const enExtra = {
       print: "Print",
       glossaryNote: "Glossary note",
       glossaries: "Glossaries for this note",
-      publish: "Publish"
+      publish: "Publish",
+      websiteHome: "Website start page",
+      websiteFooter: "Website footer"
     } as Record<string, string>,
     setAdded: (name: string, added: number, kept: number) =>
       kept > 0 ? `${name}: ${added} added, ${kept} already there.` : `${name}: ${added} added.`,

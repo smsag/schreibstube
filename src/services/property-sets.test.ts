@@ -12,6 +12,8 @@ import {
   newKeys,
   planPropertySet,
   publishSet,
+  websiteFooterSet,
+  websiteHomeSet,
   readValue,
   setFromFrontmatter,
   setsToComplete,
@@ -52,6 +54,7 @@ describe("publishSet", () => {
       { key: "date", value: "" },
       { key: "description", value: "" },
       { key: "slug", value: "" },
+      { key: "lang", value: "" },
       { key: "publishedAt", value: "" },
       { key: "publishedUrl", value: "" }
     ]);
@@ -71,10 +74,53 @@ describe("publishSet", () => {
       "datum",
       "description",
       "slug",
+      "lang",
       "publishedAt",
       "publishedUrl"
     ]);
     expect(set.offeredBy).toEqual(["veroeffentlicht"]);
+  });
+});
+
+describe("the website sets", () => {
+  it("make a start page: what a page needs, marked as home, with no list", () => {
+    const set = websiteHomeSet(DEFAULT_PUBLISH_KEYS);
+    expect(set.id).toBe("schreibstube:website-home");
+    expect(set.entries).toEqual([
+      { key: "published", value: false },
+      { key: "title", value: "" },
+      { key: "description", value: "" },
+      { key: "lang", value: "" },
+      { key: "schreibstubeHome", value: true },
+      { key: "schreibstubeHomeList", value: false }
+    ]);
+    expect(set.offeredBy).toEqual(["schreibstubeHome"]);
+  });
+
+  it("make a footer: published and marked, nothing else", () => {
+    const set = websiteFooterSet(DEFAULT_PUBLISH_KEYS);
+    expect(set.entries).toEqual([
+      { key: "published", value: false },
+      { key: "schreibstubeFooter", value: true }
+    ]);
+    expect(set.offeredBy).toEqual(["schreibstubeFooter"]);
+  });
+
+  it("follow the keys the person mapped", () => {
+    const keys: PublishKeyMap = {
+      ...DEFAULT_PUBLISH_KEYS,
+      published: "online",
+      language: "sprache"
+    };
+    expect(websiteHomeSet(keys).entries.map((entry) => entry.key)).toContain("sprache");
+    expect(websiteFooterSet(keys).entries[0]?.key).toBe("online");
+  });
+
+  it("are among Schreibstube's own sets", () => {
+    const ids = builtinSets(DEFAULT_PUBLISH_KEYS).map((set) => set.id);
+    expect(ids).toEqual(
+      expect.arrayContaining(["schreibstube:website-home", "schreibstube:website-footer"])
+    );
   });
 });
 
@@ -288,7 +334,10 @@ describe("setsToComplete", () => {
     expect(setsToComplete([publish], ["date"], { date: "2026-10-01" })).toEqual([]);
     expect(setsToComplete([publish], ["Title"], { Title: "Tagebuch" })).toEqual([]);
     expect(setsToComplete([publish], ["Published"], { Published: true, title: "Hallo" })).toEqual([
-      { set: publish, missing: ["date", "description", "slug", "publishedAt", "publishedUrl"] }
+      {
+        set: publish,
+        missing: ["date", "description", "slug", "lang", "publishedAt", "publishedUrl"]
+      }
     ]);
   });
 });

@@ -32,6 +32,7 @@ export interface PublishKeyMap {
   date: string;
   description: string;
   slug: string;
+  language: string;
   publishedAt: string;
   publishedUrl: string;
 }
@@ -42,6 +43,7 @@ export const DEFAULT_PUBLISH_KEYS: PublishKeyMap = {
   date: "date",
   description: "description",
   slug: "slug",
+  language: "lang",
   publishedAt: "publishedAt",
   publishedUrl: "publishedUrl"
 };
@@ -80,6 +82,7 @@ export interface PublishFields {
   date: string;
   description: string;
   slug: string;
+  language: string;
 }
 
 /**
@@ -100,7 +103,8 @@ export function readPublishFields(frontmatter: unknown, keys: PublishKeyMap): Pu
     title: text(record[keys.title]),
     date: text(record[keys.date]),
     description: text(record[keys.description]),
-    slug: text(record[keys.slug])
+    slug: text(record[keys.slug]),
+    language: text(record[keys.language])
   };
 }
 
@@ -177,19 +181,24 @@ export interface ResolvedNote {
   title: string;
   date: string;
   description?: string;
+  language?: string;
 }
 
 /** Fill in everything the frontmatter left out, so the bridge never guesses. */
 export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote {
   const fields = readPublishFields(input.frontmatter, keys);
   const title = fields.title || firstHeading(input.content) || input.basename;
+  const language = checkLanguage(fields.language);
 
   return {
     sourcePath: input.path,
     slug: fields.slug ? slugify(fields.slug) : slugify(input.basename),
     title,
     date: fields.date || isoDate(input.createdMs),
-    ...(fields.description ? { description: fields.description } : {})
+    ...(fields.description ? { description: fields.description } : {}),
+    // A language that is no language tag is left out rather than refused: the
+    // page then takes the site's, which is what an unset one would do.
+    ...(language ? { language } : {})
   };
 }
 
@@ -200,6 +209,8 @@ export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote
  */
 export const HOME_KEY = "schreibstubeHome";
 export const HOME_LIST_KEY = "schreibstubeHomeList";
+/** The note drawn beneath every page, with no page of its own. */
+export const FOOTER_KEY = "schreibstubeFooter";
 
 export interface HomeFields {
   home: boolean;
@@ -232,9 +243,49 @@ export function findHomeCollision(
   return first && second ? t().publish.homeCollision(first.sourcePath, second.sourcePath) : null;
 }
 
-/** Where a published note can be read: the site's root for the start page. */
-export function publishedUrl(baseUrl: string, note: { slug: string; home?: boolean }): string {
+/** Whether a note is the footer of every page. */
+export function readFooter(frontmatter: unknown): boolean {
+  return (
+    typeof frontmatter === "object" &&
+    frontmatter !== null &&
+    isTrue((frontmatter as Record<string, unknown>)[FOOTER_KEY])
+  );
+}
+
+/**
+ * A site has one footer, and it is no page, so it cannot be the start page
+ * as well. The message names notes the user can open.
+ */
+export function findFooterCollision(
+  notes: readonly { sourcePath: string; home?: boolean; footer?: boolean }[]
+): string | null {
+  const footers = notes.filter((note) => note.footer);
+  const [first, second] = footers;
+  if (first && second) return t().publish.footerCollision(first.sourcePath, second.sourcePath);
+  const both = footers.find((note) => note.home);
+  return both ? t().publish.footerIsHome(both.sourcePath) : null;
+}
+
+/**
+ * Where a published note can be read: the site's root for the start page,
+ * nowhere for the footer, which has no page of its own.
+ */
+export function publishedUrl(
+  baseUrl: string,
+  note: { slug: string; home?: boolean; footer?: boolean }
+): string | null {
+  if (note.footer) return null;
   return note.home ? `${baseUrl}/` : `${baseUrl}/${note.slug}/`;
+}
+
+/**
+ * A language tag as a page's `lang` takes it: `de`, `en`, `en-GB`. This has to
+ * agree with the bridge, which refuses an index carrying anything else.
+ */
+export function checkLanguage(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const tag = value.trim();
+  return tag.length <= 35 && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,4}$/.test(tag) ? tag : null;
 }
 
 /**

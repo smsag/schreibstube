@@ -80,14 +80,15 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   // assets — the stylesheet, the fonts, the diagram bundle — depend on what the
   // pages turn out to use, so they are settled at commit.
   // The start page's note is index.html, which is never deleted, rather than
-  // a page under its slug.
+  // a page under its slug; the footer's is part of every page and none.
   const expectedPages = new Set(
-    index.notes.filter((note) => !note.home).map((note) => pagePath(note.slug))
+    index.notes.filter((note) => !note.home && !note.footer).map((note) => pagePath(note.slug))
   );
   // A header tag's page is the site's own, like a note's, as long as a note
   // carries the tag.
   for (const tag of index.headerTags ?? []) {
-    if (index.notes.some((note) => note.tags?.includes(tag))) expectedPages.add(tagPagePath(tag));
+    if (index.notes.some((note) => !note.footer && note.tags?.includes(tag)))
+      expectedPages.add(tagPagePath(tag));
   }
   const willDelete = [...published].filter((path) => {
     if (path === "index.html") return false;
@@ -114,9 +115,10 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
  */
 export function plannedOutputs(index, plan) {
   const paths = new Set(["index.html", "assets/theme.css"]);
-  for (const note of index.notes) if (!note.home) paths.add(pagePath(note.slug));
+  for (const note of index.notes) if (!note.home && !note.footer) paths.add(pagePath(note.slug));
   for (const tag of index.headerTags ?? []) {
-    if (index.notes.some((note) => note.tags?.includes(tag))) paths.add(tagPagePath(tag));
+    if (index.notes.some((note) => !note.footer && note.tags?.includes(tag)))
+      paths.add(tagPagePath(tag));
   }
   for (const entry of [...plan.uploadAssets, ...plan.uploadThumbnails]) paths.add(entry.path);
   return [...paths].sort();

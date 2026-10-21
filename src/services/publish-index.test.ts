@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   ATTACHMENT_EXTENSIONS,
   DEFAULT_PUBLISH_KEYS,
+  checkLanguage,
+  findFooterCollision,
   findHomeCollision,
+  FOOTER_KEY,
+  readFooter,
   findSlugCollision,
   firstHeading,
   HOME_KEY,
@@ -317,6 +321,67 @@ describe("findHomeCollision", () => {
   });
 });
 
+describe("readFooter", () => {
+  it("makes a note the footer only when it says so", () => {
+    expect(readFooter({ [FOOTER_KEY]: true })).toBe(true);
+    expect(readFooter({ [FOOTER_KEY]: "ja" })).toBe(true);
+    expect(readFooter({})).toBe(false);
+    expect(readFooter(null)).toBe(false);
+    expect(FOOTER_KEY.startsWith("schreibstube")).toBe(true);
+  });
+});
+
+describe("findFooterCollision", () => {
+  it("passes with one footer or none", () => {
+    expect(
+      findFooterCollision([{ sourcePath: "a.md", footer: true }, { sourcePath: "b.md" }])
+    ).toBeNull();
+    expect(findFooterCollision([])).toBeNull();
+  });
+
+  it("names both notes when two want to be the footer", () => {
+    const message = findFooterCollision([
+      { sourcePath: "Site/a.md", footer: true },
+      { sourcePath: "Site/b.md", footer: true }
+    ]);
+    expect(message).toContain("Site/a.md");
+    expect(message).toContain("Site/b.md");
+  });
+
+  it("refuses a note that is the start page and the footer at once", () => {
+    expect(findFooterCollision([{ sourcePath: "Site/x.md", footer: true, home: true }])).toContain(
+      "Site/x.md"
+    );
+  });
+});
+
+describe("checkLanguage", () => {
+  it("takes a language tag, trimmed, and nothing that could break a page", () => {
+    expect(checkLanguage(" en ")).toBe("en");
+    expect(checkLanguage("en-GB")).toBe("en-GB");
+    for (const bad of ["", "e", "deutsch", "de_DE", 'de" x', 7, null, "en-".repeat(20)]) {
+      expect(checkLanguage(bad)).toBeNull();
+    }
+  });
+
+  it("gives a note the language its frontmatter names, under the configured key", () => {
+    const input = {
+      path: "Site/Impressum.md",
+      basename: "Impressum",
+      content: "# Impressum",
+      createdMs: 0
+    };
+    expect(
+      resolveNote({ ...input, frontmatter: { lang: "de" } }, DEFAULT_PUBLISH_KEYS).language
+    ).toBe("de");
+    const keys = normalizePublishKeys({ language: "sprache" });
+    expect(resolveNote({ ...input, frontmatter: { sprache: "en" } }, keys).language).toBe("en");
+    expect(
+      resolveNote({ ...input, frontmatter: { lang: "Deutsch" } }, DEFAULT_PUBLISH_KEYS)
+    ).not.toHaveProperty("language");
+  });
+});
+
 describe("publishedUrl", () => {
   it("is the site's root for the start page and the slug's page for the rest", () => {
     expect(publishedUrl("https://karussell.space", { slug: "start", home: true })).toBe(
@@ -325,6 +390,7 @@ describe("publishedUrl", () => {
     expect(publishedUrl("https://karussell.space", { slug: "impressum" })).toBe(
       "https://karussell.space/impressum/"
     );
+    expect(publishedUrl("https://karussell.space", { slug: "footer", footer: true })).toBeNull();
   });
 });
 

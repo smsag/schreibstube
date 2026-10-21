@@ -34,7 +34,13 @@ import {
   DEFAULT_GLOSSARY_SEVERITY
 } from "./glossary-parser";
 import { GLOSSARY_FRONTMATTER_KEY } from "./glossary-resolver";
-import { PUBLISH_KEY_ROLES, type PublishKeyMap } from "./publish-index";
+import {
+  FOOTER_KEY,
+  HOME_KEY,
+  HOME_LIST_KEY,
+  PUBLISH_KEY_ROLES,
+  type PublishKeyMap
+} from "./publish-index";
 
 /** What a set may put in a note: YAML scalars, and lists of them. */
 export type PropertyValue = string | number | boolean | null | (string | number | boolean)[];
@@ -112,13 +118,57 @@ export function publishSet(keys: PublishKeyMap): PropertySet {
   };
 }
 
+/**
+ * A website's start page, as a set: what a page of a product or a person
+ * needs rather than a blog post's date and slug, under the configured keys,
+ * with the note marked as the start page and no list of notes beneath it.
+ * Adding the start-page flag by hand offers the rest.
+ */
+export function websiteHomeSet(keys: PublishKeyMap): PropertySet {
+  return {
+    ...builtin("website-home", "websiteHome", [
+      { key: keys.published, value: false },
+      { key: keys.title, value: "" },
+      { key: keys.description, value: "" },
+      { key: keys.language, value: "" },
+      { key: HOME_KEY, value: true },
+      { key: HOME_LIST_KEY, value: false }
+    ]),
+    offeredBy: [HOME_KEY]
+  };
+}
+
+/** A website's footer note: published, marked as the footer, nothing else. */
+export function websiteFooterSet(keys: PublishKeyMap): PropertySet {
+  return {
+    ...builtin("website-footer", "websiteFooter", [
+      { key: keys.published, value: false },
+      { key: FOOTER_KEY, value: true }
+    ]),
+    offeredBy: [FOOTER_KEY]
+  };
+}
+
 /** Every set of Schreibstube's own, publishing's under the configured keys. */
 export function builtinSets(publishKeys: PublishKeyMap): PropertySet[] {
-  return [...BUILTIN_SETS, publishSet(publishKeys)];
+  return [
+    ...BUILTIN_SETS,
+    publishSet(publishKeys),
+    websiteHomeSet(publishKeys),
+    websiteFooterSet(publishKeys)
+  ];
 }
 
 /** The name key a built-in set is shown under; the caller translates it. */
-export type BuiltinSetName = "mail" | "sync" | "print" | "glossaryNote" | "glossaries" | "publish";
+export type BuiltinSetName =
+  | "mail"
+  | "sync"
+  | "print"
+  | "glossaryNote"
+  | "glossaries"
+  | "publish"
+  | "websiteHome"
+  | "websiteFooter";
 
 function builtin(id: string, name: BuiltinSetName, entries: PropertyEntry[]): PropertySet {
   return { id: `schreibstube:${id}`, name, source: "schreibstube", entries, templater: false };

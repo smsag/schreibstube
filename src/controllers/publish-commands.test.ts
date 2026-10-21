@@ -356,6 +356,49 @@ describe("which notes are published", () => {
     expect(plannedIndex()).not.toHaveProperty("homeList");
   });
 
+  it("tells the bridge the site's language, the footer and a note's own language", async () => {
+    const vault = fakeVault({
+      notes: [
+        { path: "Blog/Start.md", content: "# Start", frontmatter: published },
+        {
+          path: "Blog/Impressum.md",
+          content: "# Impressum",
+          frontmatter: { ...published, lang: "de" }
+        },
+        {
+          path: "Blog/Footer.md",
+          content: "Impressum",
+          frontmatter: { ...published, schreibstubeFooter: true }
+        }
+      ]
+    });
+
+    await controller(vault, {
+      publishAccounts: [{ ...account, language: "en" }]
+    }).commands.preview();
+    const index = plannedIndex();
+    const bySlug = (slug: string) =>
+      index.notes.find((note: { slug: string }) => note.slug === slug);
+    expect(index.language).toBe("en");
+    expect(bySlug("footer").footer).toBe(true);
+    expect(bySlug("impressum").language).toBe("de");
+    expect(bySlug("start")).not.toHaveProperty("language");
+  });
+
+  it("refuses when two notes want to be the footer", async () => {
+    const footer = { ...published, schreibstubeFooter: true };
+    const vault = fakeVault({
+      notes: [
+        { path: "Blog/Erste.md", content: "A", frontmatter: footer },
+        { path: "Blog/Zweite.md", content: "B", frontmatter: footer }
+      ]
+    });
+
+    await controller(vault).commands.preview();
+    expect(client.plan).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toContain("Blog/Erste.md");
+  });
+
   it("refuses when two notes want to be the start page", async () => {
     const home = { ...published, schreibstubeHome: true };
     const vault = fakeVault({

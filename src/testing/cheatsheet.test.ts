@@ -88,7 +88,7 @@ describe("the cheatsheet", () => {
     const known = keysInCode();
     // A key on the page that the code never spells is one a model will write
     // for nothing. The mistakes section names two on purpose, as mistakes.
-    const invented = new Set(["schreibstubeTheme", "schreibstubeFooter"]);
+    const invented = new Set(["schreibstubeTheme", "schreibstubeMenu"]);
     const onPage = [...sheet.matchAll(/schreibstube[A-Z][A-Za-z]*/g)].map((match) => match[0]);
     expect(onPage.filter((key) => !known.has(key) && !invented.has(key))).toEqual([]);
   });

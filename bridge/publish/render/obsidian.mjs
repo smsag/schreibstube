@@ -74,7 +74,7 @@ function pushEmbed(state, { path, alias, site }) {
   if (asset) {
     if (asset.kind === "video") {
       const token = state.push("html_inline", "", 0);
-      token.content = videoTag(asset.url, size);
+      token.content = videoTag(asset.url, size, videoPlayback(label));
       return;
     }
     const token = state.push("image", "img", 0);
@@ -139,9 +139,37 @@ function applySize(token, { width, height }) {
   if (height) token.attrSet("height", String(height));
 }
 
-function videoTag(url, { width, height } = {}) {
+/**
+ * How a video plays, from the words written where a picture's alt text goes:
+ * `![[clip.mp4|loop]]`, `![[clip.mp4|autoplay|640]]`, `![loop](clip.mp4)`.
+ * `loop` plays it over and over from the start, `autoplay` starts it once,
+ * `muted` silences it. A browser starts a video by itself only when it is
+ * silent, so playing by itself implies muted. Other words are ignored, as
+ * they always were on a video.
+ */
+export function videoPlayback(text) {
+  const words = new Set(
+    String(text ?? "")
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .filter(Boolean)
+  );
+  const loop = words.has("loop");
+  const autoplay = loop || words.has("autoplay");
+  return { loop, autoplay, muted: autoplay || words.has("muted") };
+}
+
+// The controls stay on a video that plays by itself: moving content that runs
+// longer than five seconds has to be stoppable (WCAG 2.2.2).
+function videoTag(url, { width, height } = {}, { loop, autoplay, muted } = {}) {
   const size = (width ? ` width="${width}"` : "") + (height ? ` height="${height}"` : "");
-  return `<video class="embed" controls preload="metadata" src="${escapeAttribute(url)}"${size}></video>`;
+  const playback =
+    (autoplay ? " autoplay" : "") +
+    (muted ? " muted" : "") +
+    (loop ? " loop" : "") +
+    (autoplay ? " playsinline" : "");
+  const preload = autoplay ? "auto" : "metadata";
+  return `<video class="embed" controls${playback} preload="${preload}" src="${escapeAttribute(url)}"${size}></video>`;
 }
 
 /**
@@ -183,7 +211,7 @@ function vaultImages(state) {
 
       if (asset.kind === "video") {
         const video = new state.Token("html_inline", "", 0);
-        video.content = videoTag(asset.url, size);
+        video.content = videoTag(asset.url, size, videoPlayback(alt));
         return video;
       }
 

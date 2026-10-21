@@ -34,6 +34,7 @@ import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
 import { sourceForUpload } from "../services/publish-source";
 import {
   ATTACHMENT_EXTENSIONS,
+  findFooterCollision,
   findHomeCollision,
   findSlugCollision,
   isInsideFolder,
@@ -41,6 +42,7 @@ import {
   readPublishFields,
   headerTagsOf,
   publishedUrl,
+  readFooter,
   readHomeFields,
   noteTags,
   referencedAttachments,
@@ -522,7 +524,8 @@ export class PublishCommands {
           ...note,
           sha256,
           ...(carried.length > 0 ? { tags: carried } : {}),
-          ...(start.home ? { home: true as const } : {})
+          ...(start.home ? { home: true as const } : {}),
+          ...(readFooter(cache?.frontmatter) ? { footer: true as const } : {})
         });
 
         // A filmstrip shows its pictures small as well, and asks for thumbnails.
@@ -569,7 +572,8 @@ export class PublishCommands {
       new Notice(t().common.notice(t().publish.diagramsNotDrawn(drawing.lost)), 10_000);
     }
 
-    const collision = findSlugCollision(resolved) ?? findHomeCollision(notes);
+    const collision =
+      findSlugCollision(resolved) ?? findHomeCollision(notes) ?? findFooterCollision(notes);
     if (collision) {
       new Notice(t().common.notice(collision));
       return null;
@@ -582,7 +586,8 @@ export class PublishCommands {
       assets: assetEntries,
       ...(themeCss !== undefined ? { themeCss } : {}),
       ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {}),
-      ...(homeList ? { homeList: true } : {})
+      ...(homeList ? { homeList: true } : {}),
+      ...(account.language ? { language: account.language } : {})
     };
 
     return { index, sources, assets, describable };
@@ -693,7 +698,9 @@ export class PublishCommands {
           if (account.writeBack) {
             frontmatter[keys.publishedAt] = at;
             // A bridge that named no usable site address leaves the last one.
-            if (baseUrl) frontmatter[keys.publishedUrl] = publishedUrl(baseUrl, note);
+            // The footer has no address of its own to record.
+            const url = baseUrl ? publishedUrl(baseUrl, note) : null;
+            if (url) frontmatter[keys.publishedUrl] = url;
           }
           // A description typed while the run was under way is the person's.
           if (description !== undefined && leavesDescriptionToModel(frontmatter, keys)) {
