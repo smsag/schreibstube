@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - **A reading note says in its properties when it was last checked, and holds no comments.** The time of the last check is now the note's `schreibstubeReadingCheckedAt` property, where Obsidian's Properties show it and a Base can sort by it. The list has no `%%` markers around it and no hidden Instapaper id after each entry: it is just its lines, `- [Title](link) · date · highlights`, and new ones go above the first, so you can move the list anywhere in the note. An article is recognized by its link, so one saved twice under two different addresses is listed twice. The highlight counts of the ten newest articles are still read on every check. A note checked with 1.88.0 loses its markers and ids on its next check, without listing anything again.
 
+### Fixed
+
+- **`:folder:` draws its icon in Live Preview again with every theme.** The editor drew a shortcode's icon only in the part of the note CodeMirror reckoned was on screen, and with some themes that reckoning came back empty: Live Preview showed `:timeline:` as text, without an error, while Reading view drew the icon. It now reads the lines the editor has actually drawn.
+
 ## 1.88.0 - 2026-10-21
 
 A note can keep your Instapaper reading history. Give it

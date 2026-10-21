@@ -57,12 +57,20 @@ class IconWidget extends WidgetType {
 /**
  * Live Preview: shortcodes become glyphs, except under the cursor.
  *
- * Only the lines on screen are read, and only when they change or the view
- * scrolls: a cursor move keeps the hits it found and merely decides again
- * which of them the cursor is on, so walking the text is never the cost of
- * a keystroke. Read per visible line rather than from the top, a fence that
- * opened above the screen is not seen; the cap on the note's length is what
+ * Only the lines the editor has drawn are read, and only when they change or
+ * the view scrolls: a cursor move keeps the hits it found and merely decides
+ * again which of them the cursor is on, so walking the text is never the cost
+ * of a keystroke. Read from the drawn range rather than from the top, a fence
+ * that opened above it is not seen; the cap on the note's length is what
  * keeps that trade honest, since a note within it is prose.
+ *
+ * The drawn range, `viewport`, and not the ranges CodeMirror reckons are on
+ * screen. Those are measured against the editor's scroll containers, which a
+ * theme lays out as it likes, and in a layout the measurement misreads they
+ * come back empty: the editor drew every line and this drew no glyph on any
+ * of them, while Reading view showed them all. The drawn range is never empty
+ * in an open note, holds the screen with a margin either side, and is one
+ * range, so the hits come out in order however the note is folded.
  */
 export function createIconShortcodeExtension(enabled: () => boolean): Extension {
   return ViewPlugin.fromClass(
@@ -93,14 +101,12 @@ export function createIconShortcodeExtension(enabled: () => boolean): Extension 
           return;
         }
         const doc = view.state.doc;
-        for (const range of view.visibleRanges) {
-          // Whole lines, so a shortcode cut by the edge of the screen is read
-          // as the word it is rather than as its first half.
-          const from = doc.lineAt(range.from).from;
-          const to = doc.lineAt(range.to).to;
-          for (const hit of findShortcodes(doc.sliceString(from, to), isIcon)) {
-            this.hits.push({ ...hit, from: hit.from + from, to: hit.to + from });
-          }
+        // Whole lines, so a shortcode cut by the edge of the drawn range is
+        // read as the word it is rather than as its first half.
+        const from = doc.lineAt(view.viewport.from).from;
+        const to = doc.lineAt(view.viewport.to).to;
+        for (const hit of findShortcodes(doc.sliceString(from, to), isIcon)) {
+          this.hits.push({ ...hit, from: hit.from + from, to: hit.to + from });
         }
         this.draw(view);
       }
