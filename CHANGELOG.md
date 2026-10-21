@@ -2,7 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.88.1 - 2026-10-21
+
+`:folder:` draws its icon in Live Preview again in a note with `---` rules
+between its sections, where a fold or a scroll had left the icons below a
+rule as text while Reading view drew them. And a reading note holds no
+comments any more: its last check is the `schreibstubeReadingCheckedAt`
+property, and its list is just its lines, without markers around it or an
+id after each entry. A note checked with 1.88.0 is tidied on its next check.
+
+Mobile checklist: not run. What to try first: open a note with `---` rules
+and icons below them in Live Preview, fold a section above, and scroll; the
+icons should stay drawn. Then run **Update reading history** on a note
+checked with 1.88.0: its `%%` markers and ids should be gone, and the
+property should hold the time of the check.
+
+The bridge stays at 3.4.0 and the protocol at 9.
 
 ### Changed
 
