@@ -2,12 +2,18 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import type { Plugin } from "obsidian";
 import { installObsidianDom } from "../testing/obsidian-dom";
-import { registerIconShortcodePostProcessor, setTextWithIcons } from "./icon-shortcode";
+import { EditorSelection, EditorState } from "@codemirror/state";
+import { EditorView } from "@codemirror/view";
+import {
+  createIconShortcodeExtension,
+  registerIconShortcodePostProcessor,
+  setTextWithIcons
+} from "./icon-shortcode";
 
 /**
- * Reading view's half of `:folder:`: which rendered text becomes a glyph.
- * Where a shortcode counts in the source is tested in
- * `services/icon-shortcode.test.ts`.
+ * Both halves of `:folder:`: which rendered text becomes a glyph in Reading
+ * view, and which source text becomes one in Live Preview. Where a shortcode
+ * counts in the source is tested in `services/icon-shortcode.test.ts`.
  */
 
 type PostProcessor = (el: HTMLElement) => void;
@@ -35,6 +41,84 @@ const glyphs = (el: HTMLElement): string[] =>
 
 beforeAll(() => {
   installObsidianDom();
+  // Obsidian gives every node its document as `doc`, for popout windows.
+  if (!("doc" in Node.prototype)) {
+    Object.defineProperty(Node.prototype, "doc", {
+      get(this: Node) {
+        return this.ownerDocument ?? document;
+      }
+    });
+  }
+});
+
+describe("shortcodes in Live Preview", () => {
+  const NOTE = "## Werkzeugkasten [:timeline:](#x)\n\n:timeline:\n\nText :folder: und `:star:`";
+
+  function editor(cursor: number, enabled = true): { view: EditorView; drawn: () => string[] } {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: NOTE,
+        selection: EditorSelection.cursor(cursor),
+        extensions: createIconShortcodeExtension(() => enabled)
+      }),
+      parent
+    });
+    return { view, drawn: () => glyphs(parent) };
+  }
+
+  it("draws every shortcode the editor shows, a link's label and a heading's included", () => {
+    const { view, drawn } = editor(NOTE.length);
+    expect(drawn()).toEqual(["timeline", "timeline", "folder"]);
+    view.destroy();
+  });
+
+  it("shows the words of the one the cursor is on, and draws it again when it leaves", () => {
+    const onSecond = NOTE.indexOf(":timeline:\n") + 3;
+    const { view, drawn } = editor(onSecond);
+    expect(drawn()).toEqual(["timeline", "folder"]);
+    view.dispatch({ selection: EditorSelection.cursor(NOTE.length) });
+    expect(drawn()).toEqual(["timeline", "timeline", "folder"]);
+    view.destroy();
+  });
+
+  it("draws them when the editor reckons nothing is on screen", () => {
+    // What a theme whose scroll containers CodeMirror misreads leaves it with:
+    // every line drawn, and no range it counts as visible.
+    const { view, drawn } = editor(NOTE.length);
+    Object.defineProperty(view, "visibleRanges", { get: () => [] });
+    view.dispatch({ changes: { from: NOTE.length, insert: " " } });
+    expect(drawn()).toEqual(["timeline", "timeline", "folder"]);
+    view.destroy();
+  });
+
+  it("reads a drawn range that starts at a rule as prose, not as frontmatter", () => {
+    // A fold or a scroll can leave the drawn range starting at a `---` rule;
+    // read without the lines above, it opened frontmatter and hid every icon.
+    const text = `# Note\n\n---\n${NOTE}\n\n---\nAfter :star:`;
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: text,
+        selection: EditorSelection.cursor(0),
+        extensions: createIconShortcodeExtension(() => true)
+      }),
+      parent
+    });
+    const rule = text.indexOf("---");
+    Object.defineProperty(view, "viewport", { get: () => ({ from: rule, to: text.length }) });
+    view.dispatch({ changes: { from: text.length, insert: " " } });
+    expect(glyphs(parent)).toEqual(["timeline", "timeline", "folder", "star"]);
+    view.destroy();
+  });
+
+  it("draws nothing while the setting is off", () => {
+    const { view, drawn } = editor(NOTE.length, false);
+    expect(drawn()).toEqual([]);
+    view.destroy();
+  });
 });
 
 describe("shortcodes in Reading view", () => {
