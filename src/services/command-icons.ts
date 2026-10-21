@@ -28,6 +28,7 @@ export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "open-review-panel": "spell-check",
   "proof-read-note": "spell-check-2",
   "poll-all-sources": "refresh-cw",
+  "update-reading-history": "library",
   "query-mailbox": "mail-search",
   "publish-folder": "globe",
   "share-note": "share-2",

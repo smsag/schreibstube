@@ -45,6 +45,7 @@ export const de: Messages = {
     proofread: "Notiz korrigieren",
     syncAll: "Alle Notizen aktualisieren",
     syncNote: "Notiz aktualisieren",
+    readingUpdate: "Lesehistorie aktualisieren",
     sendMail: "Notiz als Mail senden",
     queryMailbox: "Postfach durchsuchen",
     fetchReplies: "Antworten in die Notiz holen",
@@ -805,7 +806,26 @@ export const de: Messages = {
     syncScheduleDesc: (examples: string) =>
       "Fünf Cron-Felder: Minute, Stunde, Tag des Monats, Monat, Wochentag. Gilt in Ortszeit. Ein " +
       "Zeitpunkt, der bei geschlossenem Obsidian fällig wurde, läuft einmal beim nächsten Start. " +
-      `Beispiele: ${examples}.`
+      `Beispiele: ${examples}.`,
+
+    readingHeading: "Lesehistorie",
+    readingIntro:
+      "Eine Notiz mit schreibstubeReadingFrom: instapaper:archive in den Eigenschaften listet " +
+      "jeden Artikel, den du in Instapaper archivierst: Titel, Link und Zahl der Markierungen, " +
+      "der neueste oben. Die erste Prüfung listet die letzten 100.",
+    readingEnabled: "Lesehistorie einschalten",
+    readingEnabledDesc:
+      "Standardmäßig aus. Lesenotizen werden alle sechs Stunden geprüft oder so oft, wie ihr " +
+      "schreibstubeSyncEvery sagt.",
+    readingToken: "Instapaper-Token",
+    readingTokenDesc:
+      "Ein persönliches Zugriffstoken deiner Anwendung unter instapaper.com/developers. Liegt im " +
+      "Schlüsselspeicher von Obsidian und geht nur an Instapaper.",
+    readingSummaries: "Markierungen zusammenfassen",
+    readingSummariesDesc:
+      "Schreibt unter jeden Artikel mit Markierungen eine Zusammenfassung von höchstens 280 " +
+      "Zeichen in der Sprache des Artikels. " +
+      "Schickt die Markierungen an den KI-Anbieter, der unter KI-Modell gewählt ist."
   },
 
   ai: {
@@ -1131,6 +1151,30 @@ export const de: Messages = {
         cron === null ? `Höchstens ${words} geprüft` : `Höchstens ${words} geprüft (${cron})`,
       panelCron: (cron: string) => `Nach dem Zeitplan der Notiz geprüft (${cron})`
     }
+  },
+
+  reading: {
+    sourceMissing: "Keine Leseliste angegeben.",
+    sourceUnknown:
+      'schreibstubeReadingFrom ist nicht lesbar. Schreib "instapaper:archive" oder "instapaper:liked".',
+    disabled:
+      "die Lesehistorie ist aus. Schalte sie unter Einstellungen → Schreibstube → Lesehistorie ein.",
+    busy: "die Lesehistorie wird schon geprüft.",
+    noToken:
+      "kein Instapaper-Token gewählt. Wähle eins unter Einstellungen → Schreibstube → Lesehistorie.",
+    denied: (status: number) =>
+      `Instapaper lehnt das Token ab (HTTP ${status}). Erzeuge ein neues und wähle es erneut.`,
+    rateLimited: "Instapapers Anfragegrenze ist erreicht. Die nächste Prüfung versucht es wieder.",
+    httpStatus: (status: number) => `Instapaper antwortet mit HTTP ${status}.`,
+    tooLarge: "Instapapers Antwort überschreitet die Größengrenze.",
+    malformed: "Instapapers Antwort ist nicht lesbar.",
+    timeout: (seconds: number) => `Instapaper hat nicht innerhalb von ${seconds}s geantwortet.`,
+    networkError: "Netzwerkfehler.",
+    highlights: (count: number) => (count === 1 ? "1 Markierung" : `${count} Markierungen`),
+    noneChecked: "keine Lesenotizen geprüft.",
+    checked: (checked: number, added: number, failed: number) =>
+      `${checked} Lesenotiz(en) geprüft, ${added} Artikel hinzugefügt, ${failed} fehlgeschlagen.`,
+    failed: (reason: string) => `die Lesehistorie ließ sich nicht aktualisieren: ${reason}`
   },
 
   mailNotices: {

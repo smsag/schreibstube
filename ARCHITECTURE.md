@@ -35,6 +35,7 @@ controllers/         one per feature; they own flow and talk to Obsidian
   mail-commands      send, search, merge replies
   proofread-controller  the review sidebar
   sync-poller        checks bound notes against their sources
+  reading-history-controller  lists what an Instapaper list gains in its reading notes
   explorer-controller  the file pane: icons, pins, its menu, its sync actions
   pane-sections        the two read-only lists above the tree: bookmarks, latest
   property-controller  property icons and today's date in the Properties view

@@ -46,6 +46,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubeSubject`         | mail note      | subject line                                                   |
 | `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                               |
 | `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line        |
+| `schreibstubeReadingFrom`     | reading note   | `instapaper:archive` or `instapaper:liked` (see 10)            |
 | `schreibstubeGlossary`        | glossary note  | `true`                                                         |
 | `schreibstubeLanguage`        | glossary note  | `de`, `en`, …                                                  |
 | `schreibstubeDefaultSeverity` | glossary note  | `error`, `warning` or `suggestion`                             |
@@ -197,9 +198,8 @@ column heads, bullets), `font:` (a font in the template's `fonts/` folder),
 
 ## 4. Printed documents
 
-**Print note** (`Notiz drucken`) makes a PDF beside the note. The print dialog
-chooses template, margins, whether properties print, and, for decks, format,
-alignment and speaker notes.
+**Print note** (`Notiz drucken`) makes a PDF beside the note. The print dialog chooses template,
+margins, whether properties print, and, for decks, format, alignment and speaker notes.
 
 - **Standard** — used when a note names no template. Headings, lists,
   tables, code, callouts, footnotes, pictures. `schreibstubePrint:
@@ -330,8 +330,7 @@ depth: 3
 
 ### Callouts
 
-`> [!note] Title`, then `> text` lines. Every kind prints in one of four
-styles, coloured by the template:
+`> [!note] Title`, then `> text` lines. Every kind prints in one of four styles, coloured by the template:
 
 - note: `note`, `info`, `todo`, `abstract`, `summary`, `tldr`, `example`, `quote`, `cite`
 - tip: `tip`, `hint`, `important`, `success`, `check`, `done`
@@ -403,8 +402,7 @@ slug: hallo-welt
 
 ## 10. Document sync
 
-A note bound to a remote Markdown file; changes arrive as cards to accept
-(**Update note**, `Notiz aktualisieren`).
+A note bound to a remote Markdown file; changes arrive as cards (**Update note**, `Notiz aktualisieren`).
 
 ```markdown
 ---
@@ -414,8 +412,10 @@ schreibstubeSyncEvery: Alle 2 Tage
 ```
 
 - HTTPS only, and the path must end in a Markdown extension.
-- `schreibstubeSyncEvery` reads German or English words (`täglich`,
-  `every 6 hours`) or a five-field cron line such as `0 9 * * 1-5`.
+- `schreibstubeSyncEvery` reads German or English words (`täglich`, `every 6 hours`) or a cron line.
+- `schreibstubeReadingFrom: instapaper:archive` (or `instapaper:liked`) makes a reading history
+  instead: every article that list gains, newest first (**Update reading history**,
+  `Lesehistorie aktualisieren`). The plugin writes the `%% schreibstube-reading %%` block; leave it.
 
 ## 11. Glossary
 

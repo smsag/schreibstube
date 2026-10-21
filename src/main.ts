@@ -40,6 +40,7 @@ import { getImageMimeType } from "./services/image-resize";
 import { linkCallAllowed } from "./services/link-rate";
 import { hasSourceBinding } from "./services/sync-source";
 import { describePollSummary } from "./services/sync-summary";
+import { describeReadingCheck } from "./services/reading-history";
 import { mergeSyncState, sameSyncState } from "./services/sync-merge";
 import type { SyncRecord } from "./services/sync-document";
 import { NoteCommands } from "./controllers/note-commands";
@@ -81,6 +82,7 @@ import {
   selectedLineRange
 } from "./controllers/table-insert";
 import { ProofreadController } from "./controllers/proofread-controller";
+import { ReadingHistoryController } from "./controllers/reading-history-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
 import { revealFlashExtension } from "./processors/reveal-flash";
 import {
@@ -159,6 +161,13 @@ const POLL_CATCHUP_DELAY_MS = 8_000;
  *  poll: the metadata cache has to have read the vault's frontmatter by then. */
 const ORPHAN_REPAIR_DELAY_MS = 20_000;
 
+/** How often reading notes are looked at. Each note keeps its own interval;
+ *  this only bounds how late a due note is noticed. */
+const READING_TICK_MS = 15 * 60_000;
+
+/** The first look after start, once the metadata cache knows the vault. */
+const READING_FIRST_DELAY_MS = 60_000;
+
 const RECOMMEND_LIMIT = 20;
 
 export default class SchreibstubePlugin extends Plugin {
@@ -191,6 +200,7 @@ export default class SchreibstubePlugin extends Plugin {
   private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
   private proofread: ProofreadController | null = null;
+  private reading: ReadingHistoryController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
   private recommendedFooter: RecommendedFooter | null = null;
@@ -473,6 +483,8 @@ export default class SchreibstubePlugin extends Plugin {
     registerIconShortcodePostProcessor(this, iconShortcodes);
     this.registerProofreadEvents();
     this.startPollTicker();
+    this.reading = new ReadingHistoryController(this.app, () => this.settings, this.logger);
+    this.startReadingTicker();
 
     bootstrapSchreibstubeRuntime(this, {
       pictureActions: () => this.pictureActions,
@@ -1549,6 +1561,21 @@ export default class SchreibstubePlugin extends Plugin {
     this.register(() => window.clearTimeout(catchUp));
   }
 
+  /**
+   * Look at the reading notes now and then. No catch-up is needed: a note is
+   * due by the time its block names, so the first look after a long sleep
+   * finds every note that was missed.
+   */
+  private startReadingTicker(): void {
+    const look = (): void => {
+      if (!this.settings.readingEnabled) return;
+      this.track(this.reading?.checkAll(false) ?? Promise.resolve(), "The reading history check");
+    };
+    this.registerInterval(window.setInterval(look, READING_TICK_MS));
+    const first = window.setTimeout(look, READING_FIRST_DELAY_MS);
+    this.register(() => window.clearTimeout(first));
+  }
+
   private handlePollTick(now: Date): void {
     const schedule = this.activePollSchedule();
     if (!schedule) return;
@@ -2129,6 +2156,21 @@ export default class SchreibstubePlugin extends Plugin {
             new Notice(t().common.notice(describePollSummary(summary, { scope: "vault" })));
           }),
           "The poll"
+        );
+      }
+    });
+
+    this.addCommand({
+      id: "update-reading-history",
+      name: t().commands.readingUpdate,
+      callback: () => {
+        const reading = this.reading;
+        if (!reading) return;
+        this.track(
+          reading.checkAll(true).then((summary) => {
+            new Notice(t().common.notice(describeReadingCheck(summary)));
+          }),
+          "The reading history check"
         );
       }
     });

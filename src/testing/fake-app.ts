@@ -27,6 +27,8 @@ export interface FakeVault {
   app: FakeApp;
   file(path: string): TFile;
   frontmatterOf(path: string): Record<string, unknown>;
+  /** What a note holds now, after any write through `vault.process`. */
+  contentOf(path: string): string;
   /** What the app keeps per device, outside the synced vault. */
   deviceStorage: Map<string, unknown>;
 }
@@ -38,7 +40,10 @@ interface FakeApp {
     cachedRead(file: TFile): Promise<string>;
     readBinary(file: TFile): Promise<ArrayBuffer>;
     getAbstractFileByPath(path: string): TFile | null;
+    process(file: TFile, apply: (text: string) => string): Promise<string>;
   };
+  /** No note is open in an editor: every write goes through the vault. */
+  workspace: { getLeavesOfType(type: string): never[] };
   metadataCache: {
     getFileCache(file: TFile): { frontmatter?: Record<string, unknown>; tags?: string[] } | null;
     getFirstLinkpathDest(linkpath: string, from: string): TFile | null;
@@ -108,8 +113,14 @@ export function fakeVault({
           binary.bytes.byteOffset + binary.bytes.byteLength
         ) as ArrayBuffer;
       },
-      getAbstractFileByPath: (path) => files.get(path) ?? null
+      getAbstractFileByPath: (path) => files.get(path) ?? null,
+      process: async (file, apply) => {
+        const next = apply(contents.get(file.path) ?? "");
+        contents.set(file.path, next);
+        return next;
+      }
     },
+    workspace: { getLeavesOfType: () => [] },
     metadataCache: {
       getFileCache: (file) => {
         const fm = frontmatter.get(file.path);
@@ -144,6 +155,7 @@ export function fakeVault({
       return file;
     },
     frontmatterOf: (path) => frontmatter.get(path) ?? {},
+    contentOf: (path) => contents.get(path) ?? "",
     deviceStorage
   };
 }
