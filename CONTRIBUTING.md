@@ -211,6 +211,14 @@ The workflow runs in three jobs, and only the last can write:
   creates the release. It holds `contents: write` and the signing grant, and
   runs no npm and nothing from the repository: there is no checkout.
 
+After the Release workflow, **Prune branches** deletes every branch whose
+work is done: its commits are in `main`, or its pull request was merged, or
+closed unmerged more than a week ago. A branch with an open pull request is
+kept, and one that never had a pull request is only listed in the run's
+summary, for a person to decide. It runs weekly as well, and by hand, where it
+starts as a dry run. `scripts/prune-branches.mjs` holds the rules and their
+tests; a deleted branch can be restored from its pull request.
+
 Three settings make this hold, and none can be written into a workflow file;
 they are set once in the repository's settings:
 
