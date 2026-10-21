@@ -4003,6 +4003,12 @@
   color: currentColor;
 }
 
+/* In Live Preview a glyph can be all there is of a link's words, and it
+   follows the link, so it shows the hand a link does. */
+.schreibstube-icon-link {
+  cursor: var(--cursor-link, pointer);
+}
+
 /* In the picker's rows the glyph leads and the name follows. */
 .schreibstube-icon-suggestion {
   display: flex;

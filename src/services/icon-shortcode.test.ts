@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   completedShortcode,
   findShortcodes,
+  iconLinkAt,
   isLinkLabel,
   MIN_TRIGGER_CHARS,
   rankIcons,
@@ -64,6 +65,50 @@ describe("findShortcodes", () => {
     const [hit] = findShortcodes(text, isIcon);
 
     expect(text.slice(hit?.from, hit?.to)).toBe(":alarm:");
+  });
+});
+
+describe("iconLinkAt", () => {
+  /** The link the first `:timeline:` in `line` stands in. */
+  const linkOf = (line: string) => {
+    const from = line.indexOf(":timeline:");
+    return iconLinkAt(line, from, from + ":timeline:".length);
+  };
+
+  it("leads an icon in a link's words to its address", () => {
+    expect(linkOf("[:timeline: ](http://www.smsag.de)")).toEqual({
+      kind: "url",
+      href: "http://www.smsag.de"
+    });
+    expect(linkOf('Siehe [:timeline: Plan](https://e.com/a "Titel") hier')).toEqual({
+      kind: "url",
+      href: "https://e.com/a"
+    });
+    expect(linkOf("[:timeline:](<https://e.com/a b>)")).toEqual({
+      kind: "url",
+      href: "https://e.com/a b"
+    });
+  });
+
+  it("leads an icon in a link to a note, Markdown or wikilink, to that note", () => {
+    expect(linkOf("[:timeline:](Mein%20Plan.md#Ziele)")).toEqual({
+      kind: "note",
+      target: "Mein Plan.md#Ziele"
+    });
+    expect(linkOf("[[Mein Plan|:timeline: Plan]]")).toEqual({ kind: "note", target: "Mein Plan" });
+  });
+
+  it("leads nowhere outside a link's words, or from an embed", () => {
+    expect(linkOf(":timeline: [Plan](https://e.com)")).toBeNull();
+    expect(linkOf("[Plan](https://e.com) :timeline:")).toBeNull();
+    expect(linkOf("![:timeline:](bild.png)")).toBeNull();
+    expect(linkOf("![[Bild|:timeline:]]")).toBeNull();
+    expect(linkOf("[[Plan]] :timeline:")).toBeNull();
+  });
+
+  it("picks the link the icon is in when a line has several", () => {
+    const line = "[a](https://one.example) und [:timeline:](https://two.example)";
+    expect(linkOf(line)).toEqual({ kind: "url", href: "https://two.example" });
   });
 });
 

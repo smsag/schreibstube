@@ -24,20 +24,38 @@ import {
   type ViewUpdate
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
-import { findShortcodes, isLinkLabel, type ShortcodeHit } from "../services/icon-shortcode";
+import {
+  findShortcodes,
+  iconLinkAt,
+  isLinkLabel,
+  type IconLink,
+  type ShortcodeHit
+} from "../services/icon-shortcode";
 import { applyIcon, iconGlyph, installIconFont } from "../ui/icon-font";
 import { MAX_LIVE_CHARS } from "./live-limits";
 
 const isIcon = (name: string): boolean => iconGlyph(name) !== undefined;
 
+/** Follows the link an icon stands in, as a click on the link's words would. */
+export type OpenIconLink = (link: IconLink, event: MouseEvent, view: EditorView) => void;
+
+/** A shortcode found on screen, with the link it stands in, if any. */
+interface DrawnHit extends ShortcodeHit {
+  link: IconLink | null;
+}
+
 /** The glyph in place of the text, with the text as its tooltip. */
 class IconWidget extends WidgetType {
-  constructor(private readonly name: string) {
+  constructor(
+    private readonly name: string,
+    private readonly link: IconLink | null,
+    private readonly open: OpenIconLink | null
+  ) {
     super();
   }
 
   override eq(other: IconWidget): boolean {
-    return other.name === this.name;
+    return other.name === this.name && JSON.stringify(other.link) === JSON.stringify(this.link);
   }
 
   override toDOM(view: EditorView): HTMLElement {
@@ -46,11 +64,29 @@ class IconWidget extends WidgetType {
     span.className = "schreibstube-icon-shortcode";
     span.title = `:${this.name}:`;
     applyIcon(span, this.name);
+
+    const { link, open } = this;
+    if (link !== null && open !== null) {
+      // The glyph is all there is of the link's words, so it has to be the
+      // link: a click follows it, and the cursor stays out, since a cursor
+      // on the shortcode shows its source, which is what a click used to do.
+      span.addClass("schreibstube-icon-link");
+      span.addEventListener("mousedown", (event) => event.preventDefault());
+      span.addEventListener("click", (event) => {
+        event.preventDefault();
+        open(link, event, view);
+      });
+      span.addEventListener("auxclick", (event) => {
+        if (event.button !== 1) return;
+        event.preventDefault();
+        open(link, event, view);
+      });
+    }
     return span;
   }
 
-  override ignoreEvent(): boolean {
-    return false;
+  override ignoreEvent(event: Event): boolean {
+    return this.link !== null && this.open !== null && event instanceof MouseEvent;
   }
 }
 
@@ -72,12 +108,15 @@ class IconWidget extends WidgetType {
  * theme lays out as it likes, and they split around every fold. The drawn
  * range is one range, never empty in an open note, with a margin either side.
  */
-export function createIconShortcodeExtension(enabled: () => boolean): Extension {
+export function createIconShortcodeExtension(
+  enabled: () => boolean,
+  open: OpenIconLink | null = null
+): Extension {
   return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet = Decoration.none;
       /** What the last scan found on screen, in document positions. */
-      private hits: ShortcodeHit[] = [];
+      private hits: DrawnHit[] = [];
       /** Whether the setting was on at the last scan; a toggle is a reason to scan again. */
       private on = false;
 
@@ -105,9 +144,15 @@ export function createIconShortcodeExtension(enabled: () => boolean): Extension 
         // read as the word it is rather than as its first half.
         const from = doc.lineAt(view.viewport.from).from;
         const to = doc.lineAt(view.viewport.to).to;
-        this.hits = findShortcodes(doc.sliceString(0, to), isIcon).filter(
-          (hit) => hit.from >= from
-        );
+        this.hits = findShortcodes(doc.sliceString(0, to), isIcon)
+          .filter((hit) => hit.from >= from)
+          .map((hit) => {
+            const line = doc.lineAt(hit.from);
+            return {
+              ...hit,
+              link: iconLinkAt(line.text, hit.from - line.from, hit.to - line.from)
+            };
+          });
         this.draw(view);
       }
 
@@ -118,7 +163,11 @@ export function createIconShortcodeExtension(enabled: () => boolean): Extension 
           // A cursor inside or at either edge of the shortcode is editing it.
           const touched = ranges.some((range) => range.from <= hit.to && range.to >= hit.from);
           if (touched) continue;
-          builder.add(hit.from, hit.to, Decoration.replace({ widget: new IconWidget(hit.name) }));
+          builder.add(
+            hit.from,
+            hit.to,
+            Decoration.replace({ widget: new IconWidget(hit.name, hit.link, open) })
+          );
         }
         this.decorations = builder.finish();
       }

@@ -101,6 +101,54 @@ export function isLinkLabel(text: string, href: string | null): boolean {
   return !/^(?:[a-z][a-z0-9+.-]*:\/\/|www\.|mailto:)/i.test(words);
 }
 
+/** Where a link an icon stands in leads: an address, or a note in the vault. */
+export type IconLink = { kind: "url"; href: string } | { kind: "note"; target: string };
+
+/**
+ * The link whose words a shortcode stands in, or null when it stands in none.
+ *
+ * In Live Preview the glyph replaces the words of the link it is part of, and
+ * a click on it reached the editor instead of the link: the cursor moved in,
+ * the link's source opened for editing, and the page it named did not. So
+ * the glyph has to know where its link leads. `[:folder: Ablage](https://…)`
+ * leads to the address, `[:folder:](Ablage.md)` and `[[Ablage|:folder:]]` to
+ * a note; an address with a scheme is an address, anything else a link
+ * inside the vault, as Obsidian reads a Markdown link. `from` and `to` are the
+ * shortcode's offsets within `line`.
+ */
+export function iconLinkAt(line: string, from: number, to: number): IconLink | null {
+  for (const match of line.matchAll(
+    /(?<!!)\[((?:\\.|[^\]\\\n])*)\]\(\s*(<[^>\n]*>|[^\s()]+)[^)\n]*\)/g
+  )) {
+    const labelFrom = match.index + 1;
+    const labelTo = labelFrom + (match[1] ?? "").length;
+    if (from < labelFrom || to > labelTo) continue;
+    const href = (match[2] ?? "").replace(/^<|>$/g, "");
+    if (href === "") return null;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(href)) return { kind: "url", href };
+    return { kind: "note", target: decodeLinkTarget(href) };
+  }
+
+  for (const match of line.matchAll(/(?<!!)\[\[([^\]|\n]*)\|([^\]\n]+)\]\]/g)) {
+    const aliasTo = match.index + match[0].length - 2;
+    const aliasFrom = aliasTo - (match[2] ?? "").length;
+    if (from < aliasFrom || to > aliasTo) continue;
+    const target = (match[1] ?? "").trim();
+    return target === "" ? null : { kind: "note", target };
+  }
+
+  return null;
+}
+
+/** A Markdown link's target as the vault names it: `Mein%20Dokument.md` is `Mein Dokument.md`. */
+function decodeLinkTarget(href: string): string {
+  try {
+    return decodeURIComponent(href);
+  } catch {
+    return href;
+  }
+}
+
 /** How much of a name has to be typed before the picker opens. */
 export const MIN_TRIGGER_CHARS = 2;
 

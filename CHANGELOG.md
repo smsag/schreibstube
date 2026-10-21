@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- **An icon that is a link's words follows the link in Live Preview.** `[:timeline:](https://…)`, `[:timeline:](Note.md)` and `[[Note|:timeline:]]` drew the icon, but a click on it opened the link's source for editing instead of the page or note it names. A click now follows the link, a click with Cmd/Ctrl or the middle button opens a note in a new tab, and the pointer shows the hand a link does. To edit the link, put the cursor next to the icon or move onto it with the arrow keys.
+
 ## 1.88.1 - 2026-10-21
 
 `:folder:` draws its icon in Live Preview again in a note with `---` rules
