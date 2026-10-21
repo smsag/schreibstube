@@ -114,6 +114,62 @@ describe("shortcodes in Live Preview", () => {
     view.destroy();
   });
 
+  describe("an icon that is a link's words", () => {
+    const LINKED = "Vorher [:timeline: ](http://www.smsag.de) und [[Plan|:folder:]] und :star:";
+
+    function linkedEditor() {
+      const opened: { link: unknown; button: number }[] = [];
+      const parent = document.createElement("div");
+      document.body.appendChild(parent);
+      const view = new EditorView({
+        state: EditorState.create({
+          doc: LINKED,
+          selection: EditorSelection.cursor(0),
+          extensions: createIconShortcodeExtension(
+            () => true,
+            (link, event) => opened.push({ link, button: event.button })
+          )
+        }),
+        parent
+      });
+      const span = (name: string): HTMLElement =>
+        parent.querySelector(`.schreibstube-icon-shortcode[title=":${name}:"]`) as HTMLElement;
+      return { view, opened, span };
+    }
+
+    it("follows its link on a click and keeps the cursor out of the source", () => {
+      const { view, opened, span } = linkedEditor();
+      const icon = span("timeline");
+      expect(icon.classList.contains("schreibstube-icon-link")).toBe(true);
+
+      const down = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+      icon.dispatchEvent(down);
+      icon.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+      expect(down.defaultPrevented).toBe(true);
+      expect(opened).toEqual([{ link: { kind: "url", href: "http://www.smsag.de" }, button: 0 }]);
+      expect(view.state.selection.main.head).toBe(0);
+      expect(span("timeline")).not.toBeNull();
+      view.destroy();
+    });
+
+    it("follows a wikilink to its note, and a middle click too", () => {
+      const { view, opened, span } = linkedEditor();
+      span("folder").dispatchEvent(new MouseEvent("auxclick", { bubbles: true, button: 1 }));
+      expect(opened).toEqual([{ link: { kind: "note", target: "Plan" }, button: 1 }]);
+      view.destroy();
+    });
+
+    it("leaves an icon that is no link to the editor", () => {
+      const { view, opened, span } = linkedEditor();
+      const star = span("star");
+      expect(star.classList.contains("schreibstube-icon-link")).toBe(false);
+      star.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      expect(opened).toEqual([]);
+      view.destroy();
+    });
+  });
+
   it("draws nothing while the setting is off", () => {
     const { view, drawn } = editor(NOTE.length, false);
     expect(drawn()).toEqual([]);

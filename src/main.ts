@@ -1,7 +1,9 @@
 import {
   type Command,
   type Editor,
+  editorInfoField,
   editorLivePreviewField,
+  Keymap,
   MarkdownView,
   Notice,
   Platform,
@@ -479,7 +481,19 @@ export default class SchreibstubePlugin extends Plugin {
     // Preview, and the glyph in Reading view. One setting switches all three.
     const iconShortcodes = (): boolean => this.settings.iconShortcodes;
     this.registerEditorSuggest(new IconShortcodeSuggest(this.app, iconShortcodes));
-    this.registerEditorExtension(createIconShortcodeExtension(iconShortcodes));
+    this.registerEditorExtension(
+      createIconShortcodeExtension(iconShortcodes, (link, event, view) => {
+        // An address goes to the browser, a note opens as a click on the
+        // link's words would open it: in a new tab with a modifier or the
+        // middle button, and through whatever side-pane mode is on.
+        if (link.kind === "url") {
+          window.open(link.href, "_blank");
+          return;
+        }
+        const source = view.state.field(editorInfoField, false)?.file?.path ?? "";
+        void this.app.workspace.openLinkText(link.target, source, Keymap.isModEvent(event));
+      })
+    );
     registerIconShortcodePostProcessor(this, iconShortcodes);
     this.registerProofreadEvents();
     this.startPollTicker();
