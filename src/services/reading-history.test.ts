@@ -39,6 +39,7 @@ const bookmark = (id: number, overrides: Partial<Bookmark> = {}): Bookmark => ({
   title: `Article ${id}`,
   archived: true,
   liked: false,
+  time: null,
   ...overrides
 });
 

@@ -16,6 +16,7 @@ const bookmark = (id: number, overrides: Partial<Bookmark> = {}): Bookmark => ({
   title: `Article ${id}`,
   archived: true,
   liked: false,
+  time: null,
   ...overrides
 });
 
@@ -56,7 +57,12 @@ function setup({
     fetchBookmarks: vi.fn(async (input: ListRequestInput) => {
       requests.push(input);
       const page = pages[input.offset / 500] ?? [];
-      return { ok: true as const, bookmarks: page, total: pages.flat().length };
+      return {
+        ok: true as const,
+        bookmarks: page,
+        total: pages.flat().length,
+        serverTime: null
+      };
     }),
     fetchHighlights: vi.fn(async (id: number) => ({
       ok: true as const,
@@ -111,6 +117,42 @@ describe("ReadingHistoryController", () => {
         "- [Article 1](https://example.com/1) · 2026-10-21 %%instapaper:1%%\n" +
         "%% /schreibstube-reading %%\n"
     );
+  });
+
+  it("takes the newest page, newest first, from a section sorted oldest first", async () => {
+    const { controller, vault, deps, requests } = setup();
+    const archive = Array.from({ length: 250 }, (_, index) =>
+      bookmark(index + 1, { time: 1700000000 + index })
+    );
+    vi.mocked(deps.fetchBookmarks).mockImplementation(async (input) => {
+      requests.push(input);
+      return {
+        ok: true,
+        bookmarks: archive.slice(input.offset, input.offset + 100),
+        total: archive.length,
+        serverTime: null
+      };
+    });
+
+    expect((await controller.checkAll(true)).added).toBe(100);
+    expect(requests.map((request) => request.offset)).toEqual([0, 150]);
+    const ids = [...vault.contentOf("Gelesen.md").matchAll(/%%instapaper:(\d+)%%/g)].map((m) =>
+      Number(m[1])
+    );
+    expect(ids[0]).toBe(250);
+    expect(ids.at(-1)).toBe(151);
+  });
+
+  it("dates the check by Instapaper's clock, not the device's", async () => {
+    const { controller, vault, deps } = setup();
+    vi.mocked(deps.fetchBookmarks).mockResolvedValueOnce({
+      ok: true,
+      bookmarks: [],
+      total: 0,
+      serverTime: NOW_S - 3600
+    });
+    await controller.checkAll(true);
+    expect(vault.contentOf("Gelesen.md")).toContain(`checked=${NOW_S - 3600} %%`);
   });
 
   it("asks what changed since the last check, and adds only what is new and archived", async () => {
@@ -235,7 +277,12 @@ describe("ReadingHistoryController", () => {
       expect((await controller.checkAll(true)).failed).toBe(0);
       expect(vault.contentOf("Gelesen.md")).not.toContain("  > ");
 
-      vi.mocked(deps.fetchBookmarks).mockResolvedValueOnce({ ok: true, bookmarks: [], total: 0 });
+      vi.mocked(deps.fetchBookmarks).mockResolvedValueOnce({
+        ok: true,
+        bookmarks: [],
+        total: 0,
+        serverTime: null
+      });
       await controller.checkAll(true);
       expect(vault.contentOf("Gelesen.md")).toContain("%%instapaper:2%%\n  > A gist.\n");
     });

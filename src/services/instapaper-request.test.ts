@@ -3,6 +3,10 @@ import { t } from "../i18n";
 import {
   FIRST_RUN_LIMIT,
   inSection,
+  isOldestFirst,
+  newestPageOffset,
+  serverTimeOf,
+  type Bookmark,
   INSTAPAPER_API,
   interpretHighlightsResponse,
   interpretListResponse,
@@ -62,6 +66,12 @@ describe("planListRequest", () => {
     ).toBe(`${INSTAPAPER_API}bookmarks?since=1755000000&limit=500&offset=500`);
   });
 
+  it("reads further into the section when asked to, on a first check too", () => {
+    expect(planListRequest({ section: "archive", since: null, offset: 1134, token: "t" }).url).toBe(
+      `${INSTAPAPER_API}bookmarks?section=archive&limit=${FIRST_RUN_LIMIT}&offset=1134`
+    );
+  });
+
   it("never sends a since below the API's floor", () => {
     expect(planListRequest({ section: "archive", since: 0, offset: 0, token: "t" }).url).toContain(
       "since=1&"
@@ -100,10 +110,12 @@ describe("interpretListResponse", () => {
           url: "https://example.com/article",
           title: "An Article",
           archived: true,
-          liked: false
+          liked: false,
+          time: 1755000000
         }
       ],
-      total: 42
+      total: 42,
+      serverTime: null
     });
   });
 
@@ -225,9 +237,76 @@ describe("normalizeBookmark", () => {
   });
 });
 
+describe("isOldestFirst and newestPageOffset", () => {
+  const at = (...times: (number | null)[]): Bookmark[] =>
+    times.map((time, index) => ({
+      id: index + 1,
+      url: "https://e.com",
+      title: "t",
+      archived: true,
+      liked: false,
+      time
+    }));
+
+  it("reads the order off the page's times", () => {
+    expect(isOldestFirst(at(30, 20, 10))).toBe(false);
+    expect(isOldestFirst(at(10, 20, 30))).toBe(true);
+  });
+
+  it("lets the majority decide when a few are out of order", () => {
+    expect(isOldestFirst(at(10, 20, 15, 30, 40))).toBe(true);
+    expect(isOldestFirst(at(40, 30, 35, 20, 10))).toBe(false);
+  });
+
+  it("reads newest first when the page cannot say", () => {
+    expect(isOldestFirst(at(10))).toBe(false);
+    expect(isOldestFirst(at(null, null, 5))).toBe(false);
+    expect(isOldestFirst(at(7, 7, 7))).toBe(false);
+    expect(isOldestFirst([])).toBe(false);
+  });
+
+  it("finds the newest page of a section sorted oldest first", () => {
+    expect(newestPageOffset(1234)).toBe(1234 - FIRST_RUN_LIMIT);
+    expect(newestPageOffset(40)).toBe(0);
+  });
+});
+
+describe("serverTimeOf", () => {
+  it("reads Instapaper's clock off the Date header, whatever its case", () => {
+    expect(serverTimeOf({ date: "Wed, 21 Oct 2026 10:00:00 GMT" })).toBe(
+      Date.UTC(2026, 9, 21, 10) / 1000
+    );
+    expect(serverTimeOf({ Date: "Wed, 21 Oct 2026 10:00:00 GMT" })).toBe(
+      Date.UTC(2026, 9, 21, 10) / 1000
+    );
+  });
+
+  it("answers nothing for a missing or unreadable header", () => {
+    expect(serverTimeOf(undefined)).toBeNull();
+    expect(serverTimeOf({})).toBeNull();
+    expect(serverTimeOf({ date: "soon" })).toBeNull();
+  });
+
+  it("is passed on with the list", () => {
+    const outcome = interpretListResponse({
+      status: 200,
+      headers: { Date: "Wed, 21 Oct 2026 10:00:00 GMT" },
+      text: JSON.stringify({ bookmarks: [], total: 0 })
+    });
+    expect(outcome.ok && outcome.serverTime).toBe(Date.UTC(2026, 9, 21, 10) / 1000);
+  });
+});
+
 describe("inSection", () => {
   it("reads the archive and liked flags", () => {
-    const bookmark = { id: 1, url: "https://e.com", title: "t", archived: true, liked: false };
+    const bookmark = {
+      id: 1,
+      url: "https://e.com",
+      title: "t",
+      archived: true,
+      liked: false,
+      time: null
+    };
     expect(inSection(bookmark, "archive")).toBe(true);
     expect(inSection(bookmark, "liked")).toBe(false);
   });

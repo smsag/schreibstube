@@ -87,6 +87,7 @@ export function planListRequest(input: ListRequestInput): InstapaperRequest {
   if (input.since === null) {
     params.set("section", input.section);
     params.set("limit", String(FIRST_RUN_LIMIT));
+    if (input.offset > 0) params.set("offset", String(input.offset));
   } else {
     params.set("since", String(Math.max(1, Math.floor(input.since))));
     params.set("limit", String(SINCE_PAGE_LIMIT));
@@ -120,10 +121,19 @@ export interface Bookmark {
   title: string;
   archived: boolean;
   liked: boolean;
+  /** Unix seconds the API gives the bookmark, or null when it gives none usable. */
+  time: number | null;
 }
 
 export type ListOutcome =
-  { ok: true; bookmarks: Bookmark[]; total: number } | { ok: false; message: string };
+  | {
+      ok: true;
+      bookmarks: Bookmark[];
+      total: number;
+      /** Instapaper's own clock when it answered, from the `Date` header. */
+      serverTime: number | null;
+    }
+  | { ok: false; message: string };
 
 export function interpretListResponse(response: InstapaperResponse): ListOutcome {
   const body = readBody(response, MAX_LIST_BYTES);
@@ -142,7 +152,7 @@ export function interpretListResponse(response: InstapaperResponse): ListOutcome
     typeof record.total === "number" && Number.isSafeInteger(record.total) && record.total >= 0
       ? record.total
       : bookmarks.length;
-  return { ok: true, bookmarks, total };
+  return { ok: true, bookmarks, total, serverTime: serverTimeOf(response.headers) };
 }
 
 export interface Highlight {
@@ -197,8 +207,54 @@ export function normalizeBookmark(value: unknown): Bookmark | null {
     url,
     title: title.length > 0 ? title : url,
     archived: record.archived === true,
-    liked: record.liked === true
+    liked: record.liked === true,
+    time:
+      typeof record.time === "number" && Number.isSafeInteger(record.time) && record.time > 0
+        ? record.time
+        : null
   };
+}
+
+/**
+ * Whether a page lists its bookmarks oldest first.
+ *
+ * The documentation does not say which way a section is sorted, and a first
+ * check that took the wrong end would list a person's oldest hundred articles
+ * as their latest. So the page is read for it: each neighbouring pair whose
+ * times are known votes, and a tie — a page of one, or no times — counts as
+ * newest first, which is how Instapaper shows a list.
+ */
+export function isOldestFirst(bookmarks: readonly Bookmark[]): boolean {
+  let ascending = 0;
+  let descending = 0;
+  for (let index = 1; index < bookmarks.length; index += 1) {
+    const before = bookmarks[index - 1]?.time ?? null;
+    const after = bookmarks[index]?.time ?? null;
+    if (before === null || after === null || before === after) continue;
+    if (before < after) ascending += 1;
+    else descending += 1;
+  }
+  return ascending > descending;
+}
+
+/** Where the newest page of a section starts when it is sorted oldest first. */
+export function newestPageOffset(total: number): number {
+  return Math.max(0, total - FIRST_RUN_LIMIT);
+}
+
+/**
+ * Instapaper's clock when it answered, in Unix seconds.
+ *
+ * A since-check is a question about Instapaper's clock, so the time it is
+ * asked from is taken from there: a phone whose clock runs an hour fast would
+ * otherwise ask from an hour in Instapaper's future and miss that hour.
+ */
+export function serverTimeOf(headers: Record<string, string> | undefined): number | null {
+  const key = Object.keys(headers ?? {}).find((name) => name.toLowerCase() === "date");
+  const value = key === undefined ? undefined : headers?.[key];
+  if (value === undefined) return null;
+  const ms = Date.parse(value);
+  return Number.isFinite(ms) && ms > 0 ? Math.floor(ms / 1000) : null;
 }
 
 function isWebUrl(raw: string): boolean {

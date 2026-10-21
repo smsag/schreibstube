@@ -17,7 +17,9 @@ import { frontmatterLine } from "../services/sync-source";
 import { parseSyncEvery, SYNC_EVERY_KEY } from "../services/sync-interval";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import {
+  isOldestFirst,
   MAX_SINCE_PAGES,
+  newestPageOffset,
   parseReadingSource,
   READING_FROM_KEY,
   SINCE_PAGE_LIMIT,
@@ -25,7 +27,8 @@ import {
   type Highlight,
   type HighlightsOutcome,
   type ListOutcome,
-  type ListRequestInput
+  type ListRequestInput,
+  type ReadingSection
 } from "../services/instapaper-request";
 import {
   applyEdit,
@@ -204,7 +207,8 @@ export class ReadingHistoryController {
 
     // A since-window that did not fit in the pages read is asked again from
     // the same point next time, rather than skipped past and lost.
-    const checked = listed.complete || block === null ? startedAt : block.checked;
+    const askedAt = listed.serverTime ?? startedAt;
+    const checked = listed.complete || block === null ? askedAt : block.checked;
     const update = buildReadingUpdate({
       checked,
       now,
@@ -219,22 +223,48 @@ export class ReadingHistoryController {
     summary.added += update.added.length;
   }
 
+  /**
+   * The bookmarks a check considers, newest first, and Instapaper's clock at
+   * the first answer.
+   *
+   * A first check reads the newest page of the section. Which end of the
+   * section that is, the documentation does not say, so the first page is
+   * read for its order, and a section sorted oldest first is asked again for
+   * its last page. A later check pages through what changed since the last.
+   */
   private async listBookmarks(
-    section: "archive" | "liked",
+    section: ReadingSection,
     since: number | null,
     token: string
-  ): Promise<{ bookmarks: Bookmark[]; complete: boolean }> {
-    const bookmarks: Bookmark[] = [];
-    for (let page = 0; page < MAX_SINCE_PAGES; page += 1) {
-      const offset = page * SINCE_PAGE_LIMIT;
+  ): Promise<{ bookmarks: Bookmark[]; complete: boolean; serverTime: number | null }> {
+    const fetchPage = async (offset: number) => {
       const outcome = await this.deps.fetchBookmarks({ section, since, offset, token });
       if (!outcome.ok) throw new CheckFailed(outcome.message);
-      bookmarks.push(...outcome.bookmarks);
-      if (since === null || offset + SINCE_PAGE_LIMIT >= outcome.total) {
-        return { bookmarks, complete: true };
+      return outcome;
+    };
+
+    const first = await fetchPage(0);
+    const serverTime = first.serverTime;
+
+    if (since === null) {
+      if (!isOldestFirst(first.bookmarks)) {
+        return { bookmarks: first.bookmarks, complete: true, serverTime };
       }
+      const offset = newestPageOffset(first.total);
+      const newest = offset === 0 ? first : await fetchPage(offset);
+      return { bookmarks: [...newest.bookmarks].reverse(), complete: true, serverTime };
     }
-    return { bookmarks, complete: false };
+
+    const bookmarks = [...first.bookmarks];
+    let total = first.total;
+    for (let page = 1; page < MAX_SINCE_PAGES; page += 1) {
+      const offset = page * SINCE_PAGE_LIMIT;
+      if (offset >= total) return { bookmarks, complete: true, serverTime };
+      const next = await fetchPage(offset);
+      bookmarks.push(...next.bookmarks);
+      total = next.total;
+    }
+    return { bookmarks, complete: MAX_SINCE_PAGES * SINCE_PAGE_LIMIT >= total, serverTime };
   }
 
   /**
