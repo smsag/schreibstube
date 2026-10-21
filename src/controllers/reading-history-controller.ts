@@ -17,6 +17,7 @@ import { frontmatterLine } from "../services/sync-source";
 import { parseSyncEvery, SYNC_EVERY_KEY } from "../services/sync-interval";
 import { buildSummaryRequest, effectiveModel } from "../services/llm-providers";
 import {
+  FIRST_RUN_LIMIT,
   isOldestFirst,
   MAX_SINCE_PAGES,
   newestPageOffset,
@@ -31,13 +32,16 @@ import {
   type ReadingSection
 } from "../services/instapaper-request";
 import {
-  applyEdit,
+  applyReadingCheck,
   buildReadingUpdate,
+  diffEdit,
+  highlightsToFetch,
   isReadingDue,
-  planHighlightWork,
-  planReadingEdit,
   planSummaries,
+  READING_CHECKED_KEY,
+  readCheckedAt,
   readReadingBlock,
+  RECENT_REFRESH_COUNT,
   selectBookmarks,
   sinceFor,
   type ReadingCheckSummary,
@@ -159,47 +163,40 @@ export class ReadingHistoryController {
 
     const now = this.deps.now();
     const block = readReadingBlock(text);
-    if (!force && !isReadingDue(block, every?.schedule ?? null, now)) return;
+    const checkedAt = readCheckedAt(
+      frontmatter?.[READING_CHECKED_KEY] ?? frontmatterLine(text, READING_CHECKED_KEY),
+      block
+    );
+    if (!force && !isReadingDue(checkedAt, every?.schedule ?? null, now)) return;
 
     const startedAt = Math.floor(now.getTime() / 1000);
-    const listed = await this.listBookmarks(source.section, sinceFor(block), token);
+    const listed = await this.listBookmarks(source.section, sinceFor(checkedAt), token);
     const selection = selectBookmarks({
       bookmarks: listed.bookmarks,
       section: source.section,
-      block
+      block,
+      firstRun: checkedAt === null
     });
 
-    // Without an AI key there is nobody to ask, and every summary owed would
-    // fail on every check; the entries are written without them until one is chosen.
-    const settings = this.getSettings();
-    const summaries =
-      settings.readingSummaries && hasApiKey(this.app.secretStorage, settings.llmSecretName);
-    const work = planHighlightWork({
-      selection,
-      block,
-      summaries,
-      maxSummaries: MAX_SUMMARIES_PER_CHECK
-    });
     const highlights = new Map<number, Highlight[]>();
-    await mapLimit(work.fetch, HIGHLIGHT_CONCURRENCY, async (id) => {
+    await mapLimit(highlightsToFetch(selection), HIGHLIGHT_CONCURRENCY, async (id) => {
       const outcome = await this.deps.fetchHighlights(id, token);
       if (!outcome.ok) throw new CheckFailed(outcome.message);
       highlights.set(id, outcome.highlights);
     });
     const highlightCounts = new Map([...highlights].map(([id, list]) => [id, list.length]));
 
+    // Without an AI key there is nobody to ask, and every summary owed would
+    // fail on every check; the entries are written without them until one is chosen.
+    const settings = this.getSettings();
+    const summaries =
+      settings.readingSummaries && hasApiKey(this.app.secretStorage, settings.llmSecretName);
     const titles = new Map(
       [...selection.added, ...selection.refreshed].map((bookmark) => [bookmark.id, bookmark.title])
     );
     const written = summaries
       ? await this.writeSummaries(
-          planSummaries({
-            selection,
-            work,
-            block,
-            highlightCounts,
-            max: MAX_SUMMARIES_PER_CHECK
-          }),
+          planSummaries({ selection, block, highlightCounts, max: MAX_SUMMARIES_PER_CHECK }),
           titles,
           highlights
         )
@@ -208,63 +205,82 @@ export class ReadingHistoryController {
     // A since-window that did not fit in the pages read is asked again from
     // the same point next time, rather than skipped past and lost.
     const askedAt = listed.serverTime ?? startedAt;
-    const checked = listed.complete || block === null ? askedAt : block.checked;
-    const update = buildReadingUpdate({
-      checked,
-      now,
-      selection,
-      work,
-      highlightCounts,
-      summaries: written
-    });
-    await this.write(file, update);
+    const checked = listed.complete || checkedAt === null ? askedAt : checkedAt;
+    const update = buildReadingUpdate({ now, selection, highlightCounts, summaries: written });
+    await this.write(file, update, checked);
 
     summary.checked += 1;
     summary.added += update.added.length;
   }
 
   /**
-   * The bookmarks a check considers, newest first, and Instapaper's clock at
-   * the first answer.
+   * The bookmarks a check considers, and Instapaper's clock at the first answer.
    *
-   * A first check reads the newest page of the section. Which end of the
-   * section that is, the documentation does not say, so the first page is
-   * read for its order, and a section sorted oldest first is asked again for
-   * its last page. A later check pages through what changed since the last.
+   * A first check reads the newest hundred of the section. A later one pages
+   * through what changed since the last, and reads the newest few as well:
+   * the note keeps no ids, and that page is what names the bookmarks of its
+   * newest entries, whose highlights are the ones still growing.
    */
   private async listBookmarks(
     section: ReadingSection,
     since: number | null,
     token: string
   ): Promise<{ bookmarks: Bookmark[]; complete: boolean; serverTime: number | null }> {
-    const fetchPage = async (offset: number) => {
-      const outcome = await this.deps.fetchBookmarks({ section, since, offset, token });
+    const fetchPage = async (input: { since: number | null; offset: number; limit?: number }) => {
+      const outcome = await this.deps.fetchBookmarks({ section, token, ...input });
       if (!outcome.ok) throw new CheckFailed(outcome.message);
       return outcome;
     };
 
-    const first = await fetchPage(0);
-    const serverTime = first.serverTime;
-
     if (since === null) {
-      if (!isOldestFirst(first.bookmarks)) {
-        return { bookmarks: first.bookmarks, complete: true, serverTime };
-      }
-      const offset = newestPageOffset(first.total);
-      const newest = offset === 0 ? first : await fetchPage(offset);
-      return { bookmarks: [...newest.bookmarks].reverse(), complete: true, serverTime };
+      const newest = await this.newestPage(fetchPage, FIRST_RUN_LIMIT);
+      return { bookmarks: newest.bookmarks, complete: true, serverTime: newest.serverTime };
     }
 
-    const bookmarks = [...first.bookmarks];
+    const first = await fetchPage({ since, offset: 0 });
+    const changed = [...first.bookmarks];
     let total = first.total;
-    for (let page = 1; page < MAX_SINCE_PAGES; page += 1) {
-      const offset = page * SINCE_PAGE_LIMIT;
-      if (offset >= total) return { bookmarks, complete: true, serverTime };
-      const next = await fetchPage(offset);
-      bookmarks.push(...next.bookmarks);
+    let complete = true;
+    for (let page = 1; page * SINCE_PAGE_LIMIT < total; page += 1) {
+      if (page >= MAX_SINCE_PAGES) {
+        complete = false;
+        break;
+      }
+      const next = await fetchPage({ since, offset: page * SINCE_PAGE_LIMIT });
+      changed.push(...next.bookmarks);
       total = next.total;
     }
-    return { bookmarks, complete: MAX_SINCE_PAGES * SINCE_PAGE_LIMIT >= total, serverTime };
+
+    const newest = await this.newestPage(fetchPage, RECENT_REFRESH_COUNT);
+    return {
+      bookmarks: [...newest.bookmarks, ...changed],
+      complete,
+      serverTime: first.serverTime
+    };
+  }
+
+  /**
+   * The newest `limit` bookmarks of the section, newest first.
+   *
+   * Which end of a section comes first, the documentation does not say, so
+   * the first page is read for its order, and a section sorted oldest first is
+   * asked again for its last page.
+   */
+  private async newestPage(
+    fetchPage: (input: {
+      since: null;
+      offset: number;
+      limit: number;
+    }) => Promise<{ bookmarks: Bookmark[]; total: number; serverTime: number | null }>,
+    limit: number
+  ): Promise<{ bookmarks: Bookmark[]; serverTime: number | null }> {
+    const first = await fetchPage({ since: null, offset: 0, limit });
+    if (!isOldestFirst(first.bookmarks)) {
+      return { bookmarks: first.bookmarks, serverTime: first.serverTime };
+    }
+    const offset = newestPageOffset(first.total, limit);
+    const newest = offset === 0 ? first : await fetchPage({ since: null, offset, limit });
+    return { bookmarks: [...newest.bookmarks].reverse(), serverTime: first.serverTime };
   }
 
   /**
@@ -309,18 +325,19 @@ export class ReadingHistoryController {
   }
 
   /**
-   * Write the update into the note.
+   * Write the update and the check time into the note.
    *
    * An open note is written through its editor: written to disk instead, the
    * editor merges the file back afterwards and can drop what it cannot place.
-   * Either way the edit is planned against the text as it is now.
+   * Either way the change is planned against the text as it is now.
    */
-  private async write(file: TFile, update: ReadingUpdate): Promise<void> {
+  private async write(file: TFile, update: ReadingUpdate, checkedAt: number): Promise<void> {
     for (const leaf of this.app.workspace.getLeavesOfType("markdown")) {
       const view = leaf.view;
       if (!(view instanceof MarkdownView) || view.file?.path !== file.path) continue;
 
-      const edit = planReadingEdit(view.editor.getValue(), update);
+      const before = view.editor.getValue();
+      const edit = diffEdit(before, applyReadingCheck(before, update, checkedAt));
       view.editor.transaction({
         changes: [
           {
@@ -333,8 +350,6 @@ export class ReadingHistoryController {
       return;
     }
 
-    await this.app.vault.process(file, (current) =>
-      applyEdit(current, planReadingEdit(current, update))
-    );
+    await this.app.vault.process(file, (current) => applyReadingCheck(current, update, checkedAt));
   }
 }

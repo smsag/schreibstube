@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **A reading note says in its properties when it was last checked, and its list holds nothing hidden.** The time of the last check is now the note's `schreibstubeReadingCheckedAt` property, where Obsidian's Properties show it and a Base can sort by it, instead of a number inside the list's marker. Entries no longer end in a hidden Instapaper id: an article is recognized by its link, so one saved twice under two different addresses is listed twice. The highlight counts of the ten newest articles are still read on every check. A note checked with 1.88.0 moves over on its next check, without listing anything again.
+
 ## 1.88.0 - 2026-10-21
 
 A note can keep your Instapaper reading history. Give it

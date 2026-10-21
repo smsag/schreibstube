@@ -1,10 +1,14 @@
 /**
- * The reading history block in a note: what it holds, and how a check adds to it.
+ * The reading history in a note: the list it keeps, when it was last checked,
+ * and how a check adds to it.
  *
- * The block is the whole of the state. It says when the account was last asked
- * and which bookmarks are already listed, so the note carries its own
- * bookkeeping to every device the vault syncs to, and nothing in the plugin's
- * data file can disagree with it. Deleting the block starts the history over.
+ * Two places hold it, each for what it is good at. The frontmatter says when
+ * the account was last asked, where Obsidian's properties show it and a Base
+ * can sort by it. The list itself is the block between the two markers, and an
+ * entry is known by its link: a person reading the note sees nothing that only
+ * the plugin needs. A link is a looser key than an id — an article saved twice
+ * under two addresses is listed twice — and that is the price of a list that
+ * holds nothing hidden.
  *
  * Entries are only ever added or, for the highlight count and a missing
  * summary, completed. A line a person rewrote so that it no longer reads as an
@@ -19,36 +23,49 @@ import {
   type Bookmark,
   type ReadingSection
 } from "./instapaper-request";
+import { formatUpdatedAt } from "./sync-frontmatter";
 import { isNoteDue, type SyncSchedule } from "./sync-interval";
+
+/** When the note's list was last checked: a date-time property, local time. */
+export const READING_CHECKED_KEY = "schreibstubeReadingCheckedAt";
 
 /** How often a note that does not say is checked. */
 export const DEFAULT_READING_EVERY_MINUTES = 6 * 60;
 
-/** Asked again with this much overlap, so a bookmark changed while the last
- *  answer was on its way is not missed; the ids keep it from being listed twice. */
-export const SINCE_OVERLAP_SECONDS = 5 * 60;
+/**
+ * How far back a check asks beyond the last one.
+ *
+ * The check time is written as Obsidian writes a date-time property, in the
+ * writing device's local time and without its offset, so a phone in another
+ * time zone reads it as hours earlier or later than it was. A day covers every
+ * zone there is; the links keep what is asked twice from being listed twice.
+ */
+export const SINCE_OVERLAP_SECONDS = 24 * 60 * 60;
 
 /** Entries whose counts are looked at again per check. */
 export const MAX_REFRESH_PER_CHECK = 50;
 
 /**
- * The newest entries, whose highlights are read again on every check.
+ * The newest articles of the list, read on every check besides what changed.
  *
  * Whether a new highlight marks its bookmark as changed is not something the
  * API promises, and most highlighting happens in the days after an article is
- * archived, when it is still near the top of the list. Ten requests a check is
- * the price of not depending on it.
+ * archived, when it is still near the top. The note keeps no ids, so this page
+ * is also what names the newest entries' bookmarks for their highlights.
  */
 export const RECENT_REFRESH_COUNT = 10;
 
-const START = /^%% schreibstube-reading checked=(\d+) %%$/;
+const START = /^%% schreibstube-reading(?: checked=(\d+))? %%$/;
+const START_LINE = "%% schreibstube-reading %%";
 const END = "%% /schreibstube-reading %%";
-const ENTRY = /^- .* %%instapaper:(\d+)%%$/;
-const COUNT = / · (\d+) [^·]+(?= %%instapaper:\d+%%$)/;
+/** The link of an entry; the title before it escapes its own brackets. */
+const ENTRY = /^- \[(?:\\.|[^\]\\])*\]\(([^()\s]+)\)/;
+const COUNT = / · (\d+) [^·%]+?(?= %%instapaper:\d+%%$|$)/;
+/** The hidden id 1.88.0 wrote after each entry, dropped when a line is rewritten. */
+const LEGACY_ID = / %%instapaper:\d+%%$/;
 const SUMMARY = /^ {2}> /;
 
 export interface ReadingEntry {
-  id: number;
   title: string;
   url: string;
   /** `YYYY-MM-DD`, the day the entry was written. */
@@ -63,9 +80,10 @@ export interface ListedEntry {
 }
 
 export interface ReadingBlock {
-  /** Unix seconds of the last check. */
-  checked: number;
-  entries: Map<number, ListedEntry>;
+  /** Entries by their link, in the note's order. */
+  entries: Map<string, ListedEntry>;
+  /** The check time a 1.88.0 block kept in its marker, for a note not yet moved over. */
+  legacyChecked: number | null;
   /** Offsets of the block in the note, end marker included. */
   from: number;
   to: number;
@@ -84,50 +102,77 @@ export function readReadingBlock(text: string): ReadingBlock | null {
   const endLine = lines[end];
   if (startLine === undefined || endLine === undefined) return null;
 
-  const entries = new Map<number, ListedEntry>();
+  const entries = new Map<string, ListedEntry>();
   for (let index = start + 1; index < end; index += 1) {
     const line = lines[index]?.text ?? "";
-    const id = Number(ENTRY.exec(line)?.[1]);
-    if (!Number.isSafeInteger(id) || id <= 0) continue;
-    entries.set(id, {
+    const url = ENTRY.exec(line)?.[1];
+    if (url === undefined || entries.has(url)) continue;
+    entries.set(url, {
       highlights: Number(COUNT.exec(line)?.[1] ?? 0),
       hasSummary: SUMMARY.test(lines[index + 1]?.text ?? "")
     });
   }
 
+  const legacy = START.exec(startLine.text)?.[1];
   return {
-    checked: Number(START.exec(startLine.text)?.[1]),
     entries,
+    legacyChecked: legacy === undefined ? null : Number(legacy),
     from: startLine.from,
     to: endLine.to
   };
 }
 
+/**
+ * When the note was last checked, in Unix seconds, or null when it never was.
+ *
+ * Read as the local time Obsidian writes; a value that is not a date is no
+ * check time, and the note starts over rather than asking from a guess.
+ */
+export function readCheckedAt(value: unknown, block: ReadingBlock | null): number | null {
+  if (typeof value === "string") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
+    if (match) {
+      // A time typed without seconds is a time; its seconds are not missing, they are zero.
+      const [y, mo, d, h, mi, s] = match
+        .slice(1)
+        .map((part: string | undefined) => Number(part ?? 0));
+      const date = new Date(y ?? 0, (mo ?? 1) - 1, d, h, mi, s);
+      if (!Number.isNaN(date.getTime())) return Math.floor(date.getTime() / 1000);
+    }
+  }
+  return block?.legacyChecked ?? null;
+}
+
+/** The check time as the property holds it. */
+export function formatCheckedAt(seconds: number): string {
+  return formatUpdatedAt(new Date(seconds * 1000));
+}
+
 /** Whether a note is due, by its own `schreibstubeSyncEvery` or the default. */
 export function isReadingDue(
-  block: ReadingBlock | null,
+  checkedAt: number | null,
   schedule: SyncSchedule | null,
   now: Date
 ): boolean {
-  if (block === null) return true;
+  if (checkedAt === null) return true;
   const effective: SyncSchedule = schedule ?? {
     kind: "every",
     minutes: DEFAULT_READING_EVERY_MINUTES,
     cron: null,
     text: ""
   };
-  return isNoteDue(effective, block.checked * 1000, now);
+  return isNoteDue(effective, checkedAt * 1000, now);
 }
 
 /** The `since` to ask with, or null for a first check. */
-export function sinceFor(block: ReadingBlock | null): number | null {
-  return block === null ? null : Math.max(1, block.checked - SINCE_OVERLAP_SECONDS);
+export function sinceFor(checkedAt: number | null): number | null {
+  return checkedAt === null ? null : Math.max(1, checkedAt - SINCE_OVERLAP_SECONDS);
 }
 
 export interface Selection {
-  /** Bookmarks to list, in the order the answer gave them. */
+  /** Bookmarks to list, in the order the answers gave them. */
   added: Bookmark[];
-  /** Bookmarks already listed that changed, for their highlight counts. */
+  /** Bookmarks already listed, for their highlight counts. */
   refreshed: Bookmark[];
 }
 
@@ -136,26 +181,27 @@ export interface Selection {
  *
  * A first check asked for the section itself, so everything in the answer
  * belongs. Later checks asked what changed across the whole account, and only
- * a bookmark now in the section counts; one that changed and is already
- * listed may have gained highlights.
+ * a bookmark now in the section counts. One already listed — by its link — may
+ * have gained highlights; one whose link appears twice is taken once.
  */
 export function selectBookmarks(input: {
   bookmarks: readonly Bookmark[];
   section: ReadingSection;
   block: ReadingBlock | null;
+  firstRun: boolean;
 }): Selection {
-  const known = input.block?.entries ?? new Map<number, ListedEntry>();
-  const firstRun = input.block === null;
-  const seen = new Set<number>();
+  const known = input.block?.entries ?? new Map<string, ListedEntry>();
+  const seen = new Set<string>();
   const added: Bookmark[] = [];
   const refreshed: Bookmark[] = [];
 
   for (const bookmark of input.bookmarks) {
-    if (seen.has(bookmark.id)) continue;
-    seen.add(bookmark.id);
-    if (!firstRun && !inSection(bookmark, input.section)) continue;
+    const url = entryUrl(bookmark.url);
+    if (seen.has(url)) continue;
+    seen.add(url);
+    if (!input.firstRun && !inSection(bookmark, input.section)) continue;
 
-    if (!known.has(bookmark.id)) {
+    if (!known.has(url)) {
       added.push(bookmark);
     } else if (refreshed.length < MAX_REFRESH_PER_CHECK) {
       refreshed.push(bookmark);
@@ -165,18 +211,69 @@ export function selectBookmarks(input: {
   return { added, refreshed };
 }
 
+/** The bookmarks whose highlights a check reads: every new and every known one. */
+export function highlightsToFetch(selection: Selection): number[] {
+  return [...selection.added, ...selection.refreshed].map((bookmark) => bookmark.id);
+}
+
+/**
+ * Which bookmarks get a summary on this check, in order: new entries first,
+ * then listed ones that have none yet — and only those with highlights to
+ * summarize.
+ */
+export function planSummaries(input: {
+  selection: Selection;
+  block: ReadingBlock | null;
+  highlightCounts: ReadonlyMap<number, number>;
+  max: number;
+}): number[] {
+  const hasSummary = (bookmark: Bookmark): boolean =>
+    input.block?.entries.get(entryUrl(bookmark.url))?.hasSummary ?? false;
+  return [
+    ...input.selection.added,
+    ...input.selection.refreshed.filter((bookmark) => !hasSummary(bookmark))
+  ]
+    .map((bookmark) => bookmark.id)
+    .filter((id) => (input.highlightCounts.get(id) ?? 0) > 0)
+    .slice(0, input.max);
+}
+
 export interface EntryChange {
-  id: number;
+  url: string;
   highlights?: number;
   summary?: string;
 }
 
 export interface ReadingUpdate {
-  /** Unix seconds this check started. */
-  checked: number;
   /** New entries, newest first; they go to the top of the list. */
   added: readonly ReadingEntry[];
   changed: readonly EntryChange[];
+}
+
+/** The update a check writes, from what it found. */
+export function buildReadingUpdate(input: {
+  now: Date;
+  selection: Selection;
+  highlightCounts: ReadonlyMap<number, number>;
+  summaries: ReadonlyMap<number, string>;
+}): ReadingUpdate {
+  const date = entryDate(input.now);
+  const added = input.selection.added.map((bookmark) => ({
+    title: bookmark.title,
+    url: bookmark.url,
+    date,
+    highlights: input.highlightCounts.get(bookmark.id) ?? 0,
+    summary: input.summaries.get(bookmark.id) ?? null
+  }));
+  const changed = input.selection.refreshed.map((bookmark): EntryChange => {
+    const summary = input.summaries.get(bookmark.id);
+    return {
+      url: entryUrl(bookmark.url),
+      highlights: input.highlightCounts.get(bookmark.id) ?? 0,
+      ...(summary === undefined ? {} : { summary })
+    };
+  });
+  return { added, changed };
 }
 
 export interface TextEdit {
@@ -186,15 +283,21 @@ export interface TextEdit {
 }
 
 /**
- * The edit that brings a note's block up to date.
+ * The note as a check leaves it: the list brought up to date and the check
+ * time set in the frontmatter.
  *
  * Computed from the text as it stands at the moment of writing, not as it was
- * when the check began: the person may have typed in the meantime, and an
- * edit planned against the older text would put their words back.
+ * when the check began: the person may have typed in the meantime, and a note
+ * planned against the older text would put their words back.
  */
+export function applyReadingCheck(text: string, update: ReadingUpdate, checkedAt: number): string {
+  const listed = applyEdit(text, planReadingEdit(text, update));
+  return setFrontmatterValue(listed, READING_CHECKED_KEY, formatCheckedAt(checkedAt)) ?? listed;
+}
+
+/** The edit that brings a note's list up to date. */
 export function planReadingEdit(text: string, update: ReadingUpdate): TextEdit {
   const block = readReadingBlock(text);
-  const start = `%% schreibstube-reading checked=${String(Math.floor(update.checked))} %%`;
   const fresh = update.added.flatMap(renderEntry);
 
   if (block === null) {
@@ -203,11 +306,11 @@ export function planReadingEdit(text: string, update: ReadingUpdate): TextEdit {
     return {
       from: text.length,
       to: text.length,
-      text: `${separator}${[start, ...fresh, END].join("\n")}\n`
+      text: `${separator}${[START_LINE, ...fresh, END].join("\n")}\n`
     };
   }
 
-  const changes = new Map(update.changed.map((change) => [change.id, change]));
+  const changes = new Map(update.changed.map((change) => [change.url, change]));
   const inner = text
     .slice(block.from, block.to)
     .split("\n")
@@ -217,121 +320,67 @@ export function planReadingEdit(text: string, update: ReadingUpdate): TextEdit {
 
   for (let index = 0; index < inner.length; index += 1) {
     const line = inner[index] ?? "";
-    const id = Number(ENTRY.exec(line)?.[1]);
-    const change = changes.get(id);
-    if (change === undefined) {
+    const url = ENTRY.exec(line)?.[1];
+    const change = url === undefined ? undefined : changes.get(url);
+    if (url === undefined || change === undefined) {
       kept.push(line);
       continue;
     }
+    // Once is enough: a link listed twice by hand is completed where it is first.
+    changes.delete(url);
 
-    kept.push(change.highlights === undefined ? line : withCount(line, change.highlights));
+    const plain = line.replace(LEGACY_ID, "");
+    kept.push(change.highlights === undefined ? plain : withCount(plain, change.highlights));
     const hasSummary = SUMMARY.test(inner[index + 1] ?? "");
     if (!hasSummary && change.summary !== undefined && change.summary.length > 0) {
       kept.push(summaryLine(change.summary));
     }
   }
 
-  return { from: block.from, to: block.to, text: [start, ...fresh, ...kept, END].join("\n") };
-}
-
-/** What a check needs fetched beyond the list itself. */
-export interface HighlightWork {
-  /** Bookmarks whose highlights are read: new, changed, recent, and summaries owed. */
-  fetch: number[];
-  /** The newest listed entries, read again whether or not they changed. */
-  recent: number[];
-  /** Listed entries with highlights and no summary yet, finished on this check. */
-  backfill: number[];
+  return { from: block.from, to: block.to, text: [START_LINE, ...fresh, ...kept, END].join("\n") };
 }
 
 /**
- * Which highlights a check reads.
+ * The note with one frontmatter key set to a plain value, or null when it
+ * cannot be said in one line — the key holds a list or a folded block there.
  *
- * Every new entry needs its count, every changed one may have gained some, the
- * newest are read again in case they did without saying so, and with
- * summaries on, an entry left without one by an earlier check — the per-check
- * limit, a provider that failed — is finished now.
+ * A note without frontmatter is given some. Read and written as lines, not
+ * YAML: the value is a date-time this module wrote, and everything else in the
+ * block stays exactly as it was.
  */
-export function planHighlightWork(input: {
-  selection: Selection;
-  block: ReadingBlock | null;
-  summaries: boolean;
-  maxSummaries: number;
-}): HighlightWork {
-  const touched = new Set(
-    [...input.selection.added, ...input.selection.refreshed].map((b) => b.id)
+export function setFrontmatterValue(text: string, key: string, value: string): string | null {
+  const lines = text.split("\n");
+  if (lines[0]?.replace(/\r$/, "") !== "---") return `---\n${key}: ${value}\n---\n${text}`;
+
+  const close = lines.findIndex((line, index) => index > 0 && line.replace(/\r$/, "") === "---");
+  if (close === -1) return null;
+
+  const at = lines.findIndex(
+    (line, index) => index > 0 && index < close && new RegExp(`^${key}\\s*:`).test(line)
   );
-  const listed = [...(input.block?.entries ?? new Map<number, ListedEntry>())];
-  const recent = listed
-    .slice(0, RECENT_REFRESH_COUNT)
-    .map(([id]) => id)
-    .filter((id) => !touched.has(id));
-  const backfill = input.summaries
-    ? listed
-        .filter(
-          ([id, entry]) =>
-            entry.highlights > 0 && !entry.hasSummary && !touched.has(id) && !recent.includes(id)
-        )
-        .slice(0, input.maxSummaries)
-        .map(([id]) => id)
-    : [];
-  return { fetch: [...touched, ...recent, ...backfill], recent, backfill };
+  if (at === -1) {
+    lines.splice(close, 0, `${key}: ${value}`);
+    return lines.join("\n");
+  }
+
+  const next = lines[at + 1];
+  if (at + 1 < close && next !== undefined && /^\s/.test(next)) return null;
+  lines[at] = `${key}: ${value}`;
+  return lines.join("\n");
 }
 
-/**
- * Which entries get a summary on this check, in order: new entries first,
- * then changed and recent ones that have none, then the backfill — and only
- * those with highlights to summarize.
- */
-export function planSummaries(input: {
-  selection: Selection;
-  work: HighlightWork;
-  block: ReadingBlock | null;
-  highlightCounts: ReadonlyMap<number, number>;
-  max: number;
-}): number[] {
-  const hasSummary = (id: number): boolean => input.block?.entries.get(id)?.hasSummary ?? false;
-  const owed = [
-    ...input.selection.added.map((b) => b.id),
-    ...[...input.selection.refreshed.map((b) => b.id), ...input.work.recent].filter(
-      (id) => !hasSummary(id)
-    ),
-    ...input.work.backfill
-  ];
-  return owed.filter((id) => (input.highlightCounts.get(id) ?? 0) > 0).slice(0, input.max);
-}
+/** The one change that turns `before` into `after`, for writing through an editor. */
+export function diffEdit(before: string, after: string): TextEdit {
+  let start = 0;
+  const limit = Math.min(before.length, after.length);
+  while (start < limit && before[start] === after[start]) start += 1;
 
-/** The update a check writes, from what it found. */
-export function buildReadingUpdate(input: {
-  checked: number;
-  now: Date;
-  selection: Selection;
-  work: HighlightWork;
-  highlightCounts: ReadonlyMap<number, number>;
-  summaries: ReadonlyMap<number, string>;
-}): ReadingUpdate {
-  const date = entryDate(input.now);
-  const added = input.selection.added.map((bookmark) => ({
-    id: bookmark.id,
-    title: bookmark.title,
-    url: bookmark.url,
-    date,
-    highlights: input.highlightCounts.get(bookmark.id) ?? 0,
-    summary: input.summaries.get(bookmark.id) ?? null
-  }));
-  const changed = [
-    ...input.selection.refreshed.map((b) => b.id),
-    ...input.work.recent,
-    ...input.work.backfill
-  ].map((id): EntryChange => {
-    const summary = input.summaries.get(id);
-    return {
-      id,
-      highlights: input.highlightCounts.get(id) ?? 0,
-      ...(summary === undefined ? {} : { summary })
-    };
-  });
-  return { checked: input.checked, added, changed };
+  let end = 0;
+  while (end < limit - start && before[before.length - 1 - end] === after[after.length - 1 - end]) {
+    end += 1;
+  }
+
+  return { from: start, to: before.length - end, text: after.slice(start, after.length - end) };
 }
 
 /** What a check across the reading notes amounted to. */
@@ -356,7 +405,7 @@ export function describeReadingCheck(summary: ReadingCheckSummary): string {
   return words.checked(summary.checked, summary.added, summary.failed);
 }
 
-/** Apply an edit to text, for a note that is not open in an editor. */
+/** Apply an edit to text. */
 export function applyEdit(text: string, edit: TextEdit): string {
   return text.slice(0, edit.from) + edit.text + text.slice(edit.to);
 }
@@ -365,7 +414,7 @@ export function applyEdit(text: string, edit: TextEdit): string {
 export function renderEntry(entry: ReadingEntry): string[] {
   const parts = [`- [${entryTitle(entry.title)}](${entryUrl(entry.url)})`, entry.date];
   if (entry.highlights > 0) parts.push(t().reading.highlights(entry.highlights));
-  const line = `${parts.join(" · ")} %%instapaper:${String(entry.id)}%%`;
+  const line = parts.join(" · ");
   return entry.summary === null || entry.summary.length === 0
     ? [line]
     : [line, summaryLine(entry.summary)];
@@ -377,8 +426,7 @@ function summaryLine(summary: string): string {
 
 function withCount(line: string, highlights: number): string {
   const segment = highlights > 0 ? ` · ${t().reading.highlights(highlights)}` : "";
-  if (COUNT.test(line)) return line.replace(COUNT, segment);
-  return line.replace(/ %%instapaper:(\d+)%%$/, `${segment} %%instapaper:$1%%`);
+  return COUNT.test(line) ? line.replace(COUNT, segment) : `${line}${segment}`;
 }
 
 /**
@@ -396,7 +444,10 @@ export function entryTitle(raw: string): string {
   return escapeForeignText(cut.replace(/[[\]\\]/g, "\\$&"));
 }
 
-/** A link target that cannot end the link or the line early. */
+/**
+ * A link as the entry writes it, which is also how an entry is recognized:
+ * one spelling per address, and none that can end the link or the line early.
+ */
 export function entryUrl(raw: string): string {
   return new URL(raw).href.replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/ /g, "%20");
 }

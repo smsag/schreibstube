@@ -64,7 +64,8 @@ Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentA
 `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds` (mail); `schreibstubeImage`,
 `schreibstubeImageHash`, `schreibstubeImageSize`, `schreibstubeSummary`, `schreibstubeDescription`, `schreibstubeDescribedAt`,
 `schreibstubeKeywords`, `schreibstubeSource`, `schreibstubeAuthor`, `schreibstubeFavorite`,
-`schreibstubeArticles` (picture description notes); `publishedAt`, `publishedUrl` (publishing).
+`schreibstubeArticles` (picture description notes); `publishedAt`, `publishedUrl` (publishing);
+`schreibstubeReadingCheckedAt` (reading notes).
 
 ## 3. Presentations (template `Folien`)
 
@@ -413,9 +414,8 @@ schreibstubeSyncEvery: Alle 2 Tage
 
 - HTTPS only, and the path must end in a Markdown extension.
 - `schreibstubeSyncEvery` reads German or English words (`täglich`, `every 6 hours`) or a cron line.
-- `schreibstubeReadingFrom: instapaper:archive` (or `instapaper:liked`) makes a reading history
-  instead: every article that list gains, newest first (**Update reading history**,
-  `Lesehistorie aktualisieren`). The plugin writes the `%% schreibstube-reading %%` block; leave it.
+- `schreibstubeReadingFrom: instapaper:archive` (or `instapaper:liked`) makes a reading history instead, newest
+  first, inside a `%% schreibstube-reading %%` block (**Update reading history**, `Lesehistorie aktualisieren`).
 
 ## 11. Glossary
 
