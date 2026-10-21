@@ -28,8 +28,28 @@ describe("the default policy", () => {
     expect(DEFAULT_CSP).toContain(`'sha256-${hash}'`);
   });
 
+  it("allows the loader of a start page that holds a diagram, which looks for the bundle from the root", async () => {
+    const text = "# Ablauf\n\n```mermaid\ngraph TD; A-->B\n```\n";
+    const files = await buildSite(
+      {
+        siteTitle: "S",
+        notes: [
+          { sourcePath: "a.md", sha256: sha256(text), slug: "ablauf", title: "Ablauf", home: true }
+        ],
+        assets: []
+      },
+      new Map([[sha256(text), text]])
+    );
+    const page = files.get("index.html").toString("utf8");
+    const inline = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+    expect(inline).toHaveLength(1);
+    expect(inline[0]).toContain('"assets/mermaid.min.js"');
+    const hash = createHash("sha256").update(inline[0], "utf8").digest("base64");
+    expect(DEFAULT_CSP).toContain(`'sha256-${hash}'`);
+  });
+
   it("loads scripts only from the site, and lets a note's pictures come from anywhere", () => {
-    expect(DEFAULT_CSP).toMatch(/script-src 'self' 'sha256-[A-Za-z0-9+/=]+';/);
+    expect(DEFAULT_CSP).toMatch(/script-src 'self'( 'sha256-[A-Za-z0-9+/=]+'){2};/);
     expect(DEFAULT_CSP).not.toContain("unsafe-eval");
     expect(DEFAULT_CSP).toContain("img-src 'self' data: https:");
     expect(DEFAULT_CSP).toContain("object-src 'none'");

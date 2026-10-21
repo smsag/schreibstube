@@ -79,7 +79,11 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   // Only pages and uploaded assets can be judged before rendering. Generator
   // assets — the stylesheet, the fonts, the diagram bundle — depend on what the
   // pages turn out to use, so they are settled at commit.
-  const expectedPages = new Set(index.notes.map((note) => pagePath(note.slug)));
+  // The start page's note is index.html, which is never deleted, rather than
+  // a page under its slug.
+  const expectedPages = new Set(
+    index.notes.filter((note) => !note.home).map((note) => pagePath(note.slug))
+  );
   // A header tag's page is the site's own, like a note's, as long as a note
   // carries the tag.
   for (const tag of index.headerTags ?? []) {
@@ -110,7 +114,7 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
  */
 export function plannedOutputs(index, plan) {
   const paths = new Set(["index.html", "assets/theme.css"]);
-  for (const note of index.notes) paths.add(pagePath(note.slug));
+  for (const note of index.notes) if (!note.home) paths.add(pagePath(note.slug));
   for (const tag of index.headerTags ?? []) {
     if (index.notes.some((note) => note.tags?.includes(tag))) paths.add(tagPagePath(tag));
   }

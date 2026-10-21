@@ -34,11 +34,14 @@ import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
 import { sourceForUpload } from "../services/publish-source";
 import {
   ATTACHMENT_EXTENSIONS,
+  findHomeCollision,
   findSlugCollision,
   isInsideFolder,
   isPublishableAttachment,
   readPublishFields,
   headerTagsOf,
+  publishedUrl,
+  readHomeFields,
   noteTags,
   referencedAttachments,
   resolveNote,
@@ -443,6 +446,7 @@ export class PublishCommands {
     const assets = new Map<string, CollectedAsset>();
     const assetEntries: PublishAsset[] = [];
     const resolved = [];
+    let homeList = false;
 
     // Read first, so that the canvases of every note can be counted before
     // the first is drawn: drawing takes long enough to want a count.
@@ -512,7 +516,14 @@ export class PublishCommands {
         sources.set(sha256, bytes.buffer as ArrayBuffer);
         const carried =
           account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
-        notes.push({ ...note, sha256, ...(carried.length > 0 ? { tags: carried } : {}) });
+        const start = readHomeFields(cache?.frontmatter);
+        if (start.home) homeList = start.homeList;
+        notes.push({
+          ...note,
+          sha256,
+          ...(carried.length > 0 ? { tags: carried } : {}),
+          ...(start.home ? { home: true as const } : {})
+        });
 
         // A filmstrip shows its pictures small as well, and asks for thumbnails.
         const filmstrip = new Set(
@@ -558,7 +569,7 @@ export class PublishCommands {
       new Notice(t().common.notice(t().publish.diagramsNotDrawn(drawing.lost)), 10_000);
     }
 
-    const collision = findSlugCollision(resolved);
+    const collision = findSlugCollision(resolved) ?? findHomeCollision(notes);
     if (collision) {
       new Notice(t().common.notice(collision));
       return null;
@@ -570,7 +581,8 @@ export class PublishCommands {
       notes,
       assets: assetEntries,
       ...(themeCss !== undefined ? { themeCss } : {}),
-      ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {})
+      ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {}),
+      ...(homeList ? { homeList: true } : {})
     };
 
     return { index, sources, assets, describable };
@@ -681,7 +693,7 @@ export class PublishCommands {
           if (account.writeBack) {
             frontmatter[keys.publishedAt] = at;
             // A bridge that named no usable site address leaves the last one.
-            if (baseUrl) frontmatter[keys.publishedUrl] = `${baseUrl}/${note.slug}/`;
+            if (baseUrl) frontmatter[keys.publishedUrl] = publishedUrl(baseUrl, note);
           }
           // A description typed while the run was under way is the person's.
           if (description !== undefined && leavesDescriptionToModel(frontmatter, keys)) {

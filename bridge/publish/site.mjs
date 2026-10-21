@@ -9,7 +9,7 @@
  */
 import { createHash } from "node:crypto";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
-import { indexPage, notePage, tagPage } from "./render/page.mjs";
+import { homePage, indexPage, notePage, tagPage } from "./render/page.mjs";
 import {
   assetPath,
   extensionOf,
@@ -53,11 +53,15 @@ export function checkIndex(index) {
   if (index.themeCss !== undefined && typeof index.themeCss !== "string") {
     throw new IndexError("themeCss must be a string.");
   }
+  if (index.homeList !== undefined && typeof index.homeList !== "boolean") {
+    throw new IndexError("homeList must be true or false.");
+  }
 
   const headerTags = checkHeaderTags(index.headerTags);
 
   const seen = new Map();
   const notes = [];
+  let home = null;
   for (const note of index.notes) {
     if (!note?.sourcePath || typeof note.sourcePath !== "string") {
       throw new IndexError("A note is missing its sourcePath.");
@@ -79,6 +83,14 @@ export function checkIndex(index) {
         throw new IndexError(`${note.sourcePath}: ${field} must be a string.`);
       }
     }
+    if (note.home !== undefined && note.home !== true) {
+      throw new IndexError(`${note.sourcePath}: home must be true when it is given.`);
+    }
+    // One start page: a second would silently lose to whichever came first.
+    if (note.home && home) {
+      throw new IndexError(`Two notes claim the start page: ${home} and ${note.sourcePath}.`);
+    }
+    if (note.home) home = note.sourcePath;
     const previous = seen.get(note.slug);
     if (previous) {
       throw new IndexError(
@@ -99,7 +111,8 @@ export function checkIndex(index) {
         title: note.title,
         date: note.date,
         description: note.description,
-        tags: note.tags
+        tags: note.tags,
+        home: note.home
       })
     );
   }
@@ -130,10 +143,17 @@ export function checkIndex(index) {
     );
   }
 
+  // The list beneath a start page is that page's choice; without one there is
+  // no page to put it under, and the field would be a promise nobody keeps.
+  if (index.homeList !== undefined && !home) {
+    throw new IndexError("homeList needs a note that is the start page.");
+  }
+
   return known({
     siteTitle: index.siteTitle,
     themeCss: index.themeCss,
     headerTags: index.headerTags,
+    homeList: index.homeList,
     notes,
     assets
   });
@@ -201,8 +221,10 @@ export function orderNotes(notes) {
  */
 export async function buildSite(index, sources, options = {}) {
   const ordered = orderNotes(index.notes);
-  const site = lookups(index, options.thumbnails);
+  const site = lookups(index, options.thumbnails, "../");
   const md = createRenderer(options);
+  // A note marked as home is the start page, served from the site's root.
+  const home = ordered.find((note) => note.home) ?? null;
 
   const nav = headerNav(index);
   const siteIcon = siteIconFromTheme(index.themeCss);
@@ -218,10 +240,38 @@ export async function buildSite(index, sources, options = {}) {
       throw new IndexError(`Source not uploaded for ${note.sourcePath}.`);
     }
 
-    const rendered = renderMarkdown(md, source, site, { sourcePath: note.sourcePath });
+    // The start page sits one level higher than a note page, so its links
+    // are resolved from there.
+    const rendered = renderMarkdown(
+      md,
+      source,
+      note === home ? lookups(index, options.thumbnails, "") : site,
+      { sourcePath: note.sourcePath }
+    );
     usedMath = usedMath || rendered.usedMath;
     usedMermaid = usedMermaid || rendered.usedMermaid;
     usedSlideshow = usedSlideshow || rendered.usedSlideshow;
+
+    if (note === home) {
+      files.set(
+        "index.html",
+        Buffer.from(
+          homePage({
+            note,
+            body: rendered.html,
+            siteTitle: index.siteTitle,
+            list: index.homeList ? ordered.filter((other) => other !== home) : [],
+            nav,
+            icon,
+            usedMath: rendered.usedMath,
+            usedMermaid: rendered.usedMermaid,
+            usedSlideshow: rendered.usedSlideshow
+          }),
+          "utf8"
+        )
+      );
+      continue;
+    }
 
     files.set(
       pagePath(note.slug),
@@ -241,10 +291,12 @@ export async function buildSite(index, sources, options = {}) {
     );
   }
 
-  files.set(
-    "index.html",
-    Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle, nav, icon }), "utf8")
-  );
+  if (!home) {
+    files.set(
+      "index.html",
+      Buffer.from(indexPage({ notes: ordered, siteTitle: index.siteTitle, nav, icon }), "utf8")
+    );
+  }
   for (const entry of nav) {
     files.set(
       entry.path,
@@ -269,13 +321,15 @@ export async function buildSite(index, sources, options = {}) {
  * The tables the Obsidian rules resolve links against.
  *
  * Both a full vault path and a bare file name resolve, because that is how
- * wikilinks are written. URLs are relative to a note page, which is the only
- * place a rendered body is ever placed.
+ * wikilinks are written. URLs are relative to the page the body is placed on:
+ * `up` leads from there to the site's root, `../` from a note page and nothing
+ * from the start page. A link to the start page leads to the root.
  */
-function lookups(index, thumbnails = new Set()) {
+function lookups(index, thumbnails = new Set(), up = "../") {
   const notes = new Map();
   for (const note of index.notes) {
-    const entry = { url: `../${note.slug}/`, title: note.title, slug: note.slug };
+    const url = note.home ? up || "./" : `${up}${note.slug}/`;
+    const entry = { url, title: note.title, slug: note.slug };
     for (const alias of aliases(note.sourcePath)) notes.set(alias, entry);
   }
 
@@ -288,7 +342,7 @@ function lookups(index, thumbnails = new Set()) {
     // it, so one file could be two kinds of thing.
     const extension = extensionOf(name);
     const entry = {
-      url: `../${path}`,
+      url: `${up}${path}`,
       name,
       kind: VIDEO_EXTENSIONS.has(extension) ? "video" : "image"
     };
@@ -296,7 +350,7 @@ function lookups(index, thumbnails = new Set()) {
     const thumbnail = asset.thumbnail
       ? thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath)
       : null;
-    if (thumbnail && thumbnails.has(thumbnail)) entry.thumbnail = `../${thumbnail}`;
+    if (thumbnail && thumbnails.has(thumbnail)) entry.thumbnail = `${up}${thumbnail}`;
     for (const alias of aliases(asset.sourcePath)) assets.set(alias, entry);
   }
 

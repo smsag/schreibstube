@@ -178,6 +178,8 @@ export const de: Messages = {
     heading: "Veröffentlichen",
     slugCollision: (slug: string, first: string, second: string) =>
       `„${slug}“ wird von zwei Notizen beansprucht: ${first} und ${second}.`,
+    homeCollision: (first: string, second: string) =>
+      `Zwei Notizen wollen die Startseite sein: ${first} und ${second}. Lass schreibstubeHome nur an einer stehen.`,
     newAccountName: "Website",
     openSite: "Website öffnen",
     openSiteDesc: "Öffnet die veröffentlichte Website im Browser.",

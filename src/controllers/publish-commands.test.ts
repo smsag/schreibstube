@@ -325,6 +325,51 @@ describe("which notes are published", () => {
     expect(client.plan).not.toHaveBeenCalled();
     expect(Notice.shown.join(" ")).toContain("Blog/Zweite.md");
   });
+
+  it("tells the bridge which note is the start page, and that it lists the rest", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Start.md",
+          content: "# Start",
+          frontmatter: { ...published, schreibstubeHome: true, schreibstubeHomeList: true }
+        },
+        { path: "Blog/Zweite.md", content: "# Zweite", frontmatter: published }
+      ]
+    });
+
+    await controller(vault).commands.preview();
+    const index = plannedIndex();
+    expect(index.homeList).toBe(true);
+    expect(index.notes.find((note: { slug: string }) => note.slug === "start").home).toBe(true);
+    expect(index.notes.find((note: { slug: string }) => note.slug === "zweite")).not.toHaveProperty(
+      "home"
+    );
+  });
+
+  it("sends no start page, and no list, when no note asks to be one", async () => {
+    const vault = fakeVault({
+      notes: [{ path: "Blog/Zweite.md", content: "# Zweite", frontmatter: published }]
+    });
+
+    await controller(vault).commands.preview();
+    expect(plannedIndex()).not.toHaveProperty("homeList");
+  });
+
+  it("refuses when two notes want to be the start page", async () => {
+    const home = { ...published, schreibstubeHome: true };
+    const vault = fakeVault({
+      notes: [
+        { path: "Blog/Erste.md", content: "# A", frontmatter: home },
+        { path: "Blog/Zweite.md", content: "# B", frontmatter: home }
+      ]
+    });
+
+    await controller(vault).commands.preview();
+    expect(client.plan).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toContain("Blog/Erste.md");
+    expect(Notice.shown.join(" ")).toContain("Blog/Zweite.md");
+  });
 });
 
 describe("what each note says about itself", () => {

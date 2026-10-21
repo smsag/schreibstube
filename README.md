@@ -528,6 +528,18 @@ datum: 2026-09-12
 
 The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet. Up to three **header tags** per connection, set in its settings, are linked on the right of every page's header, each to a page listing the notes that carry it; nested tags count (`projekt` also lists `projekt/alpha`), a tag no published note carries is left out, and only which of those three tags a note carries is sent to the bridge — a note's other tags stay in the vault.
 
+**A note can be the start page.** By default the start page lists every published note. Put `schreibstubeHome: true` on one published note and it becomes the start page instead: its text is the site's `index.html`, under its own title and description and without a date, and links to it lead to the site's root. Add `schreibstubeHomeList: true` to the same note to list the other notes beneath its text, newest first; without it the start page is the note alone, which suits a product site with a few pages linked from its text. Only one note may be the start page: with two, the publish stops before anything is uploaded and names both. Taking the property away brings the list back as the start page and gives the note its own page again. Needs bridge 3.5.0 (protocol 10) or later.
+
+```yaml
+---
+published: true
+title: Karussell – the Space switcher for Mac
+description: Every Space one glance and one keystroke away.
+schreibstubeHome: true
+schreibstubeHomeList: false # true: the other notes, newest first, beneath the text
+---
+```
+
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 
 #### Shared links

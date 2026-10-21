@@ -193,6 +193,8 @@ export const en = {
     heading: "Publishing",
     slugCollision: (slug: string, first: string, second: string) =>
       `"${slug}" is claimed by two notes: ${first} and ${second}.`,
+    homeCollision: (first: string, second: string) =>
+      `Two notes want to be the start page: ${first} and ${second}. Keep schreibstubeHome on one.`,
     /** The name a freshly added account carries until it is given one. */
     newAccountName: "Website",
     openSite: "Open the website",

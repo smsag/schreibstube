@@ -2,8 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   ATTACHMENT_EXTENSIONS,
   DEFAULT_PUBLISH_KEYS,
+  findHomeCollision,
   findSlugCollision,
   firstHeading,
+  HOME_KEY,
+  HOME_LIST_KEY,
+  publishedUrl,
+  readHomeFields,
   isInsideFolder,
   isPublishableAttachment,
   isoDate,
@@ -263,6 +268,63 @@ describe("findSlugCollision", () => {
     const message = findSlugCollision([note("Blog/a.md", "x"), note("Blog/b.md", "x")]);
     expect(message).toContain("Blog/a.md");
     expect(message).toContain("Blog/b.md");
+  });
+});
+
+describe("readHomeFields", () => {
+  it("makes a note the start page only when it says so", () => {
+    expect(readHomeFields({ [HOME_KEY]: true })).toEqual({ home: true, homeList: false });
+    expect(readHomeFields({ [HOME_KEY]: "ja" }).home).toBe(true);
+    expect(readHomeFields({})).toEqual({ home: false, homeList: false });
+    expect(readHomeFields(null)).toEqual({ home: false, homeList: false });
+    expect(readHomeFields({ [HOME_KEY]: "maybe" }).home).toBe(false);
+  });
+
+  it("lists the other notes only when the start page asks", () => {
+    expect(readHomeFields({ [HOME_KEY]: true, [HOME_LIST_KEY]: true })).toEqual({
+      home: true,
+      homeList: true
+    });
+  });
+
+  it("ignores the list on a note that is not the start page", () => {
+    expect(readHomeFields({ [HOME_LIST_KEY]: true })).toEqual({ home: false, homeList: false });
+  });
+
+  it("uses the plugin's own prefix, as every key it reads", () => {
+    expect(HOME_KEY.startsWith("schreibstube")).toBe(true);
+    expect(HOME_LIST_KEY.startsWith("schreibstube")).toBe(true);
+  });
+});
+
+describe("findHomeCollision", () => {
+  it("passes with one start page or none", () => {
+    expect(
+      findHomeCollision([{ sourcePath: "a.md", home: true }, { sourcePath: "b.md" }])
+    ).toBeNull();
+    expect(findHomeCollision([{ sourcePath: "a.md" }])).toBeNull();
+  });
+
+  it("names both notes when two want to be the start page", () => {
+    const message = findHomeCollision([
+      { sourcePath: "Site/a.md", home: true },
+      { sourcePath: "Site/b.md" },
+      { sourcePath: "Site/c.md", home: true }
+    ]);
+    expect(message).toContain("Site/a.md");
+    expect(message).toContain("Site/c.md");
+    expect(message).not.toContain("Site/b.md");
+  });
+});
+
+describe("publishedUrl", () => {
+  it("is the site's root for the start page and the slug's page for the rest", () => {
+    expect(publishedUrl("https://karussell.space", { slug: "start", home: true })).toBe(
+      "https://karussell.space/"
+    );
+    expect(publishedUrl("https://karussell.space", { slug: "impressum" })).toBe(
+      "https://karussell.space/impressum/"
+    );
   });
 });
 

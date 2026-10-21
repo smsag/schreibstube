@@ -1,5 +1,6 @@
 /**
- * The page shell: one template for a note, one for the index, one stylesheet.
+ * The page shell: one template for a note, one for the index, one for a note
+ * that is the start page, one stylesheet.
  *
  * Asset links are relative rather than root-relative, so a site served from a
  * subdirectory works without configuration. Dates are formatted by hand rather
@@ -62,6 +63,43 @@ export function indexPage({ notes, siteTitle, nav = [], icon = null }) {
 }
 
 /**
+ * The start page when a note is marked as home: the note's own text, and the
+ * other notes beneath it when the note asks for them. It is the front door
+ * rather than an entry, so it carries no date, and its title is the note's
+ * alone. Served from the site's root, so nothing is up.
+ */
+export function homePage({
+  note,
+  body,
+  siteTitle,
+  list = [],
+  nav = [],
+  icon = null,
+  usedMath,
+  usedMermaid,
+  usedSlideshow = false
+}) {
+  return page({
+    up: "",
+    title: note.title,
+    description: note.description,
+    siteTitle,
+    nav,
+    icon,
+    usedMath,
+    usedMermaid,
+    usedSlideshow,
+    hasIndex: false,
+    main:
+      `<article>\n` +
+      (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
+      body +
+      `</article>\n` +
+      (list.length > 0 ? `<ul class="index">\n${listEntries(list, "")}\n</ul>\n` : "")
+  });
+}
+
+/**
  * A header tag's page: the notes carrying it, listed as the start page lists
  * them. Served from tag/<slug>/index.html, so everything shared is two up.
  */
@@ -89,7 +127,8 @@ function listEntries(notes, up) {
     .map(
       (note) =>
         `<li>\n` +
-        `<a class="entry" href="${up}${escapeHtml(note.slug)}/">${escapeHtml(note.title)}</a>\n` +
+        // The start page is the root, wherever else its note would have been.
+        `<a class="entry" href="${note.home ? up || "./" : `${up}${escapeHtml(note.slug)}/`}">${escapeHtml(note.title)}</a>\n` +
         metaLine(note.date) +
         (note.description ? `<p class="summary">${escapeHtml(note.description)}</p>\n` : "") +
         `</li>`

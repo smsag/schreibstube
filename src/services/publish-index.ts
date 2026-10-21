@@ -194,6 +194,50 @@ export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote
 }
 
 /**
+ * The keys that make a note the site's start page, and list the other notes
+ * beneath it. Schreibstube's own, so prefixed rather than mapped: no vault has
+ * a convention for them to collide with.
+ */
+export const HOME_KEY = "schreibstubeHome";
+export const HOME_LIST_KEY = "schreibstubeHomeList";
+
+export interface HomeFields {
+  home: boolean;
+  homeList: boolean;
+}
+
+/**
+ * Whether a note is the start page, and whether the list of notes goes
+ * beneath it. The list is the start page's to ask for, so it means nothing on
+ * any other note.
+ */
+export function readHomeFields(frontmatter: unknown): HomeFields {
+  const record =
+    typeof frontmatter === "object" && frontmatter !== null
+      ? (frontmatter as Record<string, unknown>)
+      : {};
+  const home = isTrue(record[HOME_KEY]);
+  return { home, homeList: home && isTrue(record[HOME_LIST_KEY]) };
+}
+
+/**
+ * A site has one start page. Two would leave the bridge to pick, and the
+ * message here names notes the user can open.
+ */
+export function findHomeCollision(
+  notes: readonly { sourcePath: string; home?: boolean }[]
+): string | null {
+  const homes = notes.filter((note) => note.home);
+  const [first, second] = homes;
+  return first && second ? t().publish.homeCollision(first.sourcePath, second.sourcePath) : null;
+}
+
+/** Where a published note can be read: the site's root for the start page. */
+export function publishedUrl(baseUrl: string, note: { slug: string; home?: boolean }): string {
+  return note.home ? `${baseUrl}/` : `${baseUrl}/${note.slug}/`;
+}
+
+/**
  * Two notes cannot share an address.
  *
  * Caught here rather than on the bridge as well, so the message names vault
