@@ -10,7 +10,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- **`:folder:` draws its icon in Live Preview again with every theme.** The editor drew a shortcode's icon only in the part of the note CodeMirror reckoned was on screen, and with some themes that reckoning came back empty: Live Preview showed `:timeline:` as text, without an error, while Reading view drew the icon. It now reads the lines the editor has actually drawn.
+- **`:folder:` draws its icon in Live Preview again in a note with `---` rules.** The editor read the part of the note on screen without the lines above it, so a part that began with a `---` rule was taken for the start of the note's properties, and every icon below it up to the next rule stayed text. Folding a section, or scrolling so that a rule was the first line drawn, was enough; Reading view was not affected. The editor now reads the note from its top, as Reading view and the calculations do, and a code fence that opens above the screen is understood as well.
 
 ## 1.88.0 - 2026-10-21
 

@@ -93,6 +93,27 @@ describe("shortcodes in Live Preview", () => {
     view.destroy();
   });
 
+  it("reads a drawn range that starts at a rule as prose, not as frontmatter", () => {
+    // A fold or a scroll can leave the drawn range starting at a `---` rule;
+    // read without the lines above, it opened frontmatter and hid every icon.
+    const text = `# Note\n\n---\n${NOTE}\n\n---\nAfter :star:`;
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: text,
+        selection: EditorSelection.cursor(0),
+        extensions: createIconShortcodeExtension(() => true)
+      }),
+      parent
+    });
+    const rule = text.indexOf("---");
+    Object.defineProperty(view, "viewport", { get: () => ({ from: rule, to: text.length }) });
+    view.dispatch({ changes: { from: text.length, insert: " " } });
+    expect(glyphs(parent)).toEqual(["timeline", "timeline", "folder", "star"]);
+    view.destroy();
+  });
+
   it("draws nothing while the setting is off", () => {
     const { view, drawn } = editor(NOTE.length, false);
     expect(drawn()).toEqual([]);
