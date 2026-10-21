@@ -530,6 +530,18 @@ describe("normalizeSettings — publishing", () => {
     expect(accounts[0]).toMatchObject({ name: "Blog", folder: "Blog", target: "blog" });
   });
 
+  it("keeps a site language that is a language tag, and drops one that is not", () => {
+    const account = { id: "a", folder: "Site", target: "site", headerTags: [] };
+    const read = (language: unknown) =>
+      // Read as a file a person edited would be: anything may stand there.
+      normalizeSettings({ publishAccounts: [{ ...account, language } as never] })
+        .publishAccounts[0];
+    expect(read(" en-GB ")?.language).toBe("en-GB");
+    expect(read("english!")).not.toHaveProperty("language");
+    expect(read("")).not.toHaveProperty("language");
+    expect(read(undefined)).not.toHaveProperty("language");
+  });
+
   it("drops an account that cannot publish anything", () => {
     const accounts = normalizeSettings({
       publishAccounts: [

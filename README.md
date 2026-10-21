@@ -245,16 +245,18 @@ Obsidian's **Add property** adds one key. A property set adds all the keys a job
 
 Schreibstube's own features come as sets, built from the keys each one reads, so a set cannot fall behind the feature:
 
-| Set                      | Keys                                                                                      |
-| ------------------------ | ----------------------------------------------------------------------------------------- |
-| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                                 |
-| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                         |
-| Print                    | `schreibstubePrintTemplate`                                                               |
-| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity`       |
-| Glossaries for this note | `schreibstubeGlossaries`                                                                  |
-| Publish                  | `published: false`, `title`, `date`, `description`, `slug`, `publishedAt`, `publishedUrl` |
+| Set                      | Keys                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                                         |
+| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                                 |
+| Print                    | `schreibstubePrintTemplate`                                                                       |
+| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity`               |
+| Glossaries for this note | `schreibstubeGlossaries`                                                                          |
+| Publish                  | `published: false`, `title`, `date`, `description`, `slug`, `lang`, `publishedAt`, `publishedUrl` |
+| Website start page       | `published: false`, `title`, `description`, `lang`, `schreibstubeHome: marketing`                 |
+| Website footer           | `published: false`, `schreibstubeFooter: true`                                                    |
 
-The Publish set adds every key publishing uses, under the names mapped under **Frontmatter-Felder** in the publish settings, so it adds `veroeffentlicht` where that is what your notes carry. The flag starts unticked: the set prepares the note, and ticking the flag is what puts it on the website at the next **Ordner veröffentlichen**. `publishedAt` and `publishedUrl` start empty and are filled in by the publish run.
+The Publish set adds every key publishing uses, under the names mapped under **Frontmatter-Felder** in the publish settings, so it adds `veroeffentlicht` where that is what your notes carry. The flag starts unticked: the set prepares the note, and ticking the flag is what puts it on the website at the next **Ordner veröffentlichen**. `publishedAt` and `publishedUrl` start empty and are filled in by the publish run. The two website sets prepare a front page and a footer the same way, under the same mapped names; adding `schreibstubeHome` or `schreibstubeFooter` by hand offers the rest of its set (see **Two kinds of site** under publishing).
 
 For everything else, set **Property set folder** in the settings. Every note in that folder is a set, named after its file: its frontmatter keys and values are added, its body is not. An existing template folder works as it is.
 
@@ -509,6 +511,7 @@ title: Hallo Welt # default: the first heading, else the filename
 date: 2026-09-12 # default: the file's creation date
 description: Kurzfassung # optional; page head and index entry; written by the AI when empty
 slug: hallo-welt # default: from the filename; never `s`, which shared links live under
+lang: de # optional; the page's language, when it differs from the site's
 publishedAt: … # written back after publishing
 publishedUrl: … # written back after publishing
 ---
@@ -527,6 +530,62 @@ datum: 2026-09-12
 ```
 
 The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet. Up to three **header tags** per connection, set in its settings, are linked on the right of every page's header, each to a page listing the notes that carry it; nested tags count (`projekt` also lists `projekt/alpha`), a tag no published note carries is left out, and only which of those three tags a note carries is sent to the bridge — a note's other tags stay in the vault.
+
+**Two kinds of site.** One note says which kind a folder is, with `schreibstubeHome`:
+
+|                | `schreibstubeHome: list`                        | `schreibstubeHome: marketing`                                              |
+| -------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
+| Start page     | This note's text, then every note, newest first | This note's text alone                                                     |
+| A note's page  | Title, date, text                               | The same                                                                   |
+| Typical folder | `Blog/` with `Start.md` and one note per post   | `Site/` with `Karussell.md`, `Datenschutz.md`, `Impressum.md`, `Footer.md` |
+
+A folder where no note carries the key is a list without an introduction, as every folder was before. A footer note (`schreibstubeFooter: true`) works with either kind.
+
+**A blog** needs nothing beyond `published: true` on each post. The **Publish** property set adds the keys a post uses:
+
+```yaml
+---
+published: true
+title: Hallo Welt
+date: 2026-09-12
+description: Kurzfassung für den Index und Suchmaschinen
+---
+```
+
+**A website with a front page** marks one note as the start page and, if it wants one, one note as the footer. The **Website start page** and **Website footer** property sets add exactly these keys.
+
+```yaml
+---
+# Site/Karussell.md — the start page, served as /
+published: true
+title: Karussell – the Space switcher for Mac
+description: Every Space one glance and one keystroke away.
+lang: en
+schreibstubeHome: marketing # list: this text, then every note, newest first
+---
+Hold ⌥, tap Tab, and see every Space before you switch.
+
+![[carousel.mp4|loop]]
+
+Read the [[Datenschutz|privacy statement]].
+```
+
+```yaml
+---
+# Site/Footer.md — drawn beneath every page, with no page of its own
+published: true
+schreibstubeFooter: true
+---
+© 2026 Karussell · [[Datenschutz]] · [[Impressum]]
+```
+
+- **The start page** (`schreibstubeHome`) is the site's `index.html`, under its note's title and description and without a date; every link to it leads to the site's root. `marketing` shows the note alone; `list` shows its text with every other note beneath it, newest first. Any other value leaves the note an ordinary page. Taking the property away brings the plain list back and gives the note its own page again.
+- **The footer** (`schreibstubeFooter: true`) is drawn at the foot of every page, start page, notes and tag pages alike. Its links work from every page. It has no page of its own, is left out of every list, and a link to it is plain text. The footer is not written back with a `publishedUrl`, since it has no address.
+- **Only one of each.** Two start pages, two footers, or one note that is both stop the publish before anything is uploaded, naming the notes.
+- **The language of the pages** is set per account under **Sprache der Seiten** (a language tag such as `en`, `de` or `en-GB`; empty is German, as before). A note says otherwise with `lang: de`, the key mapped under **Frontmatter-Felder**, so an English site can carry a German imprint. The language goes into each page's `<html lang>`, and the few words the bridge writes itself (the tag links' label, "nothing published yet") and the dates follow it: `12.09.2026` on a German page, `2026-09-12` on any other.
+- **A video plays by itself** when its embed says so, where a picture's alt text would go: `![[clip.mp4|loop]]` plays it silently over and over, `![[clip.mp4|autoplay]]` once, `![[clip.mp4|muted]]` silently on a click; a size still follows, as in `![[clip.mp4|loop|640]]`, and `![loop](clip.mp4)` works too. A browser starts a video by itself only when it is silent, so `loop` and `autoplay` mute it. The controls stay, so a moving picture can always be stopped.
+
+All of this needs bridge 3.5.0 (protocol 10) or later.
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 

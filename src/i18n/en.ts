@@ -193,6 +193,12 @@ export const en = {
     heading: "Publishing",
     slugCollision: (slug: string, first: string, second: string) =>
       `"${slug}" is claimed by two notes: ${first} and ${second}.`,
+    footerCollision: (first: string, second: string) =>
+      `Two notes want to be the footer: ${first} and ${second}. Keep schreibstubeFooter on one.`,
+    footerIsHome: (path: string) =>
+      `${path} is marked as the start page and as the footer. A note can be only one of them.`,
+    homeCollision: (first: string, second: string) =>
+      `Two notes want to be the start page: ${first} and ${second}. Keep schreibstubeHome on one.`,
     /** The name a freshly added account carries until it is given one. */
     newAccountName: "Website",
     openSite: "Open the website",
@@ -229,6 +235,9 @@ export const en = {
     headerTagsDesc:
       "Up to three tags linked at the top of every page, each to a page listing the notes that carry it. Nested tags count: projekt also lists notes tagged projekt/alpha. A tag no published note carries is left out.",
     headerTagPlaceholder: "#tag",
+    language: "Language of the pages",
+    languageDesc:
+      "A language tag such as en, de or en-GB. It tells browsers, screen readers and search engines which language the pages are in. A note says otherwise with its own language field. Empty: German.",
     targetPlaceholder: "Target on the bridge",
     keysHeading: "Frontmatter fields",
     keyRoleDesc: (fallback: string) => `Default: ${fallback}`,
@@ -241,6 +250,7 @@ export const en = {
     keyDate: "Date",
     keyDescription: "Description",
     keySlug: "Address (slug)",
+    keyLanguage: "Language",
     keyPublishedAt: "Published at (written)",
     keyPublishedUrl: "Published to (written)",
     setup: "Bridge configuration",

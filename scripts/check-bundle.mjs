@@ -152,8 +152,14 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * reader's highlights, and their words in two languages — about 12 KB of code
  * and 5 of text. The 1540 ceiling had been spent to 0.7 KB; as before, the
  * raise is in the change that needs it, for the plugin's owner to agree to.
+ *
+ * Raised to 1564 KB at 1562 KB, for a site's front page, footer and language
+ * (+3 KB on 1559): the start page and footer flags and their checks, the
+ * language setting and key, the two website property sets, and their words in
+ * two languages. The 1560 ceiling had been spent to 0.9 KB on main; the owner
+ * agreed to the raise in this change.
  */
-const MAX_BUNDLE_KB = 1560;
+const MAX_BUNDLE_KB = 1564;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

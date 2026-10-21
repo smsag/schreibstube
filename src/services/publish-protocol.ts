@@ -19,7 +19,7 @@ import {
  * its own number on /health, so a mismatch can be named — "redeploy the bridge"
  * — instead of surfacing later as a 404 on a route that does not exist yet.
  */
-export const PROTOCOL_VERSION = 9;
+export const PROTOCOL_VERSION = 10;
 
 /** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
@@ -49,6 +49,12 @@ export interface PublishNote {
   description?: string;
   /** Which of the index's header tags the note carries. Protocol 3. */
   tags?: string[];
+  /** The site's start page, served as index.html. At most one note. Protocol 10. */
+  home?: true;
+  /** Drawn beneath every page, with no page of its own. At most one note. Protocol 10. */
+  footer?: true;
+  /** The page's language when it differs from the site's. Protocol 10. */
+  language?: string;
 }
 
 export interface PublishAsset {
@@ -68,6 +74,10 @@ export interface PublishIndex {
   themeCss?: string;
   /** Up to three tags linked from the site's header. Protocol 3. */
   headerTags?: string[];
+  /** The other notes listed beneath the start page's text. Protocol 10. */
+  homeList?: boolean;
+  /** The language of the site's pages, as a language tag. Protocol 10. */
+  language?: string;
 }
 
 export interface PublishTarget {

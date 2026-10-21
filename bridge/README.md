@@ -29,6 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
+| 3.5.x  | 10       | 1.8.0 and later | Start page, footer note, page language, playing videos; render version 9; see Start page             |
 | 3.4.x  | 9        | 1.8.0 and later | `:folder:` in a link's words and in the index is drawn as the icon; render version 8                 |
 | 3.3.x  | 9        | 1.8.0 and later | A shared link's address is two words (and a number without a password); no-index and no-AI signals   |
 | 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links    |
@@ -374,6 +375,45 @@ carry it, newest first. Protocol 3 carries them: the index may name
 the way Obsidian counts tags, so a note's other tags never leave the vault. A
 header tag no published note carries gets no link and no page. A protocol-2
 plugin sends none, and the header is as it was.
+
+### Start page
+
+Without anything said, `index.html` lists the published notes, newest first.
+Protocol 10 lets one note be the **start page** instead: a note in the index may
+carry `home: true` (at most one; two are refused, naming both), and the index
+may carry `homeList` (`true` or `false`, and only alongside such a note). That
+note is rendered as `index.html` rather than `<slug>/index.html`, under its own
+title and description, without a date line and with the site title unlinked,
+as on the list. Its links and pictures are resolved from the site's root, and
+every link to it leads there (`../` from a note page, `../../` from a tag
+page). With `homeList: true` the other notes follow its text, listed as the
+list lists them. A page the note had under its slug before is planned for
+deletion, like any page no note claims. The content security policy names the
+diagram loader of both depths, so a start page may hold a Mermaid diagram. A
+protocol-9 plugin sends neither field, and the start page is the list.
+
+### Footer, language and video
+
+A note may carry `footer: true` (at most one, never with `home`): it is drawn
+in a `<footer class="site">` beneath the content of every page, rendered once
+for each depth a page sits at so its links work from all of them. It has no
+page of its own, is in no list or tag page, and a link to it is plain text; a
+page it had before is planned for deletion. What it needs (KaTeX, Mermaid, a
+slideshow) is loaded on every page.
+
+The index may carry `language` and a note `language`, each a language tag
+(`de`, `en-GB`; anything else is refused, since the value lands in an
+attribute). A page is in its note's language, else the site's, else German as
+before; index and tag pages are in the site's. The page's `<html lang>`, the
+tag links' label, the empty list's sentence and the dates follow it:
+`12.09.2026` in German, `2026-09-12` otherwise.
+
+A video embed reads the words where a picture's alt text goes: `loop` adds
+`autoplay muted loop playsinline`, `autoplay` adds `autoplay muted
+playsinline`, `muted` adds `muted`; a video that plays by itself preloads
+fully. The controls always stay, since moving content longer than five
+seconds must be stoppable. That changed the output of some sources, so the
+render version is 9.
 
 A theme may name the site's **tab icon**:
 `--site-icon: url("data:image/svg+xml,…")` anywhere in `theme.css` (a PNG as

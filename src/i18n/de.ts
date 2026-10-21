@@ -178,6 +178,12 @@ export const de: Messages = {
     heading: "Veröffentlichen",
     slugCollision: (slug: string, first: string, second: string) =>
       `„${slug}“ wird von zwei Notizen beansprucht: ${first} und ${second}.`,
+    footerCollision: (first: string, second: string) =>
+      `Zwei Notizen wollen die Fußzeile sein: ${first} und ${second}. Lass schreibstubeFooter nur an einer stehen.`,
+    footerIsHome: (path: string) =>
+      `${path} ist als Startseite und als Fußzeile markiert. Eine Notiz kann nur eins davon sein.`,
+    homeCollision: (first: string, second: string) =>
+      `Zwei Notizen wollen die Startseite sein: ${first} und ${second}. Lass schreibstubeHome nur an einer stehen.`,
     newAccountName: "Website",
     openSite: "Website öffnen",
     openSiteDesc: "Öffnet die veröffentlichte Website im Browser.",
@@ -214,6 +220,9 @@ export const de: Messages = {
     headerTagsDesc:
       "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
     headerTagPlaceholder: "#schlagwort",
+    language: "Sprache der Seiten",
+    languageDesc:
+      "Ein Sprachkürzel wie de, en oder en-GB. Es sagt Browsern, Screenreadern und Suchmaschinen, in welcher Sprache die Seiten sind. Eine Notiz sagt mit ihrem eigenen Sprachfeld etwas anderes. Leer: Deutsch.",
     targetPlaceholder: "Ziel auf der Bridge",
     keysHeading: "Frontmatter-Felder",
     keyRoleDesc: (fallback: string) => `Standard: ${fallback}`,
@@ -227,6 +236,7 @@ export const de: Messages = {
     keyDate: "Datum",
     keyDescription: "Beschreibung",
     keySlug: "Adresse (Slug)",
+    keyLanguage: "Sprache",
     keyPublishedAt: "Veröffentlicht am (wird geschrieben)",
     keyPublishedUrl: "Veröffentlicht unter (wird geschrieben)",
     setup: "Bridge-Konfiguration",
@@ -921,7 +931,9 @@ export const de: Messages = {
       print: "Drucken",
       glossaryNote: "Glossarnotiz",
       glossaries: "Glossare dieser Notiz",
-      publish: "Veröffentlichen"
+      publish: "Veröffentlichen",
+      websiteHome: "Website-Startseite",
+      websiteFooter: "Website-Fußzeile"
     },
     setAdded: (name: string, added: number, kept: number) =>
       kept > 0

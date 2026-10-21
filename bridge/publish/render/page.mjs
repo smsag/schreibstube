@@ -1,5 +1,7 @@
 /**
- * The page shell: one template for a note, one for the index, one stylesheet.
+ * The page shell: one template for a note, one for the index, one for a note
+ * that is the start page, one stylesheet. Every page carries its language and,
+ * when the site has one, the footer note beneath its content.
  *
  * Asset links are relative rather than root-relative, so a site served from a
  * subdirectory works without configuration. Dates are formatted by hand rather
@@ -17,12 +19,16 @@ export function notePage({
   usedSlideshow = false,
   hasIndex = true,
   nav = [],
-  icon = null
+  icon = null,
+  lang = DEFAULT_LANGUAGE,
+  footer = null
 }) {
   // A note is served from <slug>/index.html, so everything shared is one level up.
   const up = "../";
   return page({
     up,
+    lang,
+    footer,
     title: `${note.title} — ${siteTitle}`,
     description: note.description,
     siteTitle,
@@ -37,15 +43,24 @@ export function notePage({
       // A note that opens with its own heading already says its title; adding
       // the template's would print it twice.
       (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
-      metaLine(note.date) +
+      metaLine(note.date, lang) +
       body +
       `</article>\n`
   });
 }
 
-export function indexPage({ notes, siteTitle, nav = [], icon = null }) {
+export function indexPage({
+  notes,
+  siteTitle,
+  nav = [],
+  icon = null,
+  lang = DEFAULT_LANGUAGE,
+  footer = null
+}) {
   return page({
     up: "",
+    lang,
+    footer,
     title: siteTitle,
     description: "",
     siteTitle,
@@ -56,8 +71,49 @@ export function indexPage({ notes, siteTitle, nav = [], icon = null }) {
     hasIndex: false,
     main:
       notes.length > 0
-        ? `<ul class="index">\n${listEntries(notes, "")}\n</ul>\n`
-        : `<p class="empty">Noch nichts veröffentlicht.</p>\n`
+        ? `<ul class="index">\n${listEntries(notes, "", lang)}\n</ul>\n`
+        : `<p class="empty">${words(lang).empty}</p>\n`
+  });
+}
+
+/**
+ * The start page when a note is marked as home: the note's own text, and the
+ * other notes beneath it when the note asks for them. It is the front door
+ * rather than an entry, so it carries no date, and its title is the note's
+ * alone. Served from the site's root, so nothing is up.
+ */
+export function homePage({
+  note,
+  body,
+  siteTitle,
+  list = [],
+  nav = [],
+  icon = null,
+  usedMath,
+  usedMermaid,
+  usedSlideshow = false,
+  lang = DEFAULT_LANGUAGE,
+  footer = null
+}) {
+  return page({
+    up: "",
+    lang,
+    footer,
+    title: note.title,
+    description: note.description,
+    siteTitle,
+    nav,
+    icon,
+    usedMath,
+    usedMermaid,
+    usedSlideshow,
+    hasIndex: false,
+    main:
+      `<article>\n` +
+      (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
+      body +
+      `</article>\n` +
+      (list.length > 0 ? `<ul class="index">\n${listEntries(list, "", lang)}\n</ul>\n` : "")
   });
 }
 
@@ -65,10 +121,19 @@ export function indexPage({ notes, siteTitle, nav = [], icon = null }) {
  * A header tag's page: the notes carrying it, listed as the start page lists
  * them. Served from tag/<slug>/index.html, so everything shared is two up.
  */
-export function tagPage({ entry, siteTitle, nav = [], icon = null }) {
+export function tagPage({
+  entry,
+  siteTitle,
+  nav = [],
+  icon = null,
+  lang = DEFAULT_LANGUAGE,
+  footer = null
+}) {
   const up = "../../";
   return page({
     up,
+    lang,
+    footer,
     title: `${entry.label} — ${siteTitle}`,
     description: "",
     siteTitle,
@@ -80,17 +145,18 @@ export function tagPage({ entry, siteTitle, nav = [], icon = null }) {
     hasIndex: true,
     main:
       `<h1 class="tag-title">${escapeHtml(entry.label)}</h1>\n` +
-      `<ul class="index">\n${listEntries(entry.notes, up)}\n</ul>\n`
+      `<ul class="index">\n${listEntries(entry.notes, up, lang)}\n</ul>\n`
   });
 }
 
-function listEntries(notes, up) {
+function listEntries(notes, up, lang) {
   return notes
     .map(
       (note) =>
         `<li>\n` +
-        `<a class="entry" href="${up}${escapeHtml(note.slug)}/">${escapeHtml(note.title)}</a>\n` +
-        metaLine(note.date) +
+        // The start page is the root, wherever else its note would have been.
+        `<a class="entry" href="${note.home ? up || "./" : `${up}${escapeHtml(note.slug)}/`}">${escapeHtml(note.title)}</a>\n` +
+        metaLine(note.date, lang) +
         (note.description ? `<p class="summary">${escapeHtml(note.description)}</p>\n` : "") +
         `</li>`
     )
@@ -102,7 +168,7 @@ function listEntries(notes, up) {
  * none has the header it always had. The one being looked at is marked, for
  * the eye and for a screen reader.
  */
-function headerTags(nav, up, current) {
+function headerTags(nav, up, current, lang) {
   if (nav.length === 0) return "";
   const links = nav
     .map(
@@ -112,11 +178,13 @@ function headerTags(nav, up, current) {
         `>${escapeHtml(entry.label)}</a>`
     )
     .join("");
-  return `<nav class="site-tags" aria-label="Schlagwörter">${links}</nav>`;
+  return `<nav class="site-tags" aria-label="${words(lang).tags}">${links}</nav>`;
 }
 
 function page({
   up,
+  lang = DEFAULT_LANGUAGE,
+  footer = null,
   title,
   description,
   siteTitle,
@@ -129,6 +197,11 @@ function page({
   hasIndex,
   main
 }) {
+  // The footer is part of every page, so what it needs the page loads too.
+  usedMath = usedMath || Boolean(footer?.usedMath);
+  usedMermaid = usedMermaid || Boolean(footer?.usedMermaid);
+  usedSlideshow = usedSlideshow || Boolean(footer?.usedSlideshow);
+
   const head = [
     `<meta charset="utf-8">`,
     `<meta name="viewport" content="width=device-width, initial-scale=1">`,
@@ -152,11 +225,12 @@ function page({
 
   return (
     `<!doctype html>\n` +
-    `<html lang="de">\n` +
+    `<html lang="${escapeHtml(lang)}">\n` +
     `<head>\n${head.join("\n")}\n</head>\n` +
     `<body>\n` +
-    `<header class="site">${hasIndex ? `<a href="${up}">${escapeHtml(siteTitle)}</a>` : escapeHtml(siteTitle)}${headerTags(nav, up, current)}</header>\n` +
+    `<header class="site">${hasIndex ? `<a href="${up}">${escapeHtml(siteTitle)}</a>` : escapeHtml(siteTitle)}${headerTags(nav, up, current, lang)}</header>\n` +
     `<main>\n${main}</main>\n` +
+    (footer ? `<footer class="site">\n${footer.html}</footer>\n` : "") +
     scripts +
     slideshowScript +
     `</body>\n` +
@@ -201,17 +275,38 @@ export function mermaidLoader(up) {
   );
 }
 
-function metaLine(date) {
-  const formatted = formatDate(date);
+function metaLine(date, lang) {
+  const formatted = formatDate(date, lang);
   return formatted
     ? `<p class="meta"><time datetime="${escapeHtml(date)}">${formatted}</time></p>\n`
     : "";
 }
 
-/** `2026-09-12` becomes `12.09.2026`; anything else is left as it came. */
-export function formatDate(value) {
+/**
+ * `2026-09-12` becomes `12.09.2026` on a German page and stays `2026-09-12`
+ * on any other, where the day and the month would otherwise trade places in
+ * the reader's head; anything that is no date gives nothing.
+ */
+export function formatDate(value, lang = DEFAULT_LANGUAGE) {
   const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value ?? ""));
-  return match ? `${match[3]}.${match[2]}.${match[1]}` : "";
+  if (!match) return "";
+  return isGerman(lang)
+    ? `${match[3]}.${match[2]}.${match[1]}`
+    : `${match[1]}-${match[2]}-${match[3]}`;
+}
+
+/** The language a page is in when nothing says otherwise: what it always was. */
+export const DEFAULT_LANGUAGE = "de";
+
+function isGerman(lang) {
+  return /^de(-|$)/i.test(String(lang));
+}
+
+/** The few words the templates write themselves, in German or else English. */
+function words(lang) {
+  return isGerman(lang)
+    ? { tags: "Schlagwörter", empty: "Noch nichts veröffentlicht." }
+    : { tags: "Tags", empty: "Nothing published yet." };
 }
 
 export const THEME_CSS = `:root {
@@ -270,6 +365,18 @@ header.site:has(.site-tags) {
 .tag-title { margin-bottom: 1rem; }
 
 main { max-width: 42rem; margin: 0 auto; }
+
+footer.site {
+  max-width: 42rem;
+  margin: 3rem auto 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--edge);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+footer.site a { color: inherit; }
+footer.site > :last-child { margin-bottom: 0; }
 
 h1, h2, h3, h4, h5, h6 { line-height: 1.25; margin: 2rem 0 0.75rem; }
 h1 { font-size: 1.9rem; margin-top: 2.5rem; }

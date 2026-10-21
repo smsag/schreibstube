@@ -30,7 +30,9 @@ export function scriptHash(text) {
  */
 export const DEFAULT_CSP = [
   "default-src 'self'",
-  `script-src 'self' ${scriptHash(mermaidLoader("../"))}`,
+  // A note page loads the diagram bundle from one level up; a start page
+  // that holds a diagram, from where it is.
+  `script-src 'self' ${scriptHash(mermaidLoader("../"))} ${scriptHash(mermaidLoader(""))}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "media-src 'self' https:",

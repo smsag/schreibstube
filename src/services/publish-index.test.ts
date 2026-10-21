@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   ATTACHMENT_EXTENSIONS,
   DEFAULT_PUBLISH_KEYS,
+  checkLanguage,
+  findFooterCollision,
+  findHomeCollision,
+  FOOTER_KEY,
+  readFooter,
   findSlugCollision,
   firstHeading,
+  HOME_KEY,
+  publishedUrl,
+  readHomeFields,
   isInsideFolder,
   isPublishableAttachment,
   isoDate,
@@ -263,6 +271,123 @@ describe("findSlugCollision", () => {
     const message = findSlugCollision([note("Blog/a.md", "x"), note("Blog/b.md", "x")]);
     expect(message).toContain("Blog/a.md");
     expect(message).toContain("Blog/b.md");
+  });
+});
+
+describe("readHomeFields", () => {
+  const none = { home: false, homeList: false };
+
+  it("makes a note the start page alone with marketing", () => {
+    expect(readHomeFields({ [HOME_KEY]: "marketing" })).toEqual({ home: true, homeList: false });
+    expect(readHomeFields({ [HOME_KEY]: " Marketing " })).toEqual({ home: true, homeList: false });
+  });
+
+  it("puts the list of notes beneath the note's text with list", () => {
+    expect(readHomeFields({ [HOME_KEY]: "list" })).toEqual({ home: true, homeList: true });
+  });
+
+  it("leaves a note an ordinary page for anything but the two values", () => {
+    for (const value of [undefined, true, "true", "page", "intro", "blog", 1]) {
+      expect(readHomeFields({ [HOME_KEY]: value })).toEqual(none);
+    }
+    expect(readHomeFields(null)).toEqual(none);
+  });
+
+  it("uses the plugin's own prefix, as every key it reads", () => {
+    expect(HOME_KEY.startsWith("schreibstube")).toBe(true);
+  });
+});
+
+describe("findHomeCollision", () => {
+  it("passes with one start page or none", () => {
+    expect(
+      findHomeCollision([{ sourcePath: "a.md", home: true }, { sourcePath: "b.md" }])
+    ).toBeNull();
+    expect(findHomeCollision([{ sourcePath: "a.md" }])).toBeNull();
+  });
+
+  it("names both notes when two want to be the start page", () => {
+    const message = findHomeCollision([
+      { sourcePath: "Site/a.md", home: true },
+      { sourcePath: "Site/b.md" },
+      { sourcePath: "Site/c.md", home: true }
+    ]);
+    expect(message).toContain("Site/a.md");
+    expect(message).toContain("Site/c.md");
+    expect(message).not.toContain("Site/b.md");
+  });
+});
+
+describe("readFooter", () => {
+  it("makes a note the footer only when it says so", () => {
+    expect(readFooter({ [FOOTER_KEY]: true })).toBe(true);
+    expect(readFooter({ [FOOTER_KEY]: "ja" })).toBe(true);
+    expect(readFooter({})).toBe(false);
+    expect(readFooter(null)).toBe(false);
+    expect(FOOTER_KEY.startsWith("schreibstube")).toBe(true);
+  });
+});
+
+describe("findFooterCollision", () => {
+  it("passes with one footer or none", () => {
+    expect(
+      findFooterCollision([{ sourcePath: "a.md", footer: true }, { sourcePath: "b.md" }])
+    ).toBeNull();
+    expect(findFooterCollision([])).toBeNull();
+  });
+
+  it("names both notes when two want to be the footer", () => {
+    const message = findFooterCollision([
+      { sourcePath: "Site/a.md", footer: true },
+      { sourcePath: "Site/b.md", footer: true }
+    ]);
+    expect(message).toContain("Site/a.md");
+    expect(message).toContain("Site/b.md");
+  });
+
+  it("refuses a note that is the start page and the footer at once", () => {
+    expect(findFooterCollision([{ sourcePath: "Site/x.md", footer: true, home: true }])).toContain(
+      "Site/x.md"
+    );
+  });
+});
+
+describe("checkLanguage", () => {
+  it("takes a language tag, trimmed, and nothing that could break a page", () => {
+    expect(checkLanguage(" en ")).toBe("en");
+    expect(checkLanguage("en-GB")).toBe("en-GB");
+    for (const bad of ["", "e", "deutsch", "de_DE", 'de" x', 7, null, "en-".repeat(20)]) {
+      expect(checkLanguage(bad)).toBeNull();
+    }
+  });
+
+  it("gives a note the language its frontmatter names, under the configured key", () => {
+    const input = {
+      path: "Site/Impressum.md",
+      basename: "Impressum",
+      content: "# Impressum",
+      createdMs: 0
+    };
+    expect(
+      resolveNote({ ...input, frontmatter: { lang: "de" } }, DEFAULT_PUBLISH_KEYS).language
+    ).toBe("de");
+    const keys = normalizePublishKeys({ language: "sprache" });
+    expect(resolveNote({ ...input, frontmatter: { sprache: "en" } }, keys).language).toBe("en");
+    expect(
+      resolveNote({ ...input, frontmatter: { lang: "Deutsch" } }, DEFAULT_PUBLISH_KEYS)
+    ).not.toHaveProperty("language");
+  });
+});
+
+describe("publishedUrl", () => {
+  it("is the site's root for the start page and the slug's page for the rest", () => {
+    expect(publishedUrl("https://karussell.space", { slug: "start", home: true })).toBe(
+      "https://karussell.space/"
+    );
+    expect(publishedUrl("https://karussell.space", { slug: "impressum" })).toBe(
+      "https://karussell.space/impressum/"
+    );
+    expect(publishedUrl("https://karussell.space", { slug: "footer", footer: true })).toBeNull();
   });
 });
 

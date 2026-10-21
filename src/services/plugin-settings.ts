@@ -19,7 +19,12 @@ import { normalizeTemplatePath } from "./highlight-note";
 import { normalizeTermFolder } from "./glossary-term-folder";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DUE_KEY, normalizeDueProperty, normalizeDueSynonyms } from "./due-date";
-import { DEFAULT_PUBLISH_KEYS, normalizeHeaderTags, normalizePublishKeys } from "./publish-index";
+import {
+  checkLanguage,
+  DEFAULT_PUBLISH_KEYS,
+  normalizeHeaderTags,
+  normalizePublishKeys
+} from "./publish-index";
 import { DEFAULT_TEMPLATE_BUILTIN, TEMPLATE_ROOT_DEFAULT } from "./print-template";
 import { normalizePropertyIcons } from "./property-icons";
 import { DEFAULT_DATE_FORMAT, normalizeDateFormat } from "./today-value";
@@ -449,11 +454,18 @@ function publishAccountsOrDefault(value: unknown): PublishAccount[] {
       target,
       writeBack: record.writeBack !== false,
       aiDescription: record.aiDescription !== false,
-      headerTags: normalizeHeaderTags(record.headerTags)
+      headerTags: normalizeHeaderTags(record.headerTags),
+      ...languageOf(record.language)
     });
   }
 
   return accounts;
+}
+
+/** A site language as typed in the settings; one that is no language tag is dropped. */
+function languageOf(value: unknown): { language?: string } {
+  const language = checkLanguage(value);
+  return language ? { language } : {};
 }
 
 /** Plugin-written, but it shares a file a user can edit, so it is validated. */
