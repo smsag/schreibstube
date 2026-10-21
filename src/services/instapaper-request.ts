@@ -71,6 +71,8 @@ export interface ListRequestInput {
   /** Unix seconds of the last check, or null on the first one. */
   since: number | null;
   offset: number;
+  /** Page size when reading the section itself; the first check's hundred unless said. */
+  limit?: number;
   token: string;
 }
 
@@ -86,7 +88,7 @@ export function planListRequest(input: ListRequestInput): InstapaperRequest {
   const params = new URLSearchParams();
   if (input.since === null) {
     params.set("section", input.section);
-    params.set("limit", String(FIRST_RUN_LIMIT));
+    params.set("limit", String(input.limit ?? FIRST_RUN_LIMIT));
     if (input.offset > 0) params.set("offset", String(input.offset));
   } else {
     params.set("since", String(Math.max(1, Math.floor(input.since))));
@@ -238,8 +240,8 @@ export function isOldestFirst(bookmarks: readonly Bookmark[]): boolean {
 }
 
 /** Where the newest page of a section starts when it is sorted oldest first. */
-export function newestPageOffset(total: number): number {
-  return Math.max(0, total - FIRST_RUN_LIMIT);
+export function newestPageOffset(total: number, limit = FIRST_RUN_LIMIT): number {
+  return Math.max(0, total - limit);
 }
 
 /**

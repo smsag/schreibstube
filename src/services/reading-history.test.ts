@@ -3,28 +3,32 @@ import { t } from "../i18n";
 import type { Bookmark } from "./instapaper-request";
 import {
   applyEdit,
+  applyReadingCheck,
+  applyReadingList,
   buildReadingUpdate,
   DEFAULT_READING_EVERY_MINUTES,
   describeReadingCheck,
+  diffEdit,
   entryDate,
   entryTitle,
   entryUrl,
+  formatCheckedAt,
+  highlightsToFetch,
   isReadingDue,
   MAX_REFRESH_PER_CHECK,
-  planHighlightWork,
-  planReadingEdit,
   planSummaries,
-  RECENT_REFRESH_COUNT,
-  readReadingBlock,
+  READING_CHECKED_KEY,
+  readCheckedAt,
+  readReadingList,
   renderEntry,
   selectBookmarks,
+  setFrontmatterValue,
   SINCE_OVERLAP_SECONDS,
   sinceFor,
   type ReadingEntry
 } from "./reading-history";
 
 const entry = (overrides: Partial<ReadingEntry> = {}): ReadingEntry => ({
-  id: 12345,
   title: "An Article",
   url: "https://example.com/article",
   date: "2026-10-21",
@@ -32,6 +36,8 @@ const entry = (overrides: Partial<ReadingEntry> = {}): ReadingEntry => ({
   summary: null,
   ...overrides
 });
+
+const at = (n: number): Partial<ReadingEntry> => ({ url: `https://example.com/${n}` });
 
 const bookmark = (id: number, overrides: Partial<Bookmark> = {}): Bookmark => ({
   id,
@@ -43,21 +49,25 @@ const bookmark = (id: number, overrides: Partial<Bookmark> = {}): Bookmark => ({
   ...overrides
 });
 
+const block = (...lines: string[]): string => lines.join("\n");
+
+const empty = readReadingList("");
+
 const note = (lines: string[]): string =>
   ["---", "schreibstubeReadingFrom: instapaper:archive", "---", "# Reading", "", ...lines, ""].join(
     "\n"
   );
 
 describe("renderEntry", () => {
-  it("writes title, link, date and a hidden id", () => {
+  it("writes title, link and date, and nothing hidden", () => {
     expect(renderEntry(entry())).toEqual([
-      "- [An Article](https://example.com/article) · 2026-10-21 %%instapaper:12345%%"
+      "- [An Article](https://example.com/article) · 2026-10-21"
     ]);
   });
 
   it("adds the count and the summary when there are any", () => {
     expect(renderEntry(entry({ highlights: 3, summary: "Short and sharp." }))).toEqual([
-      `- [An Article](https://example.com/article) · 2026-10-21 · ${t().reading.highlights(3)} %%instapaper:12345%%`,
+      `- [An Article](https://example.com/article) · 2026-10-21 · ${t().reading.highlights(3)}`,
       "  > Short and sharp."
     ]);
   });
@@ -70,11 +80,12 @@ describe("entryTitle and entryUrl", () => {
     expect([...entryTitle("x".repeat(400))].length).toBe(300);
   });
 
-  it("keeps a link from ending early", () => {
+  it("keeps a link from ending early, and spells each address one way", () => {
     expect(entryUrl("https://en.wikipedia.org/wiki/Foo_(bar)")).toBe(
       "https://en.wikipedia.org/wiki/Foo_%28bar%29"
     );
     expect(entryUrl("https://example.com/a b")).toBe("https://example.com/a%20b");
+    expect(entryUrl("HTTPS://Example.com")).toBe("https://example.com/");
   });
 
   it("dates an entry the local day", () => {
@@ -82,44 +93,71 @@ describe("entryTitle and entryUrl", () => {
   });
 });
 
-describe("readReadingBlock", () => {
-  it("finds no block in a note never checked", () => {
-    expect(readReadingBlock(note(["Some text."]))).toBeNull();
+describe("readReadingList", () => {
+  it("finds nothing in a note never checked", () => {
+    expect(readReadingList(note(["Some text.", "- a plain list item"])).entries.size).toBe(0);
   });
 
-  it("finds no block without its end", () => {
-    expect(readReadingBlock("%% schreibstube-reading checked=5 %%\n- x")).toBeNull();
-  });
-
-  it("reads when it was checked, which entries it lists and what they hold", () => {
+  it("knows its entries by their links, with what they hold, wherever they stand", () => {
     const text = note([
-      "%% schreibstube-reading checked=1760000000 %%",
-      ...renderEntry(entry({ id: 1, highlights: 2, summary: "Gist." })),
-      ...renderEntry(entry({ id: 2 })),
+      ...renderEntry(entry({ ...at(1), highlights: 2, summary: "Gist." })),
       "A line a person wrote.",
-      "%% /schreibstube-reading %%"
+      ...renderEntry(entry({ ...at(2), title: "A [tricky] (title)" }))
     ]);
-    const block = readReadingBlock(text);
-    expect(block?.checked).toBe(1760000000);
-    expect([...(block?.entries ?? [])]).toEqual([
-      [1, { highlights: 2, hasSummary: true }],
-      [2, { highlights: 0, hasSummary: false }]
+    const list = readReadingList(text);
+    expect([...list.entries]).toEqual([
+      ["https://example.com/1", { highlights: 2, hasSummary: true }],
+      ["https://example.com/2", { highlights: 0, hasSummary: false }]
     ]);
-    expect(text.slice(block?.from, block?.to).startsWith("%% schreibstube-reading")).toBe(true);
-    expect(text.slice(block?.from, block?.to).endsWith("%% /schreibstube-reading %%")).toBe(true);
+    expect(list.legacyChecked).toBeNull();
+  });
+
+  it("reads no entry in the frontmatter, and none without its date", () => {
+    const text = [
+      "---",
+      "- [a](https://e.com/1) · 2026-10-21",
+      "---",
+      "- [b](https://e.com/2)",
+      "- [c](https://e.com/3) · yesterday"
+    ].join("\n");
+    expect(readReadingList(text).entries.size).toBe(0);
   });
 
   it("reads a note saved with Windows line endings", () => {
-    const text =
-      "%% schreibstube-reading checked=7 %%\r\n- [a](https://e.com) · 2026-10-21 %%instapaper:3%%\r\n%% /schreibstube-reading %%\r\n";
-    expect([...(readReadingBlock(text)?.entries.keys() ?? [])]).toEqual([3]);
+    const text = "- [a](https://e.com/) · 2026-10-21\r\n  > Gist.\r\n";
+    expect([...readReadingList(text).entries]).toEqual([
+      ["https://e.com/", { highlights: 0, hasSummary: true }]
+    ]);
+  });
+
+  it("still reads what 1.88.0 wrote, ids and check time included", () => {
+    const text = [
+      "%% schreibstube-reading checked=1760000000 %%",
+      `- [a](https://e.com/) · 2026-10-21 · ${t().reading.highlights(2)} %%instapaper:7%%`,
+      "%% /schreibstube-reading %%"
+    ].join("\n");
+    const list = readReadingList(text);
+    expect(list.legacyChecked).toBe(1760000000);
+    expect([...list.entries]).toEqual([["https://e.com/", { highlights: 2, hasSummary: false }]]);
   });
 });
 
-describe("isReadingDue and sinceFor", () => {
-  const block = readReadingBlock(
-    "%% schreibstube-reading checked=1760000000 %%\n%% /schreibstube-reading %%"
-  );
+describe("the check time", () => {
+  it("is written and read back as a local date-time property", () => {
+    const seconds = new Date(2026, 9, 21, 12, 55, 7).getTime() / 1000;
+    expect(formatCheckedAt(seconds)).toBe("2026-10-21T12:55:07");
+    expect(readCheckedAt("2026-10-21T12:55:07", empty)).toBe(seconds);
+    expect(readCheckedAt("2026-10-21T12:55", empty)).toBe(seconds - 7);
+  });
+
+  it("falls back to a 1.88.0 block's marker, and otherwise counts as never", () => {
+    const legacy = readReadingList(
+      "%% schreibstube-reading checked=5 %%\n%% /schreibstube-reading %%"
+    );
+    expect(readCheckedAt(undefined, legacy)).toBe(5);
+    expect(readCheckedAt("yesterday", empty)).toBeNull();
+    expect(readCheckedAt(42, empty)).toBeNull();
+  });
 
   it("is always due before the first check", () => {
     expect(isReadingDue(null, null, new Date(0))).toBe(true);
@@ -127,165 +165,135 @@ describe("isReadingDue and sinceFor", () => {
   });
 
   it("waits the default interval when the note names none", () => {
-    const checked = 1760000000 * 1000;
-    expect(
-      isReadingDue(block, null, new Date(checked + (DEFAULT_READING_EVERY_MINUTES - 1) * 60_000))
-    ).toBe(false);
-    expect(
-      isReadingDue(block, null, new Date(checked + DEFAULT_READING_EVERY_MINUTES * 60_000))
-    ).toBe(true);
+    const checked = 1760000000;
+    const after = (minutes: number) => new Date((checked + minutes * 60) * 1000);
+    expect(isReadingDue(checked, null, after(DEFAULT_READING_EVERY_MINUTES - 1))).toBe(false);
+    expect(isReadingDue(checked, null, after(DEFAULT_READING_EVERY_MINUTES))).toBe(true);
   });
 
   it("keeps to the note's own interval", () => {
     const hourly = { kind: "every" as const, minutes: 60, cron: null, text: "hourly" };
-    expect(isReadingDue(block, hourly, new Date((1760000000 + 3600) * 1000))).toBe(true);
+    expect(isReadingDue(1760000000, hourly, new Date((1760000000 + 3600) * 1000))).toBe(true);
   });
 
-  it("asks again with some overlap", () => {
-    expect(sinceFor(block)).toBe(1760000000 - SINCE_OVERLAP_SECONDS);
+  it("asks again with a day's overlap, for devices in other time zones", () => {
+    expect(sinceFor(1760000000)).toBe(1760000000 - SINCE_OVERLAP_SECONDS);
+    expect(SINCE_OVERLAP_SECONDS).toBeGreaterThanOrEqual(14 * 3600);
   });
 });
 
 describe("selectBookmarks", () => {
-  const listed = readReadingBlock(
-    [
-      "%% schreibstube-reading checked=1 %%",
-      ...renderEntry(entry({ id: 1 })),
-      "%% /schreibstube-reading %%"
-    ].join("\n")
-  );
+  const listed = readReadingList(block(...renderEntry(entry(at(1)))));
 
   it("takes the whole first answer: it was the section itself", () => {
     const selection = selectBookmarks({
       bookmarks: [bookmark(3), bookmark(2, { archived: false })],
       section: "archive",
-      block: null
+      list: empty,
+      firstRun: true
     });
     expect(selection.added.map((b) => b.id)).toEqual([3, 2]);
   });
 
-  it("keeps only what is in the section, once, and tells new from known", () => {
+  it("keeps only what is in the section, once per link, and tells new from known", () => {
     const selection = selectBookmarks({
-      bookmarks: [bookmark(4), bookmark(5, { archived: false }), bookmark(1), bookmark(4)],
+      bookmarks: [
+        bookmark(4),
+        bookmark(5, { archived: false }),
+        bookmark(1),
+        bookmark(6, { url: "https://example.com/4" })
+      ],
       section: "archive",
-      block: listed
+      list: listed,
+      firstRun: false
     });
     expect(selection.added.map((b) => b.id)).toEqual([4]);
     expect(selection.refreshed.map((b) => b.id)).toEqual([1]);
+  });
+
+  it("knows a listed article by its link, whatever its id now", () => {
+    const selection = selectBookmarks({
+      bookmarks: [bookmark(99, { url: "https://example.com/1" })],
+      section: "archive",
+      list: listed,
+      firstRun: false
+    });
+    expect(selection.added).toEqual([]);
+    expect(selection.refreshed.map((b) => b.id)).toEqual([99]);
   });
 
   it("follows the liked flag for the liked list", () => {
     const selection = selectBookmarks({
       bookmarks: [bookmark(6, { liked: true, archived: false }), bookmark(7)],
       section: "liked",
-      block: listed
+      list: listed,
+      firstRun: false
     });
     expect(selection.added.map((b) => b.id)).toEqual([6]);
   });
 
   it("bounds how many known entries are looked at again", () => {
     const many = Array.from({ length: MAX_REFRESH_PER_CHECK + 10 }, (_, index) => index + 100);
-    const block = readReadingBlock(
-      [
-        "%% schreibstube-reading checked=1 %%",
-        ...many.flatMap((id) => renderEntry(entry({ id }))),
-        "%% /schreibstube-reading %%"
-      ].join("\n")
-    );
+    const parsed = readReadingList(block(...many.flatMap((n) => renderEntry(entry(at(n))))));
     const selection = selectBookmarks({
       bookmarks: many.map((id) => bookmark(id)),
       section: "archive",
-      block
+      list: parsed,
+      firstRun: false
     });
     expect(selection.refreshed).toHaveLength(MAX_REFRESH_PER_CHECK);
   });
 });
 
-describe("planHighlightWork, planSummaries and buildReadingUpdate", () => {
-  // Newest first, as the note lists them: the ten newest end with entry 5,
-  // and the two older ones fall outside the recent refresh.
-  const fillers = Array.from({ length: RECENT_REFRESH_COUNT - 3 }, (_, index) => index + 100);
-  const block = readReadingBlock(
-    [
-      "%% schreibstube-reading checked=1 %%",
-      ...renderEntry(entry({ id: 3, highlights: 4 })),
-      ...renderEntry(entry({ id: 2, highlights: 1, summary: "Done." })),
-      ...fillers.flatMap((id) => renderEntry(entry({ id }))),
-      ...renderEntry(entry({ id: 5 })),
-      ...renderEntry(entry({ id: 1, highlights: 2 })),
-      ...renderEntry(entry({ id: 4 })),
-      "%% /schreibstube-reading %%"
-    ].join("\n")
+describe("highlightsToFetch, planSummaries and buildReadingUpdate", () => {
+  const parsed = readReadingList(
+    block(
+      ...renderEntry(entry({ ...at(3), highlights: 4 })),
+      ...renderEntry(entry({ ...at(2), highlights: 1, summary: "Done." }))
+    )
   );
-  const selection = { added: [bookmark(9)], refreshed: [bookmark(3)] };
-  const recent = [2, ...fillers, 5];
+  const selection = { added: [bookmark(9)], refreshed: [bookmark(3), bookmark(2)] };
 
-  it("reads new, changed and the newest entries, and the summaries owed", () => {
-    expect(planHighlightWork({ selection, block, summaries: true, maxSummaries: 25 })).toEqual({
-      fetch: [9, 3, ...recent, 1],
-      recent,
-      backfill: [1]
-    });
-    expect(planHighlightWork({ selection, block, summaries: false, maxSummaries: 25 })).toEqual({
-      fetch: [9, 3, ...recent],
-      recent,
-      backfill: []
-    });
+  it("reads highlights for every new and every known bookmark", () => {
+    expect(highlightsToFetch(selection)).toEqual([9, 3, 2]);
   });
 
-  it("reads the newest entries again even when nothing changed", () => {
-    const none = { added: [], refreshed: [] };
-    const work = planHighlightWork({ selection: none, block, summaries: false, maxSummaries: 25 });
-    expect(work.recent).toEqual([3, 2, ...fillers, 5]);
-    expect(work.recent).toHaveLength(RECENT_REFRESH_COUNT);
-  });
-
-  it("summarizes new entries first, and only those with highlights and none yet", () => {
-    const work = planHighlightWork({ selection, block, summaries: true, maxSummaries: 25 });
+  it("summarizes new entries first, then listed ones without one, with highlights", () => {
     const counts = new Map([
       [9, 0],
       [3, 4],
-      [2, 3],
-      [5, 1],
-      [1, 2]
+      [2, 3]
     ]);
-    expect(planSummaries({ selection, work, block, highlightCounts: counts, max: 25 })).toEqual([
-      3, 5, 1
+    expect(planSummaries({ selection, list: parsed, highlightCounts: counts, max: 25 })).toEqual([
+      3
     ]);
     expect(
       planSummaries({
         selection,
-        work,
-        block,
+        list: parsed,
         highlightCounts: new Map([...counts, [9, 1]]),
-        max: 2
+        max: 1
       })
-    ).toEqual([9, 3]);
+    ).toEqual([9]);
   });
 
   it("builds the entries and the changes a check writes", () => {
-    const work = { fetch: [9, 3, 5, 1], recent: [5], backfill: [1] };
     const update = buildReadingUpdate({
-      checked: 100,
       now: new Date(2026, 9, 21),
       selection,
-      work,
       highlightCounts: new Map([
         [9, 1],
         [3, 5],
-        [5, 2],
-        [1, 2]
+        [2, 1]
       ]),
       summaries: new Map([
         [9, "New."],
-        [1, "Owed."]
+        [3, "Owed."]
       ])
     });
     expect(update).toEqual({
-      checked: 100,
       added: [
         {
-          id: 9,
           title: "Article 9",
           url: "https://example.com/9",
           date: "2026-10-21",
@@ -294,119 +302,179 @@ describe("planHighlightWork, planSummaries and buildReadingUpdate", () => {
         }
       ],
       changed: [
-        { id: 3, highlights: 5 },
-        { id: 5, highlights: 2 },
-        { id: 1, highlights: 2, summary: "Owed." }
+        { url: "https://example.com/3", highlights: 5, summary: "Owed." },
+        { url: "https://example.com/2", highlights: 1 }
       ]
     });
   });
 });
 
-describe("planReadingEdit", () => {
-  it("appends a block to a note that has none", () => {
+describe("applyReadingList", () => {
+  it("starts the list at the end of a note that has none", () => {
     const text = note(["Some text."]);
-    const edit = planReadingEdit(text, { checked: 1760000000, added: [entry()], changed: [] });
-    expect(applyEdit(text, edit)).toBe(
-      `${text}\n%% schreibstube-reading checked=1760000000 %%\n${renderEntry(entry())[0]}\n%% /schreibstube-reading %%\n`
+    expect(applyReadingList(text, { added: [entry()], changed: [] })).toBe(
+      `${text}\n${renderEntry(entry())[0] ?? ""}\n`
     );
   });
 
-  it("separates the block from text that does not end in a newline", () => {
-    expect(applyEdit("Text", planReadingEdit("Text", { checked: 1, added: [], changed: [] }))).toBe(
-      "Text\n\n%% schreibstube-reading checked=1 %%\n%% /schreibstube-reading %%\n"
+  it("separates the list from text that does not end in a newline", () => {
+    expect(applyReadingList("Text", { added: [entry()], changed: [] })).toBe(
+      `Text\n\n${renderEntry(entry())[0] ?? ""}\n`
     );
-    expect(applyEdit("", planReadingEdit("", { checked: 1, added: [], changed: [] }))).toBe(
-      "%% schreibstube-reading checked=1 %%\n%% /schreibstube-reading %%\n"
+    expect(applyReadingList("", { added: [entry()], changed: [] })).toBe(
+      `${renderEntry(entry())[0] ?? ""}\n`
     );
+    expect(applyReadingList("Text", { added: [], changed: [] })).toBe("Text");
   });
 
-  it("puts new entries on top, moves the check time and leaves the rest alone", () => {
+  it("puts new entries above the first one, wherever the person moved the list", () => {
     const text = note([
-      "%% schreibstube-reading checked=1 %%",
-      ...renderEntry(entry({ id: 1 })),
+      "## Gelesen",
+      ...renderEntry(entry(at(1))),
       "My own remark.",
-      "%% /schreibstube-reading %%",
       "",
-      "After the block."
+      "After the list."
     ]);
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, { checked: 2, added: [entry({ id: 2, title: "Newer" })], changed: [] })
-    );
-    expect(next).toBe(
+    expect(
+      applyReadingList(text, { added: [entry({ ...at(2), title: "Newer" })], changed: [] })
+    ).toBe(
       note([
-        "%% schreibstube-reading checked=2 %%",
-        ...renderEntry(entry({ id: 2, title: "Newer" })),
-        ...renderEntry(entry({ id: 1 })),
+        "## Gelesen",
+        ...renderEntry(entry({ ...at(2), title: "Newer" })),
+        ...renderEntry(entry(at(1))),
         "My own remark.",
-        "%% /schreibstube-reading %%",
         "",
-        "After the block."
+        "After the list."
       ])
     );
   });
 
   it("updates a count in place, adds one, and removes one that went", () => {
-    const text = [
-      "%% schreibstube-reading checked=1 %%",
-      ...renderEntry(entry({ id: 1, highlights: 2 })),
-      ...renderEntry(entry({ id: 2 })),
-      ...renderEntry(entry({ id: 3, highlights: 1 })),
-      "%% /schreibstube-reading %%"
-    ].join("\n");
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, {
-        checked: 2,
+    const text = block(
+      ...renderEntry(entry({ ...at(1), highlights: 2 })),
+      ...renderEntry(entry(at(2))),
+      ...renderEntry(entry({ ...at(3), highlights: 1 }))
+    );
+    expect(
+      applyReadingList(text, {
         added: [],
         changed: [
-          { id: 1, highlights: 5 },
-          { id: 2, highlights: 1 },
-          { id: 3, highlights: 0 }
+          { url: "https://example.com/1", highlights: 5 },
+          { url: "https://example.com/2", highlights: 1 },
+          { url: "https://example.com/3", highlights: 0 }
         ]
       })
+    ).toBe(
+      block(
+        ...renderEntry(entry({ ...at(1), highlights: 5 })),
+        ...renderEntry(entry({ ...at(2), highlights: 1 })),
+        ...renderEntry(entry(at(3)))
+      )
     );
-    expect(next.split("\n").slice(1, -1)).toEqual([
-      ...renderEntry(entry({ id: 1, highlights: 5 })),
-      ...renderEntry(entry({ id: 2, highlights: 1 })),
-      ...renderEntry(entry({ id: 3 }))
-    ]);
+  });
+
+  it("removes every comment 1.88.0 left, whether or not a line changed", () => {
+    const text = [
+      "Intro.",
+      "%% schreibstube-reading checked=5 %%",
+      "- [a](https://e.com/a) · 2026-10-21 %%instapaper:7%%",
+      `- [b](https://e.com/b) · 2026-10-20 · ${t().reading.highlights(1)} %%instapaper:8%%`,
+      "%% /schreibstube-reading %%",
+      "%% a comment of the person's own %%"
+    ].join("\n");
+    expect(
+      applyReadingList(text, {
+        added: [],
+        changed: [{ url: "https://e.com/a", highlights: 2 }]
+      })
+    ).toBe(
+      [
+        "Intro.",
+        `- [a](https://e.com/a) · 2026-10-21 · ${t().reading.highlights(2)}`,
+        `- [b](https://e.com/b) · 2026-10-20 · ${t().reading.highlights(1)}`,
+        "%% a comment of the person's own %%"
+      ].join("\n")
+    );
   });
 
   it("adds a summary that is owed, and never replaces one that is there", () => {
-    const text = [
-      "%% schreibstube-reading checked=1 %%",
-      ...renderEntry(entry({ id: 1, highlights: 2 })),
-      ...renderEntry(entry({ id: 2, highlights: 1, summary: "Kept." })),
-      "%% /schreibstube-reading %%"
-    ].join("\n");
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, {
-        checked: 2,
-        added: [],
-        changed: [
-          { id: 1, highlights: 2, summary: "Added." },
-          { id: 2, highlights: 1, summary: "Ignored." }
-        ]
-      })
+    const text = block(
+      ...renderEntry(entry({ ...at(1), highlights: 2 })),
+      ...renderEntry(entry({ ...at(2), highlights: 1, summary: "Kept." }))
     );
+    const next = applyReadingList(text, {
+      added: [],
+      changed: [
+        { url: "https://example.com/1", highlights: 2, summary: "Added." },
+        { url: "https://example.com/2", highlights: 1, summary: "Ignored." }
+      ]
+    });
     expect(next).toContain("  > Added.");
     expect(next).toContain("  > Kept.");
     expect(next).not.toContain("Ignored.");
   });
 
-  it("leaves a line a person rewrote exactly as it is", () => {
-    const text = [
-      "%% schreibstube-reading checked=1 %%",
-      "- My own words about it, id gone",
-      "%% /schreibstube-reading %%"
-    ].join("\n");
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, { checked: 2, added: [], changed: [{ id: 1, highlights: 9 }] })
+  it("completes a link listed twice where it is first, and leaves a rewritten line alone", () => {
+    const text = block(
+      ...renderEntry(entry(at(1))),
+      ...renderEntry(entry(at(1))),
+      "- My own words about it, link gone"
     );
-    expect(next).toBe(text.replace("checked=1", "checked=2"));
+    expect(
+      applyReadingList(text, {
+        added: [],
+        changed: [{ url: "https://example.com/1", highlights: 3 }]
+      })
+    ).toBe(
+      block(
+        ...renderEntry(entry({ ...at(1), highlights: 3 })),
+        ...renderEntry(entry(at(1))),
+        "- My own words about it, link gone"
+      )
+    );
+  });
+
+  it("keeps a Windows line ending on a line it rewrites", () => {
+    const text = "- [a](https://e.com/) · 2026-10-21\r\nAfter\r\n";
+    expect(
+      applyReadingList(text, { added: [], changed: [{ url: "https://e.com/", highlights: 1 }] })
+    ).toBe(`- [a](https://e.com/) · 2026-10-21 · ${t().reading.highlights(1)}\r\nAfter\r\n`);
+  });
+});
+
+describe("setFrontmatterValue", () => {
+  it("sets a key that is there and adds one that is not", () => {
+    expect(setFrontmatterValue("---\na: 1\nkey: old\n---\nBody", "key", "new")).toBe(
+      "---\na: 1\nkey: new\n---\nBody"
+    );
+    expect(setFrontmatterValue("---\na: 1\n---\nBody", "key", "new")).toBe(
+      "---\na: 1\nkey: new\n---\nBody"
+    );
+  });
+
+  it("gives a note without frontmatter some", () => {
+    expect(setFrontmatterValue("Body", "key", "v")).toBe("---\nkey: v\n---\nBody");
+  });
+
+  it("will not stand one line in for a list, or write into an unclosed block", () => {
+    expect(setFrontmatterValue("---\nkey:\n  - a\n---\n", "key", "v")).toBeNull();
+    expect(setFrontmatterValue("---\nkey: v\nBody", "key", "w")).toBeNull();
+  });
+});
+
+describe("applyReadingCheck and diffEdit", () => {
+  it("brings the list up to date and sets the check time", () => {
+    const seconds = new Date(2026, 9, 21, 12, 0, 0).getTime() / 1000;
+    const text = note(["Some text."]);
+    const next = applyReadingCheck(text, { added: [entry()], changed: [] }, seconds);
+    expect(next).toContain(`${READING_CHECKED_KEY}: 2026-10-21T12:00:00\n---`);
+    expect(next).toContain(`\n${renderEntry(entry())[0] ?? ""}\n`);
+  });
+
+  it("finds the one change between two texts", () => {
+    expect(diffEdit("abcXYZdef", "abcQdef")).toEqual({ from: 3, to: 6, text: "Q" });
+    expect(diffEdit("same", "same")).toEqual({ from: 4, to: 4, text: "" });
+    expect(applyEdit("aaa", diffEdit("aaa", "aaaa"))).toBe("aaaa");
   });
 });
 
