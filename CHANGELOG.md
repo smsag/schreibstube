@@ -2,7 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.88.0 - 2026-10-21
+
+A note can keep your Instapaper reading history. Give it
+`schreibstubeReadingFrom: instapaper:archive`, turn on **Reading history** and
+choose your Instapaper access token, and every article you archive is listed in
+it, newest first, with its link, the day it arrived and how many passages you
+highlighted; with **Summarize highlights** on, a summary of up to 280
+characters in the article's own language stands under each one. And a CSV
+file's tab now sorts, searches, hides columns and adds up.
+
+Mobile checklist: not run. What to try first: on a phone, turn on Reading
+history, choose the token, give a note the key and run **Update reading
+history**; it should list your newest 100 archived articles, newest on top.
+Then highlight a passage in a recently archived article and run it again: the
+entry's count should go up. Open a CSV file and sort a column of amounts.
+
+The bridge stays at 3.4.0 and the protocol at 9. Its lockfile moved
+markdown-it, DOMPurify and ip-address past new advisories, so redeploy the
+bridge to pick them up.
 
 ### Added
 
