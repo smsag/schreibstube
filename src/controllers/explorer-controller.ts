@@ -1243,7 +1243,7 @@ export class ExplorerController {
    *
    * The size is checked before the file is read: a file too long to paste is
    * refused from its stat alone, without holding a megabyte in memory first.
-   * The CSV view's header button lands here too.
+   * This is the whole file; the CSV view copies only what it shows.
    */
   async copyCsvTable(file: TAbstractFile): Promise<void> {
     if (!(file instanceof TFile) || !isCsvExtension(file.extension)) return;

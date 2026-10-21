@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A CSV file's tab sorts, searches, hides columns and adds up.** Press a column's header to sort by it, again to sort the other way, and a third time for the file's own order; numbers sort by value, `1.234,50 €` included, text the way your language sorts it, with `Haus 2` before `Haus 10`, and empty cells stay at the bottom either way. The box above the table keeps only the rows holding what you type, **Choose columns** in the tab's header leaves columns out, and **Show totals** closes the table with a total under every column of numbers, read as a note's `=sum` reads amounts. The tab keeps all of this across a restart. **Copy as Markdown table** in the tab now copies what is shown: the rows found, in their order, without the hidden columns, and with a `**=sum**` row when totals are on, so the pasted table keeps adding up. The Explorer's **Copy as Markdown table** still copies the whole file.
+
 ## 1.87.0 - 2026-10-20
 
 The text you marked twice in a PDF becomes a note. With a PDF open,

@@ -455,7 +455,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerView(TAG_NOTES_VIEW_TYPE, (leaf) => this.createTagNotesView(leaf));
     this.registerView(RELATED_NOTES_VIEW_TYPE, (leaf) => this.createRelatedNotesView(leaf));
     this.registerView(FOLDER_TILES_VIEW_TYPE, (leaf) => this.createFolderTilesView(leaf));
-    this.registerCsvView();
+    this.registerCsvView(this.sums);
     this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
@@ -1272,14 +1272,22 @@ export default class SchreibstubePlugin extends Plugin {
    * shows is left to it: Obsidian refuses a second claim with a throw, and
    * the other plugin was chosen for that file type on purpose.
    */
-  private registerCsvView(): void {
+  private registerCsvView(sums: SumsController): void {
     this.registerView(
       CSV_VIEW_TYPE,
       (leaf) =>
         new CsvView(leaf, {
-          copyTable: async (file) => {
-            await this.explorer?.copyCsvTable(file);
-          }
+          copy: async (markdown, rows, columns, path) => {
+            const words = t().explorer.csv;
+            await copyText(
+              markdown,
+              { copied: words.copied(rows, columns), failed: words.copyFailed },
+              this.logger,
+              `the table from ${path}`
+            );
+          },
+          formulaContext: () => sums.context(),
+          unavailable: (outcome) => sums.unavailable(outcome)
         })
     );
     for (const extension of CSV_EXTENSIONS) {
