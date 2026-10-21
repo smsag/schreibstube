@@ -62,11 +62,9 @@ describe("the language of a page", () => {
   });
 
   it("writes the list's own words and dates in the page's language", async () => {
-    // Without a start page, the list is the start page.
-    const notes = index().notes.map(({ home: _home, ...entry }) => entry);
-    const english = (await site({ notes })).page("index.html");
+    const english = (await site({ homeList: true })).page("index.html");
     expect(english).toContain("2026-10-02");
-    const german = (await site({ language: "de", notes })).page("index.html");
+    const german = (await site({ language: "de", homeList: true })).page("index.html");
     expect(german).toContain("02.10.2026");
     expect(formatDate("2026-10-02", "de-AT")).toBe("02.10.2026");
     expect(formatDate("2026-10-02", "en-GB")).toBe("2026-10-02");
@@ -121,7 +119,7 @@ describe("a footer note", () => {
   });
 
   it("is left out of every list, and a link to it is plain text", async () => {
-    const { page } = await site({ notes: index().notes.map(({ home: _home, ...entry }) => entry) });
+    const { page } = await site({ homeList: true });
     expect(page("index.html")).not.toContain(">Footer</a>");
     const linking = "# Karussell\n\nSee [[Footer]].\n";
     const files = await buildSite(

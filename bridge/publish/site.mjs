@@ -53,6 +53,9 @@ export function checkIndex(index) {
   if (index.themeCss !== undefined && typeof index.themeCss !== "string") {
     throw new IndexError("themeCss must be a string.");
   }
+  if (index.homeList !== undefined && typeof index.homeList !== "boolean") {
+    throw new IndexError("homeList must be true or false.");
+  }
   if (index.language !== undefined && !isLanguageTag(index.language)) {
     throw new IndexError(`Unusable language ${JSON.stringify(index.language)}.`);
   }
@@ -162,10 +165,17 @@ export function checkIndex(index) {
     );
   }
 
+  // The list beneath a start page is that page's choice; without one there is
+  // no page to put it under, and the field would be a promise nobody keeps.
+  if (index.homeList !== undefined && !home) {
+    throw new IndexError("homeList needs a note that is the start page.");
+  }
+
   return known({
     siteTitle: index.siteTitle,
     themeCss: index.themeCss,
     headerTags: index.headerTags,
+    homeList: index.homeList,
     language: index.language,
     notes,
     assets
@@ -296,6 +306,7 @@ export async function buildSite(index, sources, options = {}) {
             note,
             body: rendered.html,
             siteTitle: index.siteTitle,
+            list: index.homeList ? ordered.filter((other) => other !== home) : [],
             nav,
             icon,
             usedMath: rendered.usedMath,

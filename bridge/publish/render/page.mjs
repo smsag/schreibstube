@@ -77,15 +77,16 @@ export function indexPage({
 }
 
 /**
- * The start page when a note is marked as home, a marketing page: the note's
- * own text, without the list of notes. It is the front door rather than an
- * entry, so it carries no date, and its title is the note's alone. Served
- * from the site's root, so nothing is up.
+ * The start page when a note is marked as home: the note's own text, and the
+ * other notes beneath it when the note asks for them. It is the front door
+ * rather than an entry, so it carries no date, and its title is the note's
+ * alone. Served from the site's root, so nothing is up.
  */
 export function homePage({
   note,
   body,
   siteTitle,
+  list = [],
   nav = [],
   icon = null,
   usedMath,
@@ -111,7 +112,8 @@ export function homePage({
       `<article>\n` +
       (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
       body +
-      `</article>\n`
+      `</article>\n` +
+      (list.length > 0 ? `<ul class="index">\n${listEntries(list, "", lang)}\n</ul>\n` : "")
   });
 }
 

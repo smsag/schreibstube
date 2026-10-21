@@ -205,19 +205,35 @@ export function resolveNote(input: NoteInput, keys: PublishKeyMap): ResolvedNote
 /**
  * The key that makes a note the site's start page. Schreibstube's own, so
  * prefixed rather than mapped: no vault has a convention for it to collide
- * with. A site's start page is either the list of its notes, which needs no
- * key, or one note on its own, a marketing page: `schreibstubeHome: marketing`.
+ * with. Its value names the kind of site, so the note says what it does:
+ * `list`, the list of notes with this note's text above it, or `marketing`,
+ * this note alone. A folder where no note carries it has the plain list.
  */
 export const HOME_KEY = "schreibstubeHome";
+export const HOME_LIST = "list";
 export const HOME_MARKETING = "marketing";
 /** The note drawn beneath every page, with no page of its own. */
 export const FOOTER_KEY = "schreibstubeFooter";
 
-/** Whether a note is the site's start page. Any other value leaves it a page. */
-export function readHome(frontmatter: unknown): boolean {
-  if (typeof frontmatter !== "object" || frontmatter === null) return false;
-  const value = (frontmatter as Record<string, unknown>)[HOME_KEY];
-  return typeof value === "string" && value.trim().toLowerCase() === HOME_MARKETING;
+export interface HomeFields {
+  home: boolean;
+  homeList: boolean;
+}
+
+/**
+ * Whether a note is the start page, and whether the list of notes goes
+ * beneath it. Only the two named values count; anything else leaves the note
+ * an ordinary page, as silence does.
+ */
+export function readHomeFields(frontmatter: unknown): HomeFields {
+  const value =
+    typeof frontmatter === "object" && frontmatter !== null
+      ? (frontmatter as Record<string, unknown>)[HOME_KEY]
+      : undefined;
+  const word = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (word === HOME_LIST) return { home: true, homeList: true };
+  if (word === HOME_MARKETING) return { home: true, homeList: false };
+  return { home: false, homeList: false };
 }
 
 /**

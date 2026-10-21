@@ -326,13 +326,13 @@ describe("which notes are published", () => {
     expect(Notice.shown.join(" ")).toContain("Blog/Zweite.md");
   });
 
-  it("tells the bridge which note is the start page", async () => {
+  it("tells the bridge which note is the start page, and that it lists the rest", async () => {
     const vault = fakeVault({
       notes: [
         {
           path: "Blog/Start.md",
           content: "# Start",
-          frontmatter: { ...published, schreibstubeHome: "marketing" }
+          frontmatter: { ...published, schreibstubeHome: "list" }
         },
         { path: "Blog/Zweite.md", content: "# Zweite", frontmatter: published }
       ]
@@ -340,19 +340,20 @@ describe("which notes are published", () => {
 
     await controller(vault).commands.preview();
     const index = plannedIndex();
+    expect(index.homeList).toBe(true);
     expect(index.notes.find((note: { slug: string }) => note.slug === "start").home).toBe(true);
     expect(index.notes.find((note: { slug: string }) => note.slug === "zweite")).not.toHaveProperty(
       "home"
     );
   });
 
-  it("sends no start page when no note asks to be one", async () => {
+  it("sends no start page, and no list, when no note asks to be one", async () => {
     const vault = fakeVault({
       notes: [{ path: "Blog/Zweite.md", content: "# Zweite", frontmatter: published }]
     });
 
     await controller(vault).commands.preview();
-    expect(plannedIndex().notes.some((note: { home?: boolean }) => note.home)).toBe(false);
+    expect(plannedIndex()).not.toHaveProperty("homeList");
   });
 
   it("tells the bridge the site's language, the footer and a note's own language", async () => {

@@ -531,15 +531,15 @@ datum: 2026-09-12
 
 The site is one page per note plus an index sorted by date, newest first. Wikilinks between published notes become site links; a link to an unpublished note degrades to plain text rather than a dead link. Embedded images and video are uploaded under a content-addressed name, so a changed picture can never be served from a cache. Callouts, footnotes, tables, task lists, maths and Mermaid diagrams all render. A `theme.css` in the publish folder replaces the built-in stylesheet. Up to three **header tags** per connection, set in its settings, are linked on the right of every page's header, each to a page listing the notes that carry it; nested tags count (`projekt` also lists `projekt/alpha`), a tag no published note carries is left out, and only which of those three tags a note carries is sent to the bridge — a note's other tags stay in the vault.
 
-**Two kinds of site.** A folder publishes as a **list** by default, a blog: the start page lists every published note, newest first, and each note is a dated page. One note marked `schreibstubeHome: marketing` makes it a **marketing** site instead: that note alone is the start page, a front page of its own for a product or a person. Both use the same notes, the same command and the same bridge; what differs is one property on one note.
+**Two kinds of site.** One note says which kind a folder is, with `schreibstubeHome`:
 
-|                | List (no key)                   | Marketing (`schreibstubeHome: marketing`)                                  |
-| -------------- | ------------------------------- | -------------------------------------------------------------------------- |
-| Start page     | The list of notes, newest first | One note's text alone, without a date                                      |
-| A note's page  | Title, date, text               | The same                                                                   |
-| Typical folder | `Blog/` with one note per post  | `Site/` with `Karussell.md`, `Datenschutz.md`, `Impressum.md`, `Footer.md` |
+|                | `schreibstubeHome: list`                        | `schreibstubeHome: marketing`                                              |
+| -------------- | ----------------------------------------------- | -------------------------------------------------------------------------- |
+| Start page     | This note's text, then every note, newest first | This note's text alone                                                     |
+| A note's page  | Title, date, text                               | The same                                                                   |
+| Typical folder | `Blog/` with `Start.md` and one note per post   | `Site/` with `Karussell.md`, `Datenschutz.md`, `Impressum.md`, `Footer.md` |
 
-A footer note (`schreibstubeFooter: true`) works with either.
+A folder where no note carries the key is a list without an introduction, as every folder was before. A footer note (`schreibstubeFooter: true`) works with either kind.
 
 **A blog** needs nothing beyond `published: true` on each post. The **Publish** property set adds the keys a post uses:
 
@@ -561,7 +561,7 @@ published: true
 title: Karussell – the Space switcher for Mac
 description: Every Space one glance and one keystroke away.
 lang: en
-schreibstubeHome: marketing
+schreibstubeHome: marketing # list: this text, then every note, newest first
 ---
 Hold ⌥, tap Tab, and see every Space before you switch.
 
@@ -579,7 +579,7 @@ schreibstubeFooter: true
 © 2026 Karussell · [[Datenschutz]] · [[Impressum]]
 ```
 
-- **The start page** (`schreibstubeHome: marketing`) is the site's `index.html`, under its own title and description and without a date; every link to it leads to the site's root. It stands alone: the start page is either the list or this note, never both. Any other value, or none, leaves the list as the start page. Taking the property away gives the note its own page again.
+- **The start page** (`schreibstubeHome`) is the site's `index.html`, under its note's title and description and without a date; every link to it leads to the site's root. `marketing` shows the note alone; `list` shows its text with every other note beneath it, newest first. Any other value leaves the note an ordinary page. Taking the property away brings the plain list back and gives the note its own page again.
 - **The footer** (`schreibstubeFooter: true`) is drawn at the foot of every page, start page, notes and tag pages alike. Its links work from every page. It has no page of its own, is left out of every list, and a link to it is plain text. The footer is not written back with a `publishedUrl`, since it has no address.
 - **Only one of each.** Two start pages, two footers, or one note that is both stop the publish before anything is uploaded, naming the notes.
 - **The language of the pages** is set per account under **Sprache der Seiten** (a language tag such as `en`, `de` or `en-GB`; empty is German, as before). A note says otherwise with `lang: de`, the key mapped under **Frontmatter-Felder**, so an English site can carry a German imprint. The language goes into each page's `<html lang>`, and the few words the bridge writes itself (the tag links' label, "nothing published yet") and the dates follow it: `12.09.2026` on a German page, `2026-09-12` on any other.

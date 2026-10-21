@@ -57,9 +57,9 @@ async function site(overrides) {
 }
 
 describe("checking the start page in an index", () => {
-  it("keeps the home flag, and nothing it does not know", () => {
+  it("keeps the home flag and the list choice", () => {
     const checked = checkIndex(index({ homeList: true }));
-    expect(checked).not.toHaveProperty("homeList");
+    expect(checked.homeList).toBe(true);
     expect(checked.notes.find((entry) => entry.slug === "karussell").home).toBe(true);
     expect(checked.notes.find((entry) => entry.slug === "impressum")).not.toHaveProperty("home");
   });
@@ -77,6 +77,12 @@ describe("checking the start page in an index", () => {
       const notes = [note("karussell", start, { home })];
       expect(() => checkIndex(index({ notes }))).toThrow(/home must be true/);
     }
+  });
+
+  it("accepts the list choice only as true or false, and only with a start page", () => {
+    expect(() => checkIndex(index({ homeList: "yes" }))).toThrow(/homeList must be true or false/);
+    const notes = [note("impressum", imprint)];
+    expect(() => checkIndex(index({ notes, homeList: false }))).toThrow(/needs a note/);
   });
 });
 
@@ -108,8 +114,17 @@ describe("a site with a start page", () => {
     expect((await site()).page("datenschutz/index.html")).toContain('href="../"');
   });
 
-  it("is the note alone, with no list of notes", async () => {
+  it("lists no notes unless the note asks for them", async () => {
     expect((await site()).page("index.html")).not.toContain('class="index"');
+    expect((await site({ homeList: false })).page("index.html")).not.toContain('class="index"');
+  });
+
+  it("lists the other notes beneath its text, newest first, when asked", async () => {
+    const html = (await site({ homeList: true })).page("index.html");
+    const list = html.slice(html.indexOf('<ul class="index">'));
+    expect(html.indexOf("</article>")).toBeLessThan(html.indexOf('<ul class="index">'));
+    expect(list.indexOf("datenschutz/")).toBeLessThan(list.indexOf("impressum/"));
+    expect(list).not.toContain(">Karussell</a>");
   });
 
   it("links a tag page's entry for it to the root", async () => {

@@ -74,6 +74,8 @@ export interface PublishIndex {
   themeCss?: string;
   /** Up to three tags linked from the site's header. Protocol 3. */
   headerTags?: string[];
+  /** The other notes listed beneath the start page's text. Protocol 10. */
+  homeList?: boolean;
   /** The language of the site's pages, as a language tag. Protocol 10. */
   language?: string;
 }

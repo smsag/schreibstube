@@ -11,7 +11,7 @@ import {
   firstHeading,
   HOME_KEY,
   publishedUrl,
-  readHome,
+  readHomeFields,
   isInsideFolder,
   isPublishableAttachment,
   isoDate,
@@ -274,17 +274,23 @@ describe("findSlugCollision", () => {
   });
 });
 
-describe("readHome", () => {
-  it("makes a note the start page with marketing", () => {
-    expect(readHome({ [HOME_KEY]: "marketing" })).toBe(true);
-    expect(readHome({ [HOME_KEY]: " Marketing " })).toBe(true);
+describe("readHomeFields", () => {
+  const none = { home: false, homeList: false };
+
+  it("makes a note the start page alone with marketing", () => {
+    expect(readHomeFields({ [HOME_KEY]: "marketing" })).toEqual({ home: true, homeList: false });
+    expect(readHomeFields({ [HOME_KEY]: " Marketing " })).toEqual({ home: true, homeList: false });
   });
 
-  it("leaves a note a page for anything else, so the list stays the start page", () => {
-    for (const value of [undefined, true, "true", "list", "page", "intro", 1]) {
-      expect(readHome({ [HOME_KEY]: value })).toBe(false);
+  it("puts the list of notes beneath the note's text with list", () => {
+    expect(readHomeFields({ [HOME_KEY]: "list" })).toEqual({ home: true, homeList: true });
+  });
+
+  it("leaves a note an ordinary page for anything but the two values", () => {
+    for (const value of [undefined, true, "true", "page", "intro", "blog", 1]) {
+      expect(readHomeFields({ [HOME_KEY]: value })).toEqual(none);
     }
-    expect(readHome(null)).toBe(false);
+    expect(readHomeFields(null)).toEqual(none);
   });
 
   it("uses the plugin's own prefix, as every key it reads", () => {

@@ -121,8 +121,9 @@ export function publishSet(keys: PublishKeyMap): PropertySet {
 /**
  * A website's start page, as a set: what a page of a product or a person
  * needs rather than a blog post's date and slug, under the configured keys,
- * with the note marked as the site's marketing start page.
- * Adding the start-page flag by hand offers the rest.
+ * with the note marked as the start page of a marketing site. `list` is the
+ * other value, for a blog's introduction. Adding the key by hand offers the
+ * rest.
  */
 export function websiteHomeSet(keys: PublishKeyMap): PropertySet {
   return {
