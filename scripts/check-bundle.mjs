@@ -140,13 +140,23 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * raise above did, in the change that needs it, with the person who owns the
  * plugin agreeing. What is left is for the next one, not a new normal.
  *
+ * Raised to 1550 KB at 1542 KB, for a CSV file's tab that sorts, searches,
+ * hides columns and adds up, and for csvtable blocks that follow their file
+ * when it is renamed (+9.4 KB on 1532.5): the view's controls and its total
+ * row (4 KB), the decisions on what it shows (2 KB), the rewrite of a block's
+ * source and the follower that runs it on a rename (2 KB), and their words in
+ * two languages (1 KB). The total reuses the formula engine a note's `=sum`
+ * runs on rather than carrying its own. The 1540 ceiling had 7.5 KB left, so
+ * the three could not land together under it; the person who owns the plugin
+ * agreed to the raise. What is left is for the next one, not a new normal.
+ *
  * Twice the picker's icons (+38 KB on 1364) fit under that ceiling, at 1402 KB:
  * 215 glyphs for what the set had nothing for — a chapter's number, a
  * character, a scene's weather, a draft's mood — carried as font, which costs
  * about 180 bytes a glyph. A set that grows again by as much spends a third of
  * what is left.
  */
-const MAX_BUNDLE_KB = 1540;
+const MAX_BUNDLE_KB = 1550;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.
