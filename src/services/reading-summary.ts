@@ -11,31 +11,34 @@
  * line, a short post's length — and escaped like any text from outside before
  * it stands in a note.
  */
-import type { Locale } from "../i18n";
 import { foreignLine } from "./foreign-text";
 import type { Highlight } from "./instapaper-request";
 
-/** A short post's length: read at a glance in a list. */
-export const READING_SUMMARY_MAX_CHARS = 140;
+/** A post's length: read at a glance in a list. */
+export const READING_SUMMARY_MAX_CHARS = 280;
 
 /** What one request may carry. A long article marked heavily is summed up
  *  from its first passages rather than sent whole. */
 export const MAX_SUMMARY_INPUT_CHARS = 8000;
 
-/** Room for a sentence of 140 characters in any language, and no more. */
-export const READING_SUMMARY_MAX_TOKENS = 120;
+/** Room for 280 characters in any language the article may be in, and no more. */
+export const READING_SUMMARY_MAX_TOKENS = 200;
 
 /** Summaries written per check; the rest are written on the checks after. */
 export const MAX_SUMMARIES_PER_CHECK = 25;
 
-const LANGUAGE: Record<Locale, string> = { de: "German", en: "English" };
-
-export function readingSummaryPrompt(locale: Locale): string {
+/**
+ * The instruction. The summary is in the article's own language, read off the
+ * passages, rather than the interface's: a line in English under an article in
+ * German is a translation, and the reader marked the original words.
+ */
+export function readingSummaryPrompt(): string {
   return (
     "You are given passages a reader highlighted in an article, with any notes they " +
     "attached. Write one sentence that captures what the reader took from it, in the " +
     `style of a short social media post, at most ${String(READING_SUMMARY_MAX_CHARS)} ` +
-    `characters, in ${LANGUAGE[locale]}. No hashtags, no emoji, no quotation marks, ` +
+    "characters, in the language the passages are written in. No hashtags, no emoji, " +
+    "no quotation marks, " +
     "no preamble. Respond with the sentence only."
   );
 }

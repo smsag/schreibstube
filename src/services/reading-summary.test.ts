@@ -8,10 +8,9 @@ import {
 } from "./reading-summary";
 
 describe("readingSummaryPrompt", () => {
-  it("asks for one short line in the interface's language", () => {
-    expect(readingSummaryPrompt("de")).toContain("in German");
-    expect(readingSummaryPrompt("en")).toContain("in English");
-    expect(readingSummaryPrompt("de")).toContain(`at most ${READING_SUMMARY_MAX_CHARS} characters`);
+  it("asks for one line in the article's own language, within the limit", () => {
+    expect(readingSummaryPrompt()).toContain("in the language the passages are written in");
+    expect(readingSummaryPrompt()).toContain(`at most ${READING_SUMMARY_MAX_CHARS} characters`);
   });
 });
 

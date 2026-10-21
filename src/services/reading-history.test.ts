@@ -14,6 +14,7 @@ import {
   planHighlightWork,
   planReadingEdit,
   planSummaries,
+  RECENT_REFRESH_COUNT,
   readReadingBlock,
   renderEntry,
   selectBookmarks,
@@ -200,38 +201,55 @@ describe("selectBookmarks", () => {
 });
 
 describe("planHighlightWork, planSummaries and buildReadingUpdate", () => {
+  // Newest first, as the note lists them: the ten newest end with entry 5,
+  // and the two older ones fall outside the recent refresh.
+  const fillers = Array.from({ length: RECENT_REFRESH_COUNT - 3 }, (_, index) => index + 100);
   const block = readReadingBlock(
     [
       "%% schreibstube-reading checked=1 %%",
-      ...renderEntry(entry({ id: 1, highlights: 2 })),
-      ...renderEntry(entry({ id: 2, highlights: 1, summary: "Done." })),
       ...renderEntry(entry({ id: 3, highlights: 4 })),
+      ...renderEntry(entry({ id: 2, highlights: 1, summary: "Done." })),
+      ...fillers.flatMap((id) => renderEntry(entry({ id }))),
+      ...renderEntry(entry({ id: 5 })),
+      ...renderEntry(entry({ id: 1, highlights: 2 })),
       ...renderEntry(entry({ id: 4 })),
       "%% /schreibstube-reading %%"
     ].join("\n")
   );
   const selection = { added: [bookmark(9)], refreshed: [bookmark(3)] };
+  const recent = [2, ...fillers, 5];
 
-  it("reads highlights for new and changed entries, and for summaries owed", () => {
+  it("reads new, changed and the newest entries, and the summaries owed", () => {
     expect(planHighlightWork({ selection, block, summaries: true, maxSummaries: 25 })).toEqual({
-      fetch: [9, 3, 1],
+      fetch: [9, 3, ...recent, 1],
+      recent,
       backfill: [1]
     });
     expect(planHighlightWork({ selection, block, summaries: false, maxSummaries: 25 })).toEqual({
-      fetch: [9, 3],
+      fetch: [9, 3, ...recent],
+      recent,
       backfill: []
     });
   });
 
-  it("summarizes new entries first, and only those with highlights", () => {
+  it("reads the newest entries again even when nothing changed", () => {
+    const none = { added: [], refreshed: [] };
+    const work = planHighlightWork({ selection: none, block, summaries: false, maxSummaries: 25 });
+    expect(work.recent).toEqual([3, 2, ...fillers, 5]);
+    expect(work.recent).toHaveLength(RECENT_REFRESH_COUNT);
+  });
+
+  it("summarizes new entries first, and only those with highlights and none yet", () => {
     const work = planHighlightWork({ selection, block, summaries: true, maxSummaries: 25 });
     const counts = new Map([
       [9, 0],
       [3, 4],
+      [2, 3],
+      [5, 1],
       [1, 2]
     ]);
     expect(planSummaries({ selection, work, block, highlightCounts: counts, max: 25 })).toEqual([
-      3, 1
+      3, 5, 1
     ]);
     expect(
       planSummaries({
@@ -245,7 +263,7 @@ describe("planHighlightWork, planSummaries and buildReadingUpdate", () => {
   });
 
   it("builds the entries and the changes a check writes", () => {
-    const work = { fetch: [9, 3, 1], backfill: [1] };
+    const work = { fetch: [9, 3, 5, 1], recent: [5], backfill: [1] };
     const update = buildReadingUpdate({
       checked: 100,
       now: new Date(2026, 9, 21),
@@ -254,6 +272,7 @@ describe("planHighlightWork, planSummaries and buildReadingUpdate", () => {
       highlightCounts: new Map([
         [9, 1],
         [3, 5],
+        [5, 2],
         [1, 2]
       ]),
       summaries: new Map([
@@ -275,6 +294,7 @@ describe("planHighlightWork, planSummaries and buildReadingUpdate", () => {
       ],
       changed: [
         { id: 3, highlights: 5 },
+        { id: 5, highlights: 2 },
         { id: 1, highlights: 2, summary: "Owed." }
       ]
     });

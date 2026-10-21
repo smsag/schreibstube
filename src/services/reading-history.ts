@@ -31,6 +31,16 @@ export const SINCE_OVERLAP_SECONDS = 5 * 60;
 /** Entries whose counts are looked at again per check. */
 export const MAX_REFRESH_PER_CHECK = 50;
 
+/**
+ * The newest entries, whose highlights are read again on every check.
+ *
+ * Whether a new highlight marks its bookmark as changed is not something the
+ * API promises, and most highlighting happens in the days after an article is
+ * archived, when it is still near the top of the list. Ten requests a check is
+ * the price of not depending on it.
+ */
+export const RECENT_REFRESH_COUNT = 10;
+
 const START = /^%% schreibstube-reading checked=(\d+) %%$/;
 const END = "%% /schreibstube-reading %%";
 const ENTRY = /^- .* %%instapaper:(\d+)%%$/;
@@ -226,8 +236,10 @@ export function planReadingEdit(text: string, update: ReadingUpdate): TextEdit {
 
 /** What a check needs fetched beyond the list itself. */
 export interface HighlightWork {
-  /** Bookmarks whose highlights are read: new, changed, and summaries owed. */
+  /** Bookmarks whose highlights are read: new, changed, recent, and summaries owed. */
   fetch: number[];
+  /** The newest listed entries, read again whether or not they changed. */
+  recent: number[];
   /** Listed entries with highlights and no summary yet, finished on this check. */
   backfill: number[];
 }
@@ -235,9 +247,10 @@ export interface HighlightWork {
 /**
  * Which highlights a check reads.
  *
- * Every new entry needs its count, every changed one may have gained some, and
- * with summaries on, an entry left without one by an earlier check — the
- * per-check limit, a provider that failed — is finished now.
+ * Every new entry needs its count, every changed one may have gained some, the
+ * newest are read again in case they did without saying so, and with
+ * summaries on, an entry left without one by an earlier check — the per-check
+ * limit, a provider that failed — is finished now.
  */
 export function planHighlightWork(input: {
   selection: Selection;
@@ -248,19 +261,27 @@ export function planHighlightWork(input: {
   const touched = new Set(
     [...input.selection.added, ...input.selection.refreshed].map((b) => b.id)
   );
+  const listed = [...(input.block?.entries ?? new Map<number, ListedEntry>())];
+  const recent = listed
+    .slice(0, RECENT_REFRESH_COUNT)
+    .map(([id]) => id)
+    .filter((id) => !touched.has(id));
   const backfill = input.summaries
-    ? [...(input.block?.entries ?? new Map<number, ListedEntry>())]
-        .filter(([id, entry]) => entry.highlights > 0 && !entry.hasSummary && !touched.has(id))
+    ? listed
+        .filter(
+          ([id, entry]) =>
+            entry.highlights > 0 && !entry.hasSummary && !touched.has(id) && !recent.includes(id)
+        )
         .slice(0, input.maxSummaries)
         .map(([id]) => id)
     : [];
-  return { fetch: [...touched, ...backfill], backfill };
+  return { fetch: [...touched, ...recent, ...backfill], recent, backfill };
 }
 
 /**
  * Which entries get a summary on this check, in order: new entries first,
- * then changed ones that have none, then the backfill — and only those with
- * highlights to summarize.
+ * then changed and recent ones that have none, then the backfill — and only
+ * those with highlights to summarize.
  */
 export function planSummaries(input: {
   selection: Selection;
@@ -269,11 +290,12 @@ export function planSummaries(input: {
   highlightCounts: ReadonlyMap<number, number>;
   max: number;
 }): number[] {
+  const hasSummary = (id: number): boolean => input.block?.entries.get(id)?.hasSummary ?? false;
   const owed = [
     ...input.selection.added.map((b) => b.id),
-    ...input.selection.refreshed
-      .filter((b) => !(input.block?.entries.get(b.id)?.hasSummary ?? false))
-      .map((b) => b.id),
+    ...[...input.selection.refreshed.map((b) => b.id), ...input.work.recent].filter(
+      (id) => !hasSummary(id)
+    ),
     ...input.work.backfill
   ];
   return owed.filter((id) => (input.highlightCounts.get(id) ?? 0) > 0).slice(0, input.max);
@@ -297,16 +319,18 @@ export function buildReadingUpdate(input: {
     highlights: input.highlightCounts.get(bookmark.id) ?? 0,
     summary: input.summaries.get(bookmark.id) ?? null
   }));
-  const changed = [...input.selection.refreshed.map((b) => b.id), ...input.work.backfill].map(
-    (id): EntryChange => {
-      const summary = input.summaries.get(id);
-      return {
-        id,
-        highlights: input.highlightCounts.get(id) ?? 0,
-        ...(summary === undefined ? {} : { summary })
-      };
-    }
-  );
+  const changed = [
+    ...input.selection.refreshed.map((b) => b.id),
+    ...input.work.recent,
+    ...input.work.backfill
+  ].map((id): EntryChange => {
+    const summary = input.summaries.get(id);
+    return {
+      id,
+      highlights: input.highlightCounts.get(id) ?? 0,
+      ...(summary === undefined ? {} : { summary })
+    };
+  });
   return { checked: input.checked, added, changed };
 }
 

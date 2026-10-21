@@ -823,7 +823,8 @@ export const de: Messages = {
       "Schlüsselspeicher von Obsidian und geht nur an Instapaper.",
     readingSummaries: "Markierungen zusammenfassen",
     readingSummariesDesc:
-      "Schreibt unter jeden Artikel mit Markierungen eine Zeile von höchstens 140 Zeichen. " +
+      "Schreibt unter jeden Artikel mit Markierungen eine Zusammenfassung von höchstens 280 " +
+      "Zeichen in der Sprache des Artikels. " +
       "Schickt die Markierungen an den KI-Anbieter, der unter KI-Modell gewählt ist."
   },
 

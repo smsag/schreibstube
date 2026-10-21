@@ -10,7 +10,7 @@ import { MarkdownView, TFile, type App } from "obsidian";
 
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
-import { activeLocale, t } from "../i18n";
+import { t } from "../i18n";
 import { hasApiKey, resolveApiKey } from "../services/secret";
 import { mapLimit } from "../utils/map-limit";
 import { frontmatterLine } from "../services/sync-source";
@@ -249,7 +249,7 @@ export class ReadingHistoryController {
     highlights: Map<number, Highlight[]>
   ): Promise<Map<number, string>> {
     const written = new Map<number, string>();
-    const system = readingSummaryPrompt(activeLocale());
+    const system = readingSummaryPrompt();
     await mapLimit(ids, SUMMARY_CONCURRENCY, async (id) => {
       const input = readingSummaryInput(titles.get(id) ?? "", highlights.get(id) ?? []);
       if (input === null) return;

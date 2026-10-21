@@ -132,6 +132,23 @@ describe("ReadingHistoryController", () => {
     expect(text).toContain(`· 2026-10-20 · ${t().reading.highlights(1)} %%instapaper:1%%`);
   });
 
+  it("counts highlights added later to a recent entry, even when it did not change", async () => {
+    const block =
+      "%% schreibstube-reading checked=1760000000 %%\n" +
+      "- [Article 1](https://example.com/1) · 2026-10-20 %%instapaper:1%%\n" +
+      "%% /schreibstube-reading %%\n";
+    const { controller, vault } = setup({
+      content: `${READING_NOTE}\n${block}`,
+      pages: [[]],
+      highlights: { 1: [{ text: "Marked on the train.", note: "" }] }
+    });
+
+    await controller.checkAll(true);
+    expect(vault.contentOf("Gelesen.md")).toContain(
+      `· 2026-10-20 · ${t().reading.highlights(1)} %%instapaper:1%%`
+    );
+  });
+
   it("waits until a note is due, unless asked", async () => {
     const recent = `${READING_NOTE}\n%% schreibstube-reading checked=${NOW_S - 60} %%\n%% /schreibstube-reading %%\n`;
     const { controller, deps } = setup({ content: recent });

@@ -354,7 +354,8 @@ export const enExtra = {
       "Obsidian's secret storage and sent to Instapaper only.",
     readingSummaries: "Summarize highlights",
     readingSummariesDesc:
-      "Write a one-line summary of at most 140 characters under each article with highlights. " +
+      "Write a summary of at most 280 characters, in the article's language, under each article " +
+      "with highlights. " +
       "Sends the highlights to the AI provider chosen under AI model."
   },
 
