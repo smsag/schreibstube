@@ -1353,7 +1353,20 @@ export const de: Messages = {
       copyFailed: "die Zwischenablage ist hier nicht verfügbar.",
       notShown: (reason: string) => `Diese Datei lässt sich nicht als Tabelle zeigen: ${reason}`,
       shown: (rows: number, columns: number) =>
-        `${rows} ${rows === 1 ? "Zeile" : "Zeilen"} · ${columns} ${columns === 1 ? "Spalte" : "Spalten"}`
+        `${rows} ${rows === 1 ? "Zeile" : "Zeilen"} · ${columns} ${columns === 1 ? "Spalte" : "Spalten"}`,
+      shownOf: (rows: number, total: number, columns: number) =>
+        `${rows} von ${total} ${total === 1 ? "Zeile" : "Zeilen"} · ${columns} ${columns === 1 ? "Spalte" : "Spalten"}`,
+      hidden: (columns: number) => `${columns} ausgeblendet`,
+      showAll: "Alle zeigen",
+      search: "Zeilen filtern …",
+      noMatch: (query: string) => `Keine Zeile enthält „${query}“.`,
+      sortBy: (column: string) => `Nach ${column} sortieren`,
+      columns: "Spalten wählen",
+      showTotals: "Summenzeile zeigen",
+      hideTotals: "Summenzeile ausblenden",
+      total: "Summe",
+      sourcesUpdated: (notes: number) =>
+        `die csvtable-Quelle wurde in ${notes} ${notes === 1 ? "Notiz" : "Notizen"} angepasst.`
     },
 
     latest: {

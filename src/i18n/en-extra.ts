@@ -870,7 +870,20 @@ export const enExtra = {
       copyFailed: "the clipboard is not available here.",
       notShown: (reason: string) => `This file cannot be shown as a table: ${reason}`,
       shown: (rows: number, columns: number) =>
-        `${rows} ${rows === 1 ? "row" : "rows"} · ${columns} ${columns === 1 ? "column" : "columns"}`
+        `${rows} ${rows === 1 ? "row" : "rows"} · ${columns} ${columns === 1 ? "column" : "columns"}`,
+      shownOf: (rows: number, total: number, columns: number) =>
+        `${rows} of ${total} ${total === 1 ? "row" : "rows"} · ${columns} ${columns === 1 ? "column" : "columns"}`,
+      hidden: (columns: number) => `${columns} hidden`,
+      showAll: "Show all",
+      search: "Filter rows…",
+      noMatch: (query: string) => `No row contains “${query}”.`,
+      sortBy: (column: string) => `Sort by ${column}`,
+      columns: "Choose columns",
+      showTotals: "Show totals",
+      hideTotals: "Hide totals",
+      total: "Total",
+      sourcesUpdated: (notes: number) =>
+        `the csvtable source was updated in ${notes} ${notes === 1 ? "note" : "notes"}.`
     },
 
     latest: {

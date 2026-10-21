@@ -4344,6 +4344,18 @@
   font-size: var(--font-ui-small);
 }
 
+.schreibstube-csv-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2) var(--size-4-3);
+}
+
+.schreibstube-csv-search {
+  flex: 0 1 18em;
+  min-width: 10em;
+}
+
 .schreibstube-csv-scroll {
   overflow: auto;
   min-height: 0;
@@ -4377,4 +4389,42 @@
   text-align: end;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* A header sorts its column. The arrow says which way, and takes no room
+   while the column is in the file's order. */
+.schreibstube-csv-sort {
+  cursor: pointer;
+  border-radius: var(--radius-s);
+}
+
+.schreibstube-csv-sort:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 1px;
+}
+
+.schreibstube-csv-sort.is-sorted-asc::after {
+  content: " ▲";
+}
+
+.schreibstube-csv-sort.is-sorted-desc::after {
+  content: " ▼";
+}
+
+.schreibstube-csv-sort::after {
+  color: var(--text-faint);
+  font-size: 0.75em;
+}
+
+/* The totals stay in sight at the foot, as the header does at the top. */
+.schreibstube-csv-scroll tfoot td {
+  position: sticky;
+  bottom: 0;
+  background: var(--background-secondary);
+  font-weight: var(--table-header-weight, var(--font-semibold));
+}
+
+.schreibstube-csv-empty {
+  color: var(--text-muted);
+  font-style: italic;
 }

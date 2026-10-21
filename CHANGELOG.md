@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **A CSV file's tab sorts, searches, hides columns and adds up.** Press a column's header to sort by it, again to sort the other way, and a third time for the file's own order; numbers sort by value, `1.234,50 €` included, text the way your language sorts it, with `Haus 2` before `Haus 10`, and empty cells stay at the bottom either way. The box above the table keeps only the rows holding what you type, **Choose columns** in the tab's header leaves columns out, and **Show totals** closes the table with a total under every column of numbers, read as a note's `=sum` reads amounts. The tab keeps all of this across a restart. **Copy as Markdown table** in the tab now copies what is shown: the rows found, in their order, without the hidden columns, and with a `**=sum**` row when totals are on, so the pasted table keeps adding up. The Explorer's **Copy as Markdown table** still copies the whole file.
+- **A renamed CSV file keeps its `csvtable` tables.** The CSV Table plugin finds its file by the path in a block's `source:`, which Obsidian does not rewrite on a rename, so every table showing the file turned into an error. When a `.csv` or `.tsv` file, or a folder holding one, is renamed or moved, Schreibstube now rewrites that path in every note, keeps its quoting and any comment after it, and says in a notice how many notes it changed.
+
 ## 1.87.0 - 2026-10-20
 
 The text you marked twice in a PDF becomes a note. With a PDF open,

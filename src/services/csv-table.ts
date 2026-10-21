@@ -9,6 +9,7 @@
  * are the controller's.
  */
 import { t } from "../i18n";
+import { readNumber, type NumberFormat } from "./amounts";
 import { escapeCell } from "./markdown-table";
 import type { MarkdownTable } from "./text-to-table";
 
@@ -297,6 +298,20 @@ export function isNumeric(cell: string): boolean {
   return bare !== "" && NUMBER.test(bare);
 }
 
+/**
+ * The value of a cell `isNumeric` accepts, or null for any other. `1.234` is
+ * the one number its digits cannot settle; the format says which mark is the
+ * decimal, as it does for a formula.
+ */
+export function cellNumber(cell: string, format: NumberFormat): number | null {
+  if (!isNumeric(cell)) return null;
+  const bare = cell.trim().replace(CURRENCY, "");
+  const negative = /^[-−]/.test(bare);
+  const read = readNumber(bare.replace(/^[-+−]/, ""), format);
+  if (!read) return null;
+  return negative ? -read.value : read.value;
+}
+
 function isYear(cell: string): boolean {
   if (!/^\d{4}$/.test(cell)) return false;
   const year = Number(cell);
@@ -305,12 +320,16 @@ function isYear(cell: string): boolean {
 
 /**
  * A pipe table whose pipes line up in the source, with columns of numbers
- * set flush right, the way a spreadsheet shows them.
+ * set flush right, the way a spreadsheet shows them. `right` is for a table
+ * whose last row is a formula, which is no number and must not turn its
+ * column flush left.
  */
-export function renderAlignedTable({ header, rows }: MarkdownTable): string {
+export function renderAlignedTable(
+  { header, rows }: MarkdownTable,
+  right: readonly boolean[] = numericColumns({ header, rows })
+): string {
   const head = header.map(asCell);
   const body = rows.map((row) => row.map(asCell));
-  const right = numericColumns({ header, rows });
   const widths = head.map((cell, column) =>
     Math.min(
       MAX_PAD_WIDTH,
