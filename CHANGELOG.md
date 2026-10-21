@@ -2,7 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.88.2 - 2026-10-21
+
+An icon that is a link's words follows its link in Live Preview. Clicking
+`[:timeline:](https://…)` or `[[Note|:timeline:]]` opened the link's source
+for editing; it now opens the page in the browser or the note, in a new tab
+with Cmd/Ctrl or the middle button.
+
+Mobile checklist: not run. What to try first: tap an icon that is a link's
+words in Live Preview; the page or note should open, and the line should not
+show its source.
+
+The bridge stays at 3.4.0 and the protocol at 9.
 
 ### Fixed
 
