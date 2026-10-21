@@ -47,7 +47,6 @@ import { RecommendPlaces, type PassageFocus } from "./controllers/recommend-plac
 import { DoneTasksCommand } from "./controllers/done-tasks-command";
 import { DoneTaskVisibilityController } from "./controllers/done-task-visibility";
 import { SumsController } from "./controllers/sums-controller";
-import { CsvTableSourceFollower } from "./controllers/csvtable-source-follower";
 import { registerTableFormulaPostProcessor } from "./processors/table-formulas";
 import {
   createCalculationExtension,
@@ -457,7 +456,6 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerView(RELATED_NOTES_VIEW_TYPE, (leaf) => this.createRelatedNotesView(leaf));
     this.registerView(FOLDER_TILES_VIEW_TYPE, (leaf) => this.createFolderTilesView(leaf));
     this.registerCsvView(this.sums);
-    this.registerCsvTableSources();
     this.registerExplorerEvents();
     this.registerEditorExtension(
       createGlossaryUnderlineExtension({
@@ -1299,35 +1297,6 @@ export default class SchreibstubePlugin extends Plugin {
         this.logger.debug(`.${extension} is shown by another plugin:`, error);
       }
     }
-  }
-
-  /**
-   * A `csvtable` block names its file by path, which Obsidian does not rewrite
-   * on a rename; the other plugin's tables would show an error from then on.
-   * The notes are the person's and the block another plugin's, so the rewrite
-   * is offered, and the question waits until it is answered or pressed away.
-   */
-  private registerCsvTableSources(): void {
-    const words = t().explorer.csv;
-    const follower = new CsvTableSourceFollower(
-      this.app,
-      {
-        ask: (notes, renamed, update) =>
-          showChoiceNotice(
-            t().common.notice(words.sourcesAsk(notes, renamed)),
-            [
-              { label: words.sourcesUpdate, run: update },
-              { label: words.sourcesLeave, run: () => undefined }
-            ],
-            0
-          ),
-        updated: (notes) => new Notice(t().common.notice(words.sourcesUpdated(notes)))
-      },
-      this.logger
-    );
-    this.registerEvent(
-      this.app.vault.on("rename", (file, oldPath) => void follower.renamed(file, oldPath))
-    );
   }
 
   private createTagNotesView(leaf: WorkspaceLeaf): TagNotesView {

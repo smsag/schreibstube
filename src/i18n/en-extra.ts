@@ -881,13 +881,7 @@ export const enExtra = {
       columns: "Choose columns",
       showTotals: "Show totals",
       hideTotals: "Hide totals",
-      total: "Total",
-      sourcesAsk: (notes: number, renamed: string) =>
-        `${notes} ${notes === 1 ? "note shows" : "notes show"} a table from ${renamed} under its old path. Update the csvtable ${notes === 1 ? "block" : "blocks"}?`,
-      sourcesUpdate: "Update",
-      sourcesLeave: "Leave as is",
-      sourcesUpdated: (notes: number) =>
-        `the csvtable source was updated in ${notes} ${notes === 1 ? "note" : "notes"}.`
+      total: "Total"
     },
 
     latest: {
