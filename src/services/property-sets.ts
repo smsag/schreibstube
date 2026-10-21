@@ -37,7 +37,7 @@ import { GLOSSARY_FRONTMATTER_KEY } from "./glossary-resolver";
 import {
   FOOTER_KEY,
   HOME_KEY,
-  HOME_LIST_KEY,
+  HOME_MARKETING,
   PUBLISH_KEY_ROLES,
   type PublishKeyMap
 } from "./publish-index";
@@ -121,7 +121,7 @@ export function publishSet(keys: PublishKeyMap): PropertySet {
 /**
  * A website's start page, as a set: what a page of a product or a person
  * needs rather than a blog post's date and slug, under the configured keys,
- * with the note marked as the start page and no list of notes beneath it.
+ * with the note marked as the site's marketing start page.
  * Adding the start-page flag by hand offers the rest.
  */
 export function websiteHomeSet(keys: PublishKeyMap): PropertySet {
@@ -131,8 +131,7 @@ export function websiteHomeSet(keys: PublishKeyMap): PropertySet {
       { key: keys.title, value: "" },
       { key: keys.description, value: "" },
       { key: keys.language, value: "" },
-      { key: HOME_KEY, value: true },
-      { key: HOME_LIST_KEY, value: false }
+      { key: HOME_KEY, value: HOME_MARKETING }
     ]),
     offeredBy: [HOME_KEY]
   };

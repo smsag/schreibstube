@@ -10,9 +10,8 @@ import {
   findSlugCollision,
   firstHeading,
   HOME_KEY,
-  HOME_LIST_KEY,
   publishedUrl,
-  readHomeFields,
+  readHome,
   isInsideFolder,
   isPublishableAttachment,
   isoDate,
@@ -275,29 +274,21 @@ describe("findSlugCollision", () => {
   });
 });
 
-describe("readHomeFields", () => {
-  it("makes a note the start page only when it says so", () => {
-    expect(readHomeFields({ [HOME_KEY]: true })).toEqual({ home: true, homeList: false });
-    expect(readHomeFields({ [HOME_KEY]: "ja" }).home).toBe(true);
-    expect(readHomeFields({})).toEqual({ home: false, homeList: false });
-    expect(readHomeFields(null)).toEqual({ home: false, homeList: false });
-    expect(readHomeFields({ [HOME_KEY]: "maybe" }).home).toBe(false);
+describe("readHome", () => {
+  it("makes a note the start page with marketing", () => {
+    expect(readHome({ [HOME_KEY]: "marketing" })).toBe(true);
+    expect(readHome({ [HOME_KEY]: " Marketing " })).toBe(true);
   });
 
-  it("lists the other notes only when the start page asks", () => {
-    expect(readHomeFields({ [HOME_KEY]: true, [HOME_LIST_KEY]: true })).toEqual({
-      home: true,
-      homeList: true
-    });
-  });
-
-  it("ignores the list on a note that is not the start page", () => {
-    expect(readHomeFields({ [HOME_LIST_KEY]: true })).toEqual({ home: false, homeList: false });
+  it("leaves a note a page for anything else, so the list stays the start page", () => {
+    for (const value of [undefined, true, "true", "list", "page", "intro", 1]) {
+      expect(readHome({ [HOME_KEY]: value })).toBe(false);
+    }
+    expect(readHome(null)).toBe(false);
   });
 
   it("uses the plugin's own prefix, as every key it reads", () => {
     expect(HOME_KEY.startsWith("schreibstube")).toBe(true);
-    expect(HOME_LIST_KEY.startsWith("schreibstube")).toBe(true);
   });
 });
 

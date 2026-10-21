@@ -394,7 +394,7 @@ slug: hallo-welt
 ```
 
 - All but `published` are optional; slideshows, diagrams, index and totals carry over. Never `slug: s`
-  (shared links). `schreibstubeHome: true`: start page (`schreibstubeHomeList: true` lists the rest); `schreibstubeFooter: true`: footer of every page; `lang: en`: page language.
+  (shared links). `schreibstubeHome: marketing`: start page instead of the list; `schreibstubeFooter: true`: footer of every page; `lang: en`: page language.
 - Leave `description` out rather than guess: an empty one may be written by
   the AI when the note is published.
 - **Share note as a link** (`Notiz als Link teilen`) needs no key: any note, as written. On the

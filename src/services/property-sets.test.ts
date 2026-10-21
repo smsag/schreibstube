@@ -91,8 +91,7 @@ describe("the website sets", () => {
       { key: "title", value: "" },
       { key: "description", value: "" },
       { key: "lang", value: "" },
-      { key: "schreibstubeHome", value: true },
-      { key: "schreibstubeHomeList", value: false }
+      { key: "schreibstubeHome", value: "marketing" }
     ]);
     expect(set.offeredBy).toEqual(["schreibstubeHome"]);
   });

@@ -43,7 +43,7 @@ import {
   headerTagsOf,
   publishedUrl,
   readFooter,
-  readHomeFields,
+  readHome,
   noteTags,
   referencedAttachments,
   resolveNote,
@@ -448,7 +448,6 @@ export class PublishCommands {
     const assets = new Map<string, CollectedAsset>();
     const assetEntries: PublishAsset[] = [];
     const resolved = [];
-    let homeList = false;
 
     // Read first, so that the canvases of every note can be counted before
     // the first is drawn: drawing takes long enough to want a count.
@@ -518,13 +517,11 @@ export class PublishCommands {
         sources.set(sha256, bytes.buffer as ArrayBuffer);
         const carried =
           account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
-        const start = readHomeFields(cache?.frontmatter);
-        if (start.home) homeList = start.homeList;
         notes.push({
           ...note,
           sha256,
           ...(carried.length > 0 ? { tags: carried } : {}),
-          ...(start.home ? { home: true as const } : {}),
+          ...(readHome(cache?.frontmatter) ? { home: true as const } : {}),
           ...(readFooter(cache?.frontmatter) ? { footer: true as const } : {})
         });
 
@@ -586,7 +583,6 @@ export class PublishCommands {
       assets: assetEntries,
       ...(themeCss !== undefined ? { themeCss } : {}),
       ...(account.headerTags.length > 0 ? { headerTags: account.headerTags } : {}),
-      ...(homeList ? { homeList: true } : {}),
       ...(account.language ? { language: account.language } : {})
     };
 

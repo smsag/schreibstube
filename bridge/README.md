@@ -380,17 +380,16 @@ plugin sends none, and the header is as it was.
 
 Without anything said, `index.html` lists the published notes, newest first.
 Protocol 10 lets one note be the **start page** instead: a note in the index may
-carry `home: true` (at most one; two are refused, naming both), and the index
-may carry `homeList` (`true` or `false`, and only alongside such a note). That
-note is rendered as `index.html` rather than `<slug>/index.html`, under its own
+carry `home: true` (at most one; two are refused, naming both). That note is
+rendered as `index.html` rather than `<slug>/index.html`, under its own
 title and description, without a date line and with the site title unlinked,
 as on the list. Its links and pictures are resolved from the site's root, and
 every link to it leads there (`../` from a note page, `../../` from a tag
-page). With `homeList: true` the other notes follow its text, listed as the
-list lists them. A page the note had under its slug before is planned for
+page). It stands alone: a site's start page is either the list or one note,
+never both. A page the note had under its slug before is planned for
 deletion, like any page no note claims. The content security policy names the
 diagram loader of both depths, so a start page may hold a Mermaid diagram. A
-protocol-9 plugin sends neither field, and the start page is the list.
+protocol-9 plugin sends no such note, and the start page is the list.
 
 ### Footer, language and video
 
