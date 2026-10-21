@@ -3010,6 +3010,14 @@
   border-color: var(--text-accent);
 }
 
+/* Every heading starts on the tab's one left edge, with the navigation, the
+   intro lines and the cards' outer edge. Obsidian pads a heading row like a
+   card, which put the headings a card's padding in from everything they head. */
+.schreibstube-settings .schreibstube-settings-block,
+.schreibstube-settings .schreibstube-settings-section {
+  padding-inline: 0;
+}
+
 /* A block's heading stands above the features' headings, with room before it
    so the three parts of the tab read as three. */
 .schreibstube-settings .schreibstube-settings-block {
@@ -3027,10 +3035,9 @@
 }
 
 /* What a feature does and which commands it brings, one box, no gap to the
-   heading it explains. */
+   heading it explains, as wide as the cards below it. */
 .schreibstube-settings .schreibstube-settings-intro {
   padding: var(--size-4-1) 0 var(--size-4-3);
-  max-width: 42em;
 }
 
 .schreibstube-command-line {

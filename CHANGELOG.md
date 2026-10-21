@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- **The settings tab has one left edge.** Block headings (Schreibhilfen, KI-Modell …) and feature headings (Überschriften-Stapel, Fokus-Modus …) now start where the navigation, the "Befehle:" lines and the cards start, instead of a card's padding (16px) further in. The names inside the cards stay where they were. A feature's intro text runs the full width of the tab, like the cards, instead of stopping at 42 characters' width.
 - **A reading note says in its properties when it was last checked, and holds no comments.** The time of the last check is now the note's `schreibstubeReadingCheckedAt` property, where Obsidian's Properties show it and a Base can sort by it. The list has no `%%` markers around it and no hidden Instapaper id after each entry: it is just its lines, `- [Title](link) · date · highlights`, and new ones go above the first, so you can move the list anywhere in the note. An article is recognized by its link, so one saved twice under two different addresses is listed twice. The highlight counts of the ten newest articles are still read on every check. A note checked with 1.88.0 loses its markers and ids on its next check, without listing anything again.
 
 ## 1.88.0 - 2026-10-21
