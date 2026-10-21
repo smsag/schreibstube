@@ -1,7 +1,7 @@
 /**
  * Reading notes: the notes that list what an Instapaper section gains.
  *
- * Every decision — what to ask, which bookmarks belong, what the block says
+ * Every decision — what to ask, which bookmarks belong, what the list says
  * and how it changes — is in `instapaper-request`, `reading-history` and
  * `reading-summary`. This walks the vault's reading notes, sends the requests,
  * and writes the result into each note.
@@ -40,7 +40,7 @@ import {
   planSummaries,
   READING_CHECKED_KEY,
   readCheckedAt,
-  readReadingBlock,
+  readReadingList,
   RECENT_REFRESH_COUNT,
   selectBookmarks,
   sinceFor,
@@ -162,10 +162,10 @@ export class ReadingHistoryController {
     if (every !== null && !every.ok) throw new CheckFailed(every.reason);
 
     const now = this.deps.now();
-    const block = readReadingBlock(text);
+    const list = readReadingList(text);
     const checkedAt = readCheckedAt(
       frontmatter?.[READING_CHECKED_KEY] ?? frontmatterLine(text, READING_CHECKED_KEY),
-      block
+      list
     );
     if (!force && !isReadingDue(checkedAt, every?.schedule ?? null, now)) return;
 
@@ -174,7 +174,7 @@ export class ReadingHistoryController {
     const selection = selectBookmarks({
       bookmarks: listed.bookmarks,
       section: source.section,
-      block,
+      list,
       firstRun: checkedAt === null
     });
 
@@ -196,7 +196,7 @@ export class ReadingHistoryController {
     );
     const written = summaries
       ? await this.writeSummaries(
-          planSummaries({ selection, block, highlightCounts, max: MAX_SUMMARIES_PER_CHECK }),
+          planSummaries({ selection, list, highlightCounts, max: MAX_SUMMARIES_PER_CHECK }),
           titles,
           highlights
         )

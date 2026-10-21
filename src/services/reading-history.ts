@@ -2,18 +2,19 @@
  * The reading history in a note: the list it keeps, when it was last checked,
  * and how a check adds to it.
  *
- * Two places hold it, each for what it is good at. The frontmatter says when
- * the account was last asked, where Obsidian's properties show it and a Base
- * can sort by it. The list itself is the block between the two markers, and an
- * entry is known by its link: a person reading the note sees nothing that only
- * the plugin needs. A link is a looser key than an id — an article saved twice
- * under two addresses is listed twice — and that is the price of a list that
- * holds nothing hidden.
+ * The note holds nothing a reader cannot see. The frontmatter says when the
+ * account was last asked, where Obsidian's properties show it and a Base can
+ * sort by it. The list is nothing but its entries — a link, the day it came,
+ * the highlights — and an entry is known by that shape and by its link, with
+ * no marker around the list and no id after a line. A link is a looser key
+ * than an id: an article saved twice under two addresses is listed twice, and
+ * that is the price of a note without comments in it.
  *
- * Entries are only ever added or, for the highlight count and a missing
- * summary, completed. A line a person rewrote so that it no longer reads as an
- * entry is left exactly as it is: the history is theirs to edit, and a check
- * that "repaired" it would be undoing that on a timer.
+ * New entries go above the first entry the note holds, or at its end when it
+ * holds none, so the person decides where the list lives by moving it. Entries
+ * are only ever added or, for the highlight count and a missing summary,
+ * completed; a line a person rewrote so that it no longer reads as an entry is
+ * left exactly as it is.
  */
 import { t } from "../i18n";
 import { escapeForeignText } from "./foreign-text";
@@ -55,13 +56,11 @@ export const MAX_REFRESH_PER_CHECK = 50;
  */
 export const RECENT_REFRESH_COUNT = 10;
 
-const START = /^%% schreibstube-reading(?: checked=(\d+))? %%$/;
-const START_LINE = "%% schreibstube-reading %%";
-const END = "%% /schreibstube-reading %%";
-/** The link of an entry; the title before it escapes its own brackets. */
-const ENTRY = /^- \[(?:\\.|[^\]\\])*\]\(([^()\s]+)\)/;
+/** A link, then the day it came: the shape that makes a line an entry. */
+const ENTRY = /^- \[(?:\\.|[^\]\\])*\]\(([^()\s]+)\) · \d{4}-\d{2}-\d{2}\b/;
 const COUNT = / · (\d+) [^·%]+?(?= %%instapaper:\d+%%$|$)/;
-/** The hidden id 1.88.0 wrote after each entry, dropped when a line is rewritten. */
+/** What 1.88.0 wrote around the list and after each entry, removed on the next check. */
+const LEGACY_MARKER = /^%% \/?schreibstube-reading(?: checked=(\d+))? %%$/;
 const LEGACY_ID = / %%instapaper:\d+%%$/;
 const SUMMARY = /^ {2}> /;
 
@@ -79,47 +78,33 @@ export interface ListedEntry {
   hasSummary: boolean;
 }
 
-export interface ReadingBlock {
+export interface ReadingList {
   /** Entries by their link, in the note's order. */
   entries: Map<string, ListedEntry>;
-  /** The check time a 1.88.0 block kept in its marker, for a note not yet moved over. */
+  /** The check time a 1.88.0 note kept in its list's marker, for one not yet moved over. */
   legacyChecked: number | null;
-  /** Offsets of the block in the note, end marker included. */
-  from: number;
-  to: number;
 }
 
-/** The note's block, or null when it has none — a note never checked yet. */
-export function readReadingBlock(text: string): ReadingBlock | null {
-  const lines = splitLines(text);
-  const start = lines.findIndex((line) => START.test(line.text));
-  if (start === -1) return null;
-
-  const end = lines.findIndex((line, index) => index > start && line.text === END);
-  if (end === -1) return null;
-
-  const startLine = lines[start];
-  const endLine = lines[end];
-  if (startLine === undefined || endLine === undefined) return null;
-
+/** The entries a note holds, wherever in its body they stand. */
+export function readReadingList(text: string): ReadingList {
+  const lines = text.split("\n").map((line) => line.replace(/\r$/, ""));
   const entries = new Map<string, ListedEntry>();
-  for (let index = start + 1; index < end; index += 1) {
-    const line = lines[index]?.text ?? "";
+  let legacyChecked: number | null = null;
+
+  for (let index = bodyStart(lines); index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    const legacy = LEGACY_MARKER.exec(line)?.[1];
+    if (legacy !== undefined) legacyChecked = Number(legacy);
+
     const url = ENTRY.exec(line)?.[1];
     if (url === undefined || entries.has(url)) continue;
     entries.set(url, {
       highlights: Number(COUNT.exec(line)?.[1] ?? 0),
-      hasSummary: SUMMARY.test(lines[index + 1]?.text ?? "")
+      hasSummary: SUMMARY.test(lines[index + 1] ?? "")
     });
   }
 
-  const legacy = START.exec(startLine.text)?.[1];
-  return {
-    entries,
-    legacyChecked: legacy === undefined ? null : Number(legacy),
-    from: startLine.from,
-    to: endLine.to
-  };
+  return { entries, legacyChecked };
 }
 
 /**
@@ -128,7 +113,7 @@ export function readReadingBlock(text: string): ReadingBlock | null {
  * Read as the local time Obsidian writes; a value that is not a date is no
  * check time, and the note starts over rather than asking from a guess.
  */
-export function readCheckedAt(value: unknown, block: ReadingBlock | null): number | null {
+export function readCheckedAt(value: unknown, list: ReadingList): number | null {
   if (typeof value === "string") {
     const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
     if (match) {
@@ -140,7 +125,7 @@ export function readCheckedAt(value: unknown, block: ReadingBlock | null): numbe
       if (!Number.isNaN(date.getTime())) return Math.floor(date.getTime() / 1000);
     }
   }
-  return block?.legacyChecked ?? null;
+  return list.legacyChecked;
 }
 
 /** The check time as the property holds it. */
@@ -187,10 +172,10 @@ export interface Selection {
 export function selectBookmarks(input: {
   bookmarks: readonly Bookmark[];
   section: ReadingSection;
-  block: ReadingBlock | null;
+  list: ReadingList;
   firstRun: boolean;
 }): Selection {
-  const known = input.block?.entries ?? new Map<string, ListedEntry>();
+  const known = input.list.entries;
   const seen = new Set<string>();
   const added: Bookmark[] = [];
   const refreshed: Bookmark[] = [];
@@ -223,12 +208,12 @@ export function highlightsToFetch(selection: Selection): number[] {
  */
 export function planSummaries(input: {
   selection: Selection;
-  block: ReadingBlock | null;
+  list: ReadingList;
   highlightCounts: ReadonlyMap<number, number>;
   max: number;
 }): number[] {
   const hasSummary = (bookmark: Bookmark): boolean =>
-    input.block?.entries.get(entryUrl(bookmark.url))?.hasSummary ?? false;
+    input.list.entries.get(entryUrl(bookmark.url))?.hasSummary ?? false;
   return [
     ...input.selection.added,
     ...input.selection.refreshed.filter((bookmark) => !hasSummary(bookmark))
@@ -291,53 +276,61 @@ export interface TextEdit {
  * planned against the older text would put their words back.
  */
 export function applyReadingCheck(text: string, update: ReadingUpdate, checkedAt: number): string {
-  const listed = applyEdit(text, planReadingEdit(text, update));
+  const listed = applyReadingList(text, update);
   return setFrontmatterValue(listed, READING_CHECKED_KEY, formatCheckedAt(checkedAt)) ?? listed;
 }
 
-/** The edit that brings a note's list up to date. */
-export function planReadingEdit(text: string, update: ReadingUpdate): TextEdit {
-  const block = readReadingBlock(text);
-  const fresh = update.added.flatMap(renderEntry);
-
-  if (block === null) {
-    const separator =
-      text.length === 0 ? "" : text.endsWith("\n\n") ? "" : text.endsWith("\n") ? "\n" : "\n\n";
-    return {
-      from: text.length,
-      to: text.length,
-      text: `${separator}${[START_LINE, ...fresh, END].join("\n")}\n`
-    };
-  }
-
+/**
+ * The note with its list brought up to date: new entries above the first one,
+ * counts and owed summaries completed, and anything 1.88.0 hid in it removed.
+ */
+export function applyReadingList(text: string, update: ReadingUpdate): string {
+  const lines = text.split("\n");
+  const start = bodyStart(lines.map((line) => line.replace(/\r$/, "")));
   const changes = new Map(update.changed.map((change) => [change.url, change]));
-  const inner = text
-    .slice(block.from, block.to)
-    .split("\n")
-    .slice(1, -1)
-    .map((line) => line.replace(/\r$/, ""));
-  const kept: string[] = [];
+  const out: string[] = [];
+  let firstEntry = -1;
 
-  for (let index = 0; index < inner.length; index += 1) {
-    const line = inner[index] ?? "";
-    const url = ENTRY.exec(line)?.[1];
-    const change = url === undefined ? undefined : changes.get(url);
-    if (url === undefined || change === undefined) {
-      kept.push(line);
+  for (let index = 0; index < lines.length; index += 1) {
+    const raw = lines[index] ?? "";
+    const cr = raw.endsWith("\r") ? "\r" : "";
+    const line = cr ? raw.slice(0, -1) : raw;
+    if (index >= start && LEGACY_MARKER.test(line)) continue;
+
+    const url = index >= start ? ENTRY.exec(line)?.[1] : undefined;
+    if (url === undefined) {
+      out.push(raw);
+      continue;
+    }
+    if (firstEntry === -1) firstEntry = out.length;
+
+    const plain = line.replace(LEGACY_ID, "");
+    const change = changes.get(url);
+    if (change === undefined) {
+      out.push(plain + cr);
       continue;
     }
     // Once is enough: a link listed twice by hand is completed where it is first.
     changes.delete(url);
 
-    const plain = line.replace(LEGACY_ID, "");
-    kept.push(change.highlights === undefined ? plain : withCount(plain, change.highlights));
-    const hasSummary = SUMMARY.test(inner[index + 1] ?? "");
+    out.push((change.highlights === undefined ? plain : withCount(plain, change.highlights)) + cr);
+    const hasSummary = SUMMARY.test(lines[index + 1] ?? "");
     if (!hasSummary && change.summary !== undefined && change.summary.length > 0) {
-      kept.push(summaryLine(change.summary));
+      out.push(summaryLine(change.summary) + cr);
     }
   }
 
-  return { from: block.from, to: block.to, text: [START_LINE, ...fresh, ...kept, END].join("\n") };
+  const fresh = update.added.flatMap(renderEntry);
+  if (fresh.length === 0) return out.join("\n");
+  if (firstEntry !== -1) {
+    out.splice(firstEntry, 0, ...fresh);
+    return out.join("\n");
+  }
+
+  const body = out.join("\n");
+  const separator =
+    body.length === 0 ? "" : body.endsWith("\n\n") ? "" : body.endsWith("\n") ? "\n" : "\n\n";
+  return `${body}${separator}${fresh.join("\n")}\n`;
 }
 
 /**
@@ -459,19 +452,9 @@ export function entryDate(now: Date): string {
   return `${String(now.getFullYear())}-${month}-${day}`;
 }
 
-interface Line {
-  text: string;
-  from: number;
-  to: number;
-}
-
-function splitLines(text: string): Line[] {
-  const lines: Line[] = [];
-  let from = 0;
-  for (const raw of text.split("\n")) {
-    const body = raw.endsWith("\r") ? raw.slice(0, -1) : raw;
-    lines.push({ text: body, from, to: from + body.length });
-    from += raw.length + 1;
-  }
-  return lines;
+/** The first line after the frontmatter, so a list in the properties is no list of entries. */
+function bodyStart(lines: readonly string[]): number {
+  if (lines[0] !== "---") return 0;
+  const close = lines.findIndex((line, index) => index > 0 && line === "---");
+  return close === -1 ? 0 : close + 1;
 }

@@ -31,8 +31,7 @@ const frontmatter = (checkedAt?: string): string =>
   (checkedAt === undefined ? "" : `${READING_CHECKED_KEY}: ${checkedAt}\n`) +
   "---\n# Gelesen\n";
 
-const listBlock = (...lines: string[]): string =>
-  ["%% schreibstube-reading %%", ...lines, "%% /schreibstube-reading %%", ""].join("\n");
+const listBlock = (...lines: string[]): string => [...lines, ""].join("\n");
 
 function setup({
   content = frontmatter(),
@@ -213,7 +212,7 @@ describe("ReadingHistoryController", () => {
     expect(text()).toContain(`${READING_CHECKED_KEY}: ${formatCheckedAt(last)}\n`);
   });
 
-  it("moves a 1.88.0 note over: its marker's time is asked from, then kept in the frontmatter", async () => {
+  it("moves a 1.88.0 note over: its marker's time is asked from, and every comment goes", async () => {
     const legacy =
       "%% schreibstube-reading checked=1760000000 %%\n" +
       "- [Article 1](https://example.com/1) · 2026-10-20 %%instapaper:1%%\n" +
@@ -227,7 +226,10 @@ describe("ReadingHistoryController", () => {
     await controller.checkAll(true);
     expect(requests[0]?.since).toBe(1760000000 - DAY);
     expect(text()).toContain(`${READING_CHECKED_KEY}: ${formatCheckedAt(NOW_S)}\n`);
-    expect(text()).toContain(`%% schreibstube-reading %%\n${line(5)}\n`);
+    expect(text()).toBe(
+      `${frontmatter(formatCheckedAt(NOW_S))}\n${listBlock(line(5), line(1, "2026-10-20"))}`
+    );
+    expect(text()).not.toContain("%%");
   });
 
   it("writes nothing when Instapaper refuses, and names why", async () => {

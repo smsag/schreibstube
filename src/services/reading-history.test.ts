@@ -4,6 +4,7 @@ import type { Bookmark } from "./instapaper-request";
 import {
   applyEdit,
   applyReadingCheck,
+  applyReadingList,
   buildReadingUpdate,
   DEFAULT_READING_EVERY_MINUTES,
   describeReadingCheck,
@@ -15,11 +16,10 @@ import {
   highlightsToFetch,
   isReadingDue,
   MAX_REFRESH_PER_CHECK,
-  planReadingEdit,
   planSummaries,
   READING_CHECKED_KEY,
   readCheckedAt,
-  readReadingBlock,
+  readReadingList,
   renderEntry,
   selectBookmarks,
   setFrontmatterValue,
@@ -49,8 +49,9 @@ const bookmark = (id: number, overrides: Partial<Bookmark> = {}): Bookmark => ({
   ...overrides
 });
 
-const block = (...lines: string[]): string =>
-  ["%% schreibstube-reading %%", ...lines, "%% /schreibstube-reading %%"].join("\n");
+const block = (...lines: string[]): string => lines.join("\n");
+
+const empty = readReadingList("");
 
 const note = (lines: string[]): string =>
   ["---", "schreibstubeReadingFrom: instapaper:archive", "---", "# Reading", "", ...lines, ""].join(
@@ -92,51 +93,52 @@ describe("entryTitle and entryUrl", () => {
   });
 });
 
-describe("readReadingBlock", () => {
-  it("finds no block in a note never checked", () => {
-    expect(readReadingBlock(note(["Some text."]))).toBeNull();
+describe("readReadingList", () => {
+  it("finds nothing in a note never checked", () => {
+    expect(readReadingList(note(["Some text.", "- a plain list item"])).entries.size).toBe(0);
   });
 
-  it("finds no block without its end", () => {
-    expect(readReadingBlock("%% schreibstube-reading %%\n- x")).toBeNull();
-  });
-
-  it("knows its entries by their links, with what they hold", () => {
+  it("knows its entries by their links, with what they hold, wherever they stand", () => {
     const text = note([
-      block(
-        ...renderEntry(entry({ ...at(1), highlights: 2, summary: "Gist." })),
-        ...renderEntry(entry({ ...at(2), title: "A [tricky] (title)" })),
-        "A line a person wrote."
-      )
+      ...renderEntry(entry({ ...at(1), highlights: 2, summary: "Gist." })),
+      "A line a person wrote.",
+      ...renderEntry(entry({ ...at(2), title: "A [tricky] (title)" }))
     ]);
-    const parsed = readReadingBlock(text);
-    expect([...(parsed?.entries ?? [])]).toEqual([
+    const list = readReadingList(text);
+    expect([...list.entries]).toEqual([
       ["https://example.com/1", { highlights: 2, hasSummary: true }],
       ["https://example.com/2", { highlights: 0, hasSummary: false }]
     ]);
-    expect(parsed?.legacyChecked).toBeNull();
-    expect(text.slice(parsed?.from, parsed?.to)).toMatch(
-      /^%% schreibstube-reading %%[\s\S]*%% \/schreibstube-reading %%$/
-    );
+    expect(list.legacyChecked).toBeNull();
+  });
+
+  it("reads no entry in the frontmatter, and none without its date", () => {
+    const text = [
+      "---",
+      "- [a](https://e.com/1) · 2026-10-21",
+      "---",
+      "- [b](https://e.com/2)",
+      "- [c](https://e.com/3) · yesterday"
+    ].join("\n");
+    expect(readReadingList(text).entries.size).toBe(0);
   });
 
   it("reads a note saved with Windows line endings", () => {
-    const text =
-      "%% schreibstube-reading %%\r\n- [a](https://e.com/) · 2026-10-21\r\n%% /schreibstube-reading %%\r\n";
-    expect([...(readReadingBlock(text)?.entries.keys() ?? [])]).toEqual(["https://e.com/"]);
+    const text = "- [a](https://e.com/) · 2026-10-21\r\n  > Gist.\r\n";
+    expect([...readReadingList(text).entries]).toEqual([
+      ["https://e.com/", { highlights: 0, hasSummary: true }]
+    ]);
   });
 
-  it("still reads a block 1.88.0 wrote, ids and check time included", () => {
+  it("still reads what 1.88.0 wrote, ids and check time included", () => {
     const text = [
       "%% schreibstube-reading checked=1760000000 %%",
       `- [a](https://e.com/) · 2026-10-21 · ${t().reading.highlights(2)} %%instapaper:7%%`,
       "%% /schreibstube-reading %%"
     ].join("\n");
-    const parsed = readReadingBlock(text);
-    expect(parsed?.legacyChecked).toBe(1760000000);
-    expect([...(parsed?.entries ?? [])]).toEqual([
-      ["https://e.com/", { highlights: 2, hasSummary: false }]
-    ]);
+    const list = readReadingList(text);
+    expect(list.legacyChecked).toBe(1760000000);
+    expect([...list.entries]).toEqual([["https://e.com/", { highlights: 2, hasSummary: false }]]);
   });
 });
 
@@ -144,17 +146,17 @@ describe("the check time", () => {
   it("is written and read back as a local date-time property", () => {
     const seconds = new Date(2026, 9, 21, 12, 55, 7).getTime() / 1000;
     expect(formatCheckedAt(seconds)).toBe("2026-10-21T12:55:07");
-    expect(readCheckedAt("2026-10-21T12:55:07", null)).toBe(seconds);
-    expect(readCheckedAt("2026-10-21T12:55", null)).toBe(seconds - 7);
+    expect(readCheckedAt("2026-10-21T12:55:07", empty)).toBe(seconds);
+    expect(readCheckedAt("2026-10-21T12:55", empty)).toBe(seconds - 7);
   });
 
   it("falls back to a 1.88.0 block's marker, and otherwise counts as never", () => {
-    const legacy = readReadingBlock(
+    const legacy = readReadingList(
       "%% schreibstube-reading checked=5 %%\n%% /schreibstube-reading %%"
     );
     expect(readCheckedAt(undefined, legacy)).toBe(5);
-    expect(readCheckedAt("yesterday", null)).toBeNull();
-    expect(readCheckedAt(42, null)).toBeNull();
+    expect(readCheckedAt("yesterday", empty)).toBeNull();
+    expect(readCheckedAt(42, empty)).toBeNull();
   });
 
   it("is always due before the first check", () => {
@@ -181,13 +183,13 @@ describe("the check time", () => {
 });
 
 describe("selectBookmarks", () => {
-  const listed = readReadingBlock(block(...renderEntry(entry(at(1)))));
+  const listed = readReadingList(block(...renderEntry(entry(at(1)))));
 
   it("takes the whole first answer: it was the section itself", () => {
     const selection = selectBookmarks({
       bookmarks: [bookmark(3), bookmark(2, { archived: false })],
       section: "archive",
-      block: null,
+      list: empty,
       firstRun: true
     });
     expect(selection.added.map((b) => b.id)).toEqual([3, 2]);
@@ -202,7 +204,7 @@ describe("selectBookmarks", () => {
         bookmark(6, { url: "https://example.com/4" })
       ],
       section: "archive",
-      block: listed,
+      list: listed,
       firstRun: false
     });
     expect(selection.added.map((b) => b.id)).toEqual([4]);
@@ -213,7 +215,7 @@ describe("selectBookmarks", () => {
     const selection = selectBookmarks({
       bookmarks: [bookmark(99, { url: "https://example.com/1" })],
       section: "archive",
-      block: listed,
+      list: listed,
       firstRun: false
     });
     expect(selection.added).toEqual([]);
@@ -224,7 +226,7 @@ describe("selectBookmarks", () => {
     const selection = selectBookmarks({
       bookmarks: [bookmark(6, { liked: true, archived: false }), bookmark(7)],
       section: "liked",
-      block: listed,
+      list: listed,
       firstRun: false
     });
     expect(selection.added.map((b) => b.id)).toEqual([6]);
@@ -232,11 +234,11 @@ describe("selectBookmarks", () => {
 
   it("bounds how many known entries are looked at again", () => {
     const many = Array.from({ length: MAX_REFRESH_PER_CHECK + 10 }, (_, index) => index + 100);
-    const parsed = readReadingBlock(block(...many.flatMap((n) => renderEntry(entry(at(n))))));
+    const parsed = readReadingList(block(...many.flatMap((n) => renderEntry(entry(at(n))))));
     const selection = selectBookmarks({
       bookmarks: many.map((id) => bookmark(id)),
       section: "archive",
-      block: parsed,
+      list: parsed,
       firstRun: false
     });
     expect(selection.refreshed).toHaveLength(MAX_REFRESH_PER_CHECK);
@@ -244,7 +246,7 @@ describe("selectBookmarks", () => {
 });
 
 describe("highlightsToFetch, planSummaries and buildReadingUpdate", () => {
-  const parsed = readReadingBlock(
+  const parsed = readReadingList(
     block(
       ...renderEntry(entry({ ...at(3), highlights: 4 })),
       ...renderEntry(entry({ ...at(2), highlights: 1, summary: "Done." }))
@@ -262,13 +264,13 @@ describe("highlightsToFetch, planSummaries and buildReadingUpdate", () => {
       [3, 4],
       [2, 3]
     ]);
-    expect(planSummaries({ selection, block: parsed, highlightCounts: counts, max: 25 })).toEqual([
+    expect(planSummaries({ selection, list: parsed, highlightCounts: counts, max: 25 })).toEqual([
       3
     ]);
     expect(
       planSummaries({
         selection,
-        block: parsed,
+        list: parsed,
         highlightCounts: new Map([...counts, [9, 1]]),
         max: 1
       })
@@ -307,39 +309,42 @@ describe("highlightsToFetch, planSummaries and buildReadingUpdate", () => {
   });
 });
 
-describe("planReadingEdit", () => {
-  it("appends a block to a note that has none", () => {
+describe("applyReadingList", () => {
+  it("starts the list at the end of a note that has none", () => {
     const text = note(["Some text."]);
-    const edit = planReadingEdit(text, { added: [entry()], changed: [] });
-    expect(applyEdit(text, edit)).toBe(`${text}\n${block(renderEntry(entry())[0] ?? "")}\n`);
-  });
-
-  it("separates the block from text that does not end in a newline", () => {
-    expect(applyEdit("Text", planReadingEdit("Text", { added: [], changed: [] }))).toBe(
-      `Text\n\n${block()}\n`
+    expect(applyReadingList(text, { added: [entry()], changed: [] })).toBe(
+      `${text}\n${renderEntry(entry())[0] ?? ""}\n`
     );
-    expect(applyEdit("", planReadingEdit("", { added: [], changed: [] }))).toBe(`${block()}\n`);
   });
 
-  it("puts new entries on top and leaves the rest alone", () => {
+  it("separates the list from text that does not end in a newline", () => {
+    expect(applyReadingList("Text", { added: [entry()], changed: [] })).toBe(
+      `Text\n\n${renderEntry(entry())[0] ?? ""}\n`
+    );
+    expect(applyReadingList("", { added: [entry()], changed: [] })).toBe(
+      `${renderEntry(entry())[0] ?? ""}\n`
+    );
+    expect(applyReadingList("Text", { added: [], changed: [] })).toBe("Text");
+  });
+
+  it("puts new entries above the first one, wherever the person moved the list", () => {
     const text = note([
-      block(...renderEntry(entry(at(1))), "My own remark."),
+      "## Gelesen",
+      ...renderEntry(entry(at(1))),
+      "My own remark.",
       "",
-      "After the block."
+      "After the list."
     ]);
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, { added: [entry({ ...at(2), title: "Newer" })], changed: [] })
-    );
-    expect(next).toBe(
+    expect(
+      applyReadingList(text, { added: [entry({ ...at(2), title: "Newer" })], changed: [] })
+    ).toBe(
       note([
-        block(
-          ...renderEntry(entry({ ...at(2), title: "Newer" })),
-          ...renderEntry(entry(at(1))),
-          "My own remark."
-        ),
+        "## Gelesen",
+        ...renderEntry(entry({ ...at(2), title: "Newer" })),
+        ...renderEntry(entry(at(1))),
+        "My own remark.",
         "",
-        "After the block."
+        "After the list."
       ])
     );
   });
@@ -350,9 +355,8 @@ describe("planReadingEdit", () => {
       ...renderEntry(entry(at(2))),
       ...renderEntry(entry({ ...at(3), highlights: 1 }))
     );
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, {
+    expect(
+      applyReadingList(text, {
         added: [],
         changed: [
           { url: "https://example.com/1", highlights: 5 },
@@ -360,8 +364,7 @@ describe("planReadingEdit", () => {
           { url: "https://example.com/3", highlights: 0 }
         ]
       })
-    );
-    expect(next).toBe(
+    ).toBe(
       block(
         ...renderEntry(entry({ ...at(1), highlights: 5 })),
         ...renderEntry(entry({ ...at(2), highlights: 1 })),
@@ -370,17 +373,28 @@ describe("planReadingEdit", () => {
     );
   });
 
-  it("drops a 1.88.0 id and marker when it rewrites them", () => {
+  it("removes every comment 1.88.0 left, whether or not a line changed", () => {
     const text = [
+      "Intro.",
       "%% schreibstube-reading checked=5 %%",
-      "- [a](https://e.com/) · 2026-10-21 %%instapaper:7%%",
-      "%% /schreibstube-reading %%"
+      "- [a](https://e.com/a) · 2026-10-21 %%instapaper:7%%",
+      `- [b](https://e.com/b) · 2026-10-20 · ${t().reading.highlights(1)} %%instapaper:8%%`,
+      "%% /schreibstube-reading %%",
+      "%% a comment of the person's own %%"
     ].join("\n");
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, { added: [], changed: [{ url: "https://e.com/", highlights: 2 }] })
+    expect(
+      applyReadingList(text, {
+        added: [],
+        changed: [{ url: "https://e.com/a", highlights: 2 }]
+      })
+    ).toBe(
+      [
+        "Intro.",
+        `- [a](https://e.com/a) · 2026-10-21 · ${t().reading.highlights(2)}`,
+        `- [b](https://e.com/b) · 2026-10-20 · ${t().reading.highlights(1)}`,
+        "%% a comment of the person's own %%"
+      ].join("\n")
     );
-    expect(next).toBe(block(`- [a](https://e.com/) · 2026-10-21 · ${t().reading.highlights(2)}`));
   });
 
   it("adds a summary that is owed, and never replaces one that is there", () => {
@@ -388,16 +402,13 @@ describe("planReadingEdit", () => {
       ...renderEntry(entry({ ...at(1), highlights: 2 })),
       ...renderEntry(entry({ ...at(2), highlights: 1, summary: "Kept." }))
     );
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, {
-        added: [],
-        changed: [
-          { url: "https://example.com/1", highlights: 2, summary: "Added." },
-          { url: "https://example.com/2", highlights: 1, summary: "Ignored." }
-        ]
-      })
-    );
+    const next = applyReadingList(text, {
+      added: [],
+      changed: [
+        { url: "https://example.com/1", highlights: 2, summary: "Added." },
+        { url: "https://example.com/2", highlights: 1, summary: "Ignored." }
+      ]
+    });
     expect(next).toContain("  > Added.");
     expect(next).toContain("  > Kept.");
     expect(next).not.toContain("Ignored.");
@@ -409,18 +420,25 @@ describe("planReadingEdit", () => {
       ...renderEntry(entry(at(1))),
       "- My own words about it, link gone"
     );
-    const next = applyEdit(
-      text,
-      planReadingEdit(text, {
+    expect(
+      applyReadingList(text, {
         added: [],
         changed: [{ url: "https://example.com/1", highlights: 3 }]
       })
+    ).toBe(
+      block(
+        ...renderEntry(entry({ ...at(1), highlights: 3 })),
+        ...renderEntry(entry(at(1))),
+        "- My own words about it, link gone"
+      )
     );
-    expect(next.split("\n").slice(1, -1)).toEqual([
-      ...renderEntry(entry({ ...at(1), highlights: 3 })),
-      ...renderEntry(entry(at(1))),
-      "- My own words about it, link gone"
-    ]);
+  });
+
+  it("keeps a Windows line ending on a line it rewrites", () => {
+    const text = "- [a](https://e.com/) · 2026-10-21\r\nAfter\r\n";
+    expect(
+      applyReadingList(text, { added: [], changed: [{ url: "https://e.com/", highlights: 1 }] })
+    ).toBe(`- [a](https://e.com/) · 2026-10-21 · ${t().reading.highlights(1)}\r\nAfter\r\n`);
   });
 });
 
@@ -450,7 +468,7 @@ describe("applyReadingCheck and diffEdit", () => {
     const text = note(["Some text."]);
     const next = applyReadingCheck(text, { added: [entry()], changed: [] }, seconds);
     expect(next).toContain(`${READING_CHECKED_KEY}: 2026-10-21T12:00:00\n---`);
-    expect(next).toContain(block(renderEntry(entry())[0] ?? ""));
+    expect(next).toContain(`\n${renderEntry(entry())[0] ?? ""}\n`);
   });
 
   it("finds the one change between two texts", () => {

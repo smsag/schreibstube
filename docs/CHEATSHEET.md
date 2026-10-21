@@ -414,8 +414,8 @@ schreibstubeSyncEvery: Alle 2 Tage
 
 - HTTPS only, and the path must end in a Markdown extension.
 - `schreibstubeSyncEvery` reads German or English words (`täglich`, `every 6 hours`) or a cron line.
-- `schreibstubeReadingFrom: instapaper:archive` (or `instapaper:liked`) makes a reading history instead, newest
-  first, inside a `%% schreibstube-reading %%` block (**Update reading history**, `Lesehistorie aktualisieren`).
+- `schreibstubeReadingFrom: instapaper:archive` (or `instapaper:liked`) makes a reading history instead: lines
+  `- [Title](link) · YYYY-MM-DD`, newest on top (**Update reading history**, `Lesehistorie aktualisieren`).
 
 ## 11. Glossary
 
