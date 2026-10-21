@@ -145,8 +145,15 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * character, a scene's weather, a draft's mood — carried as font, which costs
  * about 180 bytes a glyph. A set that grows again by as much spends a third of
  * what is left.
+ *
+ * Raised to 1560 KB at 1556 KB, for the reading history (+17 KB on 1539): the
+ * Instapaper client and the reading of its answers, the block a reading note
+ * keeps its entries and its last check in, the one-line summaries of a
+ * reader's highlights, and their words in two languages — about 12 KB of code
+ * and 5 of text. The 1540 ceiling had been spent to 0.7 KB; as before, the
+ * raise is in the change that needs it, for the plugin's owner to agree to.
  */
-const MAX_BUNDLE_KB = 1540;
+const MAX_BUNDLE_KB = 1560;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.
