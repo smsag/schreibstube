@@ -1304,11 +1304,25 @@ export default class SchreibstubePlugin extends Plugin {
   /**
    * A `csvtable` block names its file by path, which Obsidian does not rewrite
    * on a rename; the other plugin's tables would show an error from then on.
+   * The notes are the person's and the block another plugin's, so the rewrite
+   * is offered, and the question waits until it is answered or pressed away.
    */
   private registerCsvTableSources(): void {
+    const words = t().explorer.csv;
     const follower = new CsvTableSourceFollower(
       this.app,
-      { updated: (notes) => new Notice(t().common.notice(t().explorer.csv.sourcesUpdated(notes))) },
+      {
+        ask: (notes, renamed, update) =>
+          showChoiceNotice(
+            t().common.notice(words.sourcesAsk(notes, renamed)),
+            [
+              { label: words.sourcesUpdate, run: update },
+              { label: words.sourcesLeave, run: () => undefined }
+            ],
+            0
+          ),
+        updated: (notes) => new Notice(t().common.notice(words.sourcesUpdated(notes)))
+      },
       this.logger
     );
     this.registerEvent(

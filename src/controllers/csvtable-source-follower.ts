@@ -5,13 +5,18 @@ import type { Logger } from "../services/logger";
 import { pathAfterMove } from "../services/path-follow";
 
 export interface CsvTableSourceHooks {
-  /** Notes were rewritten: say so, since nobody asked for the write. */
+  /**
+   * Notes would change: the block is another plugin's and the notes are the
+   * person's, so nothing is written until they say so. `update` is the yes.
+   */
+  ask(notes: number, renamed: string, update: () => void): void;
+  /** The notes the yes rewrote. */
   updated(notes: number): void;
 }
 
 /**
- * Rewrites the `source:` of `csvtable` blocks when a CSV file, or a folder
- * holding one, is renamed.
+ * Offers to rewrite the `source:` of `csvtable` blocks when a CSV file, or a
+ * folder holding one, is renamed.
  *
  * Wiring only; which line holds the path and how it is written back are
  * decided in `services/csvtable-source`.
@@ -32,21 +37,43 @@ export class CsvTableSourceFollower {
     if (moves.size === 0) return;
     const moved = (path: string) => moves.get(path) ?? null;
 
-    let notes = 0;
+    const notes: TFile[] = [];
     for (const note of this.app.vault.getMarkdownFiles()) {
       if (!this.mayHoldCode(note)) continue;
       try {
         const content = await this.app.vault.cachedRead(note);
-        if (!mentionsCsvTable(content) || retargetCsvTableSources(content, moved).changed === 0) {
-          continue;
+        if (mentionsCsvTable(content) && retargetCsvTableSources(content, moved).changed > 0) {
+          notes.push(note);
         }
-        await this.app.vault.process(note, (text) => retargetCsvTableSources(text, moved).text);
-        notes++;
+      } catch (error) {
+        this.logger.warn(`Could not read ${note.path} for its csvtable source:`, error);
+      }
+    }
+    if (notes.length === 0) return;
+    this.hooks.ask(notes.length, file.path, () => void this.update(notes, moved));
+  }
+
+  /**
+   * The notes found at the rename, rewritten as they stand at the yes: one may
+   * have been edited, moved or fixed by hand while the question waited.
+   */
+  private async update(notes: TFile[], moved: (path: string) => string | null): Promise<void> {
+    let updated = 0;
+    for (const note of notes) {
+      if (!this.app.vault.getAbstractFileByPath(note.path)) continue;
+      try {
+        let changed = 0;
+        await this.app.vault.process(note, (text) => {
+          const result = retargetCsvTableSources(text, moved);
+          changed = result.changed;
+          return result.text;
+        });
+        if (changed > 0) updated++;
       } catch (error) {
         this.logger.warn(`Could not update the csvtable source in ${note.path}:`, error);
       }
     }
-    if (notes > 0) this.hooks.updated(notes);
+    if (updated > 0) this.hooks.updated(updated);
   }
 
   /**

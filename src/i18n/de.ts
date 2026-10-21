@@ -1365,6 +1365,10 @@ export const de: Messages = {
       showTotals: "Summenzeile zeigen",
       hideTotals: "Summenzeile ausblenden",
       total: "Summe",
+      sourcesAsk: (notes: number, renamed: string) =>
+        `${notes} ${notes === 1 ? "Notiz zeigt" : "Notizen zeigen"} eine Tabelle aus ${renamed} unter dem alten Pfad. ${notes === 1 ? "Den csvtable-Block" : "Die csvtable-Blöcke"} anpassen?`,
+      sourcesUpdate: "Anpassen",
+      sourcesLeave: "So lassen",
       sourcesUpdated: (notes: number) =>
         `die csvtable-Quelle wurde in ${notes} ${notes === 1 ? "Notiz" : "Notizen"} angepasst.`
     },
