@@ -68,6 +68,9 @@ export class FakeItemView {
 
   registerEvent(_ref: unknown): void {}
   register(_cleanup: () => void): void {}
+  registerDomEvent(target: EventTarget, type: string, run: EventListener): void {
+    target.addEventListener(type, run);
+  }
   addAction(_icon: string, _title: string, _run: () => void): HTMLElement {
     return this.containerEl.createDiv();
   }
