@@ -48,8 +48,42 @@ describe("the default policy", () => {
     expect(DEFAULT_CSP).toContain(`'sha256-${hash}'`);
   });
 
+  it("allows the loader of every page a footer with a diagram is drawn on, tag pages included", async () => {
+    const body = "# Ablauf\n\nText.\n";
+    const footer = "```mermaid\ngraph TD; A-->B\n```\n";
+    const files = await buildSite(
+      {
+        siteTitle: "S",
+        headerTags: ["projekt"],
+        notes: [
+          {
+            sourcePath: "a.md",
+            sha256: sha256(body),
+            slug: "ablauf",
+            title: "Ablauf",
+            tags: ["projekt"]
+          },
+          { sourcePath: "f.md", sha256: sha256(footer), slug: "f", title: "F", footer: true }
+        ],
+        assets: []
+      },
+      new Map([
+        [sha256(body), body],
+        [sha256(footer), footer]
+      ])
+    );
+    const pages = ["index.html", "ablauf/index.html", "tag/projekt/index.html"];
+    for (const path of pages) {
+      const page = files.get(path).toString("utf8");
+      const inline = [...page.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((match) => match[1]);
+      expect(inline).toHaveLength(1);
+      const hash = createHash("sha256").update(inline[0], "utf8").digest("base64");
+      expect(DEFAULT_CSP, path).toContain(`'sha256-${hash}'`);
+    }
+  });
+
   it("loads scripts only from the site, and lets a note's pictures come from anywhere", () => {
-    expect(DEFAULT_CSP).toMatch(/script-src 'self'( 'sha256-[A-Za-z0-9+/=]+'){2};/);
+    expect(DEFAULT_CSP).toMatch(/script-src 'self'( 'sha256-[A-Za-z0-9+/=]+'){3};/);
     expect(DEFAULT_CSP).not.toContain("unsafe-eval");
     expect(DEFAULT_CSP).toContain("img-src 'self' data: https:");
     expect(DEFAULT_CSP).toContain("object-src 'none'");

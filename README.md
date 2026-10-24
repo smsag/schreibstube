@@ -245,16 +245,16 @@ Obsidian's **Add property** adds one key. A property set adds all the keys a job
 
 Schreibstube's own features come as sets, built from the keys each one reads, so a set cannot fall behind the feature:
 
-| Set                      | Keys                                                                                              |
-| ------------------------ | ------------------------------------------------------------------------------------------------- |
-| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                                         |
-| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                                 |
-| Print                    | `schreibstubePrintTemplate`                                                                       |
-| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity`               |
-| Glossaries for this note | `schreibstubeGlossaries`                                                                          |
-| Publish                  | `published: false`, `title`, `date`, `description`, `slug`, `lang`, `publishedAt`, `publishedUrl` |
-| Website start page       | `published: false`, `title`, `description`, `lang`, `schreibstubeHome: marketing`                 |
-| Website footer           | `published: false`, `schreibstubeFooter: true`                                                    |
+| Set                      | Keys                                                                                                                  |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| Mail                     | `schreibstubeTo`, `schreibstubeCc`, `schreibstubeSubject`                                                             |
+| Document sync            | `schreibstubeSyncedFrom`, `schreibstubeSyncEvery`                                                                     |
+| Print                    | `schreibstubePrintTemplate`                                                                                           |
+| Glossary note            | `schreibstubeGlossary: true`, `schreibstubeLanguage`, `schreibstubeDefaultSeverity`                                   |
+| Glossaries for this note | `schreibstubeGlossaries`                                                                                              |
+| Publish                  | `published: false`, `title`, `date`, `description`, `slug`, `schreibstubePageLanguage`, `publishedAt`, `publishedUrl` |
+| Website start page       | `published: false`, `title`, `description`, `schreibstubePageLanguage`, `schreibstubeHome: marketing`                 |
+| Website footer           | `published: false`, `schreibstubeFooter: true`                                                                        |
 
 The Publish set adds every key publishing uses, under the names mapped under **Frontmatter-Felder** in the publish settings, so it adds `veroeffentlicht` where that is what your notes carry. The flag starts unticked: the set prepares the note, and ticking the flag is what puts it on the website at the next **Ordner veröffentlichen**. `publishedAt` and `publishedUrl` start empty and are filled in by the publish run. The two website sets prepare a front page and a footer the same way, under the same mapped names; adding `schreibstubeHome` or `schreibstubeFooter` by hand offers the rest of its set (see **Two kinds of site** under publishing).
 
@@ -511,7 +511,7 @@ title: Hallo Welt # default: the first heading, else the filename
 date: 2026-09-12 # default: the file's creation date
 description: Kurzfassung # optional; page head and index entry; written by the AI when empty
 slug: hallo-welt # default: from the filename; never `s`, which shared links live under
-lang: de # optional; the page's language, when it differs from the site's
+schreibstubePageLanguage: de # optional; the page's language, when it differs from the site's
 publishedAt: … # written back after publishing
 publishedUrl: … # written back after publishing
 ---
@@ -519,7 +519,7 @@ publishedUrl: … # written back after publishing
 
 **A missing description is written by the AI.** When a note is published with no `description`, or an empty one, the AI provider from the AI settings writes a sentence or two about it, the page goes out with it, and it is written into the note, where you can change it. A description with anything in it, a single space included, is yours: it is published as it is and the AI is never asked, so `description: " "` publishes a page without one. The descriptions are written after you confirm the plan, a few at a time; a note the AI does not answer for within 20 seconds is published without one, the notice says how many, and the next publish asks again. Each account can switch this off under **Fehlende Beschreibungen per KI schreiben**; without an AI key nothing is asked.
 
-**The key names are settings.** The defaults are the plain names most vaults already use. If yours calls these fields something else, or another plugin has claimed one of the names, map each role to the key you use under **Frontmatter-Felder** in the publish settings. A configured key replaces the default rather than adding to it, so notes still carrying the old name stop being recognised.
+**The key names are settings.** The defaults are the plain names most vaults already use, except the page's language: `lang` is written by other tools for their own ends, so Schreibstube reads `schreibstubePageLanguage` until you map the role to `lang`. If yours calls these fields something else, or another plugin has claimed one of the names, map each role to the key you use under **Frontmatter-Felder** in the publish settings. A configured key replaces the default rather than adding to it, so notes still carrying the old name stop being recognised.
 
 ```yaml
 ---
@@ -560,7 +560,7 @@ description: Kurzfassung für den Index und Suchmaschinen
 published: true
 title: Karussell – the Space switcher for Mac
 description: Every Space one glance and one keystroke away.
-lang: en
+schreibstubePageLanguage: en
 schreibstubeHome: marketing # list: this text, then every note, newest first
 ---
 Hold ⌥, tap Tab, and see every Space before you switch.
@@ -580,12 +580,12 @@ schreibstubeFooter: true
 ```
 
 - **The start page** (`schreibstubeHome`) is the site's `index.html`, under its note's title and description and without a date; every link to it leads to the site's root. `marketing` shows the note alone; `list` shows its text with every other note beneath it, newest first. Any other value leaves the note an ordinary page. Taking the property away brings the plain list back and gives the note its own page again.
-- **The footer** (`schreibstubeFooter: true`) is drawn at the foot of every page, start page, notes and tag pages alike. Its links work from every page. It has no page of its own, is left out of every list, and a link to it is plain text. The footer is not written back with a `publishedUrl`, since it has no address.
-- **Only one of each.** Two start pages, two footers, or one note that is both stop the publish before anything is uploaded, naming the notes.
-- **The language of the pages** is set per account under **Sprache der Seiten** (a language tag such as `en`, `de` or `en-GB`; empty is German, as before). A note says otherwise with `lang: de`, the key mapped under **Frontmatter-Felder**, so an English site can carry a German imprint. The language goes into each page's `<html lang>`, and the few words the bridge writes itself (the tag links' label, "nothing published yet") and the dates follow it: `12.09.2026` on a German page, `2026-09-12` on any other.
-- **A video plays by itself** when its embed says so, where a picture's alt text would go: `![[clip.mp4|loop]]` plays it silently over and over, `![[clip.mp4|autoplay]]` once, `![[clip.mp4|muted]]` silently on a click; a size still follows, as in `![[clip.mp4|loop|640]]`, and `![loop](clip.mp4)` works too. A browser starts a video by itself only when it is silent, so `loop` and `autoplay` mute it. The controls stay, so a moving picture can always be stopped.
+- **The footer** (`schreibstubeFooter: true`) is drawn at the foot of every page, start page, notes and tag pages alike. Its links work from every page. It has no page of its own, is left out of every list, and a link to it is plain text; it may even share its slug with a page. The footer is not written back with a `publishedUrl`, since it has no address, and the one it had as a page before is removed. The AI writes it no description, since a footer has nowhere to show one. Its footnotes and headings keep their own anchors, so they never lead into the page above them.
+- **Only one of each.** Two start pages, two footers, or one note that is both stop the publish before anything is uploaded, naming the notes. Neither the start page nor the footer takes its slug's address, so a page may have the same slug.
+- **The language of the pages** is set per account under **Sprache der Seiten** (a language tag such as `en`, `de` or `en-GB`; empty is German, as before). The field is saved when you leave it, and a word that is no tag, such as `Deutsch`, is refused with a notice rather than kept in part. A note says otherwise with `schreibstubePageLanguage: de`, the key mapped under **Frontmatter-Felder**, so an English site can carry a German imprint. The language goes into each page's `<html lang>`, and the few words the bridge writes itself — the tag links' label, "nothing published yet", a slideshow's labels and controls, a note index's summary — and the dates follow it: German words and `12.09.2026` on a German page, English words and `2026-09-12` on any other. A footer in another language than its page says so to a screen reader.
+- **A video plays by itself** when its embed says so, where a picture's alt text would go: `![[clip.mp4|loop]]` plays it silently over and over, `![[clip.mp4|autoplay]]` once, `![[clip.mp4|muted]]` silently on a click; the words combine, as in `![[clip.mp4|autoplay|muted]]`, a size still follows, as in `![[clip.mp4|loop|640]]`, and `![loop](clip.mp4)` works too. Only these words count, and only when they are all there is: `![[clip.mp4|The feedback loop explained]]` is a caption, and the video waits for a click. A browser starts a video by itself only when it is silent, so `loop` and `autoplay` mute it. The controls stay, so a moving picture can always be stopped.
 
-All of this needs bridge 3.5.0 (protocol 10) or later.
+All of this needs bridge 3.5.0 (protocol 10) or later. An older bridge would drop it without a word and publish another site — the start note as one more page, the footer as another — so a folder that uses any of it is not published there, and the notice says to redeploy the bridge.
 
 What the bridge does and the plugin does not: rendering the Markdown, holding the SFTP credentials, and deciding what may be deleted. Only files the bridge itself wrote are ever removed, and the hosting key never enters the vault. See [`bridge/README.md`](bridge/README.md).
 

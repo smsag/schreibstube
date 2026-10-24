@@ -9,6 +9,16 @@
  * runs the bridge, whatever locale data it happens to carry.
  */
 import { escapeHtml } from "./obsidian.mjs";
+import { noteHref } from "../path.mjs";
+import { DEFAULT_LANGUAGE, isGerman } from "./language.mjs";
+
+/**
+ * How far each kind of page sits below the site's root, as the `up` that
+ * leads back: the start page and the list at the root, a note one level
+ * down, a tag page two. The content security policy allows the diagram
+ * loader for each of them, so every template takes its depth from here.
+ */
+export const PAGE_DEPTHS = Object.freeze({ root: "", note: "../", tag: "../../" });
 
 export function notePage({
   note,
@@ -24,9 +34,8 @@ export function notePage({
   footer = null
 }) {
   // A note is served from <slug>/index.html, so everything shared is one level up.
-  const up = "../";
   return page({
-    up,
+    up: PAGE_DEPTHS.note,
     lang,
     footer,
     title: `${note.title} — ${siteTitle}`,
@@ -38,14 +47,7 @@ export function notePage({
     usedMermaid,
     usedSlideshow,
     hasIndex,
-    main:
-      `<article>\n` +
-      // A note that opens with its own heading already says its title; adding
-      // the template's would print it twice.
-      (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
-      metaLine(note.date, lang) +
-      body +
-      `</article>\n`
+    main: article(note, body, metaLine(note.date, lang))
   });
 }
 
@@ -58,7 +60,7 @@ export function indexPage({
   footer = null
 }) {
   return page({
-    up: "",
+    up: PAGE_DEPTHS.root,
     lang,
     footer,
     title: siteTitle,
@@ -71,7 +73,7 @@ export function indexPage({
     hasIndex: false,
     main:
       notes.length > 0
-        ? `<ul class="index">\n${listEntries(notes, "", lang)}\n</ul>\n`
+        ? `<ul class="index">\n${listEntries(notes, PAGE_DEPTHS.root, lang)}\n</ul>\n`
         : `<p class="empty">${words(lang).empty}</p>\n`
   });
 }
@@ -96,7 +98,7 @@ export function homePage({
   footer = null
 }) {
   return page({
-    up: "",
+    up: PAGE_DEPTHS.root,
     lang,
     footer,
     title: note.title,
@@ -109,12 +111,26 @@ export function homePage({
     usedSlideshow,
     hasIndex: false,
     main:
-      `<article>\n` +
-      (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
-      body +
-      `</article>\n` +
-      (list.length > 0 ? `<ul class="index">\n${listEntries(list, "", lang)}\n</ul>\n` : "")
+      article(note, body) +
+      (list.length > 0
+        ? `<ul class="index">\n${listEntries(list, PAGE_DEPTHS.root, lang)}\n</ul>\n`
+        : "")
   });
+}
+
+/**
+ * A note's text as a page carries it, under the note's title unless the text
+ * opens with a heading of its own, which would print the title twice. `meta`
+ * is the date line, where the page has one.
+ */
+function article(note, body, meta = "") {
+  return (
+    `<article>\n` +
+    (/^\s*<h1[\s>]/.test(body) ? "" : `<h1>${escapeHtml(note.title)}</h1>\n`) +
+    meta +
+    body +
+    `</article>\n`
+  );
 }
 
 /**
@@ -129,7 +145,7 @@ export function tagPage({
   lang = DEFAULT_LANGUAGE,
   footer = null
 }) {
-  const up = "../../";
+  const up = PAGE_DEPTHS.tag;
   return page({
     up,
     lang,
@@ -154,8 +170,7 @@ function listEntries(notes, up, lang) {
     .map(
       (note) =>
         `<li>\n` +
-        // The start page is the root, wherever else its note would have been.
-        `<a class="entry" href="${note.home ? up || "./" : `${up}${escapeHtml(note.slug)}/`}">${escapeHtml(note.title)}</a>\n` +
+        `<a class="entry" href="${escapeHtml(noteHref(note, up))}">${escapeHtml(note.title)}</a>\n` +
         metaLine(note.date, lang) +
         (note.description ? `<p class="summary">${escapeHtml(note.description)}</p>\n` : "") +
         `</li>`
@@ -230,12 +245,21 @@ function page({
     `<body>\n` +
     `<header class="site">${hasIndex ? `<a href="${up}">${escapeHtml(siteTitle)}</a>` : escapeHtml(siteTitle)}${headerTags(nav, up, current, lang)}</header>\n` +
     `<main>\n${main}</main>\n` +
-    (footer ? `<footer class="site">\n${footer.html}</footer>\n` : "") +
+    (footer ? footerTag(footer, lang) : "") +
     scripts +
     slideshowScript +
     `</body>\n` +
     `</html>\n`
   );
+}
+
+/**
+ * The footer note beneath the page's content. Its text is in its own
+ * language, which a screen reader is told where it is not the page's.
+ */
+function footerTag(footer, lang) {
+  const own = footer.lang && footer.lang !== lang ? ` lang="${escapeHtml(footer.lang)}"` : "";
+  return `<footer class="site"${own}>\n${footer.html}</footer>\n`;
 }
 
 /**
@@ -293,13 +317,6 @@ export function formatDate(value, lang = DEFAULT_LANGUAGE) {
   return isGerman(lang)
     ? `${match[3]}.${match[2]}.${match[1]}`
     : `${match[1]}-${match[2]}-${match[3]}`;
-}
-
-/** The language a page is in when nothing says otherwise: what it always was. */
-export const DEFAULT_LANGUAGE = "de";
-
-function isGerman(lang) {
-  return /^de(-|$)/i.test(String(lang));
 }
 
 /** The few words the templates write themselves, in German or else English. */

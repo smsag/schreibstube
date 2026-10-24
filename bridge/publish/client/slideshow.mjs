@@ -21,6 +21,24 @@ export const LABELS = {
   showImage: (n) => `Bild ${n} anzeigen`
 };
 
+export const ENGLISH_LABELS = {
+  previous: "Previous image",
+  next: "Next image",
+  fullscreen: "Present fullscreen",
+  exit: "Exit presentation",
+  compareHandle: "Move the divider",
+  showImage: (n) => `Show image ${n}`
+};
+
+/**
+ * The controls' words for a block in this language: German on a German page,
+ * as the bridge writes it, English on any other. Read from the block's
+ * nearest `lang`, so a slideshow in a footer of another language speaks that.
+ */
+export function labelsFor(lang) {
+  return /^de(-|$)/i.test(String(lang ?? "de")) ? LABELS : ENGLISH_LABELS;
+}
+
 /** Where the divider stands before anyone moves it, in percent. */
 export const DEFAULT_COMPARE_SPLIT = 50;
 
@@ -178,7 +196,7 @@ function prefersReducedMotion(win) {
  * and a way out by the ✕, Escape, a press beside the picture or — on a phone —
  * a swipe down.
  */
-function fullscreen(doc, images) {
+function fullscreen(doc, images, labels) {
   let dialog = null;
   let current = 0;
   let img;
@@ -194,16 +212,16 @@ function fullscreen(doc, images) {
   const build = () => {
     dialog = doc.createElement("dialog");
     dialog.className = "slideshow-fs";
-    dialog.setAttribute("aria-label", LABELS.fullscreen);
+    dialog.setAttribute("aria-label", labels.fullscreen);
 
     img = doc.createElement("img");
     img.className = "slideshow-fs-img";
     counter = doc.createElement("div");
     counter.className = "slideshow-fs-counter";
 
-    const prev = button(doc, "slideshow-fs-control slideshow-fs-prev", LABELS.previous, "previous");
-    const next = button(doc, "slideshow-fs-control slideshow-fs-next", LABELS.next, "next");
-    const close = button(doc, "slideshow-fs-control slideshow-fs-close", LABELS.exit, "close");
+    const prev = button(doc, "slideshow-fs-control slideshow-fs-prev", labels.previous, "previous");
+    const next = button(doc, "slideshow-fs-control slideshow-fs-next", labels.next, "next");
+    const close = button(doc, "slideshow-fs-control slideshow-fs-close", labels.exit, "close");
     prev.addEventListener("click", () => show(current - 1));
     next.addEventListener("click", () => show(current + 1));
     close.addEventListener("click", () => hide());
@@ -268,14 +286,14 @@ function header(doc, figure, controls) {
   return caption;
 }
 
-function stage(doc, win, figure, items, images, view) {
+function stage(doc, win, figure, items, images, view, labels) {
   const track = figure.querySelector(".slideshow-items");
   let current = 0;
   let thumbs = [];
 
-  const expand = button(doc, "slideshow-control", LABELS.fullscreen, "expand");
-  const prev = button(doc, "slideshow-control", LABELS.previous, "previous");
-  const next = button(doc, "slideshow-control", LABELS.next, "next");
+  const expand = button(doc, "slideshow-control", labels.fullscreen, "expand");
+  const prev = button(doc, "slideshow-control", labels.previous, "previous");
+  const next = button(doc, "slideshow-control", labels.next, "next");
   const caption = header(doc, figure, [expand, prev, next]);
 
   const mark = (index) => {
@@ -329,7 +347,7 @@ function stage(doc, win, figure, items, images, view) {
       thumb.className = "slideshow-thumb";
       thumb.setAttribute(
         "aria-label",
-        image.alt ? `${LABELS.showImage(index + 1)}: ${image.alt}` : LABELS.showImage(index + 1)
+        image.alt ? `${labels.showImage(index + 1)}: ${image.alt}` : labels.showImage(index + 1)
       );
       const img = doc.createElement("img");
       img.src = image.thumbnail || image.src;
@@ -371,11 +389,11 @@ function stage(doc, win, figure, items, images, view) {
   mark(0);
 }
 
-function feature(doc, figure, items, images, view) {
+function feature(doc, figure, items, images, view, labels) {
   let active = 0;
-  const expand = button(doc, "slideshow-control", LABELS.fullscreen, "expand");
-  const prev = button(doc, "slideshow-control", LABELS.previous, "previous");
-  const next = button(doc, "slideshow-control", LABELS.next, "next");
+  const expand = button(doc, "slideshow-control", labels.fullscreen, "expand");
+  const prev = button(doc, "slideshow-control", labels.previous, "previous");
+  const next = button(doc, "slideshow-control", labels.next, "next");
   const caption = header(doc, figure, [expand, prev, next]);
   const slots = items.map((item) => item.querySelector("img"));
   let shown = [];
@@ -385,7 +403,7 @@ function feature(doc, figure, items, images, view) {
     shown.forEach((index, slot) => {
       slots[slot].src = images[index].src;
       slots[slot].alt = images[index].alt;
-      const label = slot === 0 ? LABELS.fullscreen : LABELS.showImage(index + 1);
+      const label = slot === 0 ? labels.fullscreen : labels.showImage(index + 1);
       items[slot].setAttribute(
         "aria-label",
         images[index].alt ? `${label}: ${images[index].alt}` : label
@@ -416,9 +434,9 @@ function feature(doc, figure, items, images, view) {
   draw();
 }
 
-function tiles(doc, figure, items, images, view) {
+function tiles(doc, figure, items, images, view, labels) {
   let last = 0;
-  const expand = button(doc, "slideshow-control", LABELS.fullscreen, "expand");
+  const expand = button(doc, "slideshow-control", labels.fullscreen, "expand");
   const caption = header(doc, figure, [expand]);
   const name = (index) => {
     last = index;
@@ -426,7 +444,7 @@ function tiles(doc, figure, items, images, view) {
   };
 
   items.forEach((item, index) => {
-    const label = LABELS.showImage(index + 1);
+    const label = labels.showImage(index + 1);
     makeTile(item, images[index].alt ? `${label}: ${images[index].alt}` : label, () =>
       view.open(index)
     );
@@ -436,11 +454,11 @@ function tiles(doc, figure, items, images, view) {
   expand.addEventListener("click", () => view.open(last));
 }
 
-function compare(doc, figure, items, view) {
+function compare(doc, figure, items, view, labels) {
   const frame = figure.querySelector(".slideshow-items");
   let split = DEFAULT_COMPARE_SPLIT;
 
-  const expand = button(doc, "slideshow-control", LABELS.fullscreen, "expand");
+  const expand = button(doc, "slideshow-control", labels.fullscreen, "expand");
   header(doc, figure, [expand]);
   expand.addEventListener("click", () => view.open(0));
 
@@ -448,7 +466,7 @@ function compare(doc, figure, items, view) {
   handle.type = "button";
   handle.className = "slideshow-compare-handle";
   handle.setAttribute("role", "slider");
-  handle.setAttribute("aria-label", LABELS.compareHandle);
+  handle.setAttribute("aria-label", labels.compareHandle);
   handle.setAttribute("aria-valuemin", "0");
   handle.setAttribute("aria-valuemax", "100");
   const knob = doc.createElement("span");
@@ -521,21 +539,22 @@ export function enhance(figure, doc = figure.ownerDocument, win = doc.defaultVie
 
   figure.classList.add("is-enhanced");
   figure.setAttribute("tabindex", "0");
-  const view = fullscreen(doc, images);
+  const labels = labelsFor(figure.closest("[lang]")?.getAttribute("lang"));
+  const view = fullscreen(doc, images, labels);
 
   switch (figure.dataset.layout) {
     case "slideshow":
     case "filmstrip":
-      stage(doc, win, figure, items, images, view);
+      stage(doc, win, figure, items, images, view, labels);
       break;
     case "feature":
-      feature(doc, figure, items, images, view);
+      feature(doc, figure, items, images, view, labels);
       break;
     case "compare":
-      compare(doc, figure, items, view);
+      compare(doc, figure, items, view, labels);
       break;
     default:
-      tiles(doc, figure, items, images, view);
+      tiles(doc, figure, items, images, view, labels);
   }
 }
 

@@ -21,6 +21,26 @@ import {
  */
 export const PROTOCOL_VERSION = 10;
 
+/** The protocol that brought the start page, the footer and a page's language. */
+export const SITE_PAGES_PROTOCOL = 10;
+
+/**
+ * The oldest protocol that reads what this index says about the site's pages.
+ *
+ * A bridge drops a field it does not know without a word. For the start page,
+ * the footer and the language that is another site, not a smaller one: the
+ * start note becomes one more page, the footer another, every page German.
+ * A header tag an older bridge drops only leaves the header as it was, so
+ * older fields ask for nothing here.
+ */
+export function protocolNeeded(index: PublishIndex): number {
+  const sitePages =
+    index.homeList !== undefined ||
+    index.language !== undefined ||
+    index.notes.some((note) => note.home || note.footer || note.language !== undefined);
+  return sitePages ? SITE_PAGES_PROTOCOL : 1;
+}
+
 /** Plan, targets, diagnostics: a manifest read and a listing. */
 export const PUBLISH_REQUEST_TIMEOUT_MS = 120_000;
 

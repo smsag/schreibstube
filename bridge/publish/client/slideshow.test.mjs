@@ -114,6 +114,20 @@ describe("the stage", () => {
     expect(controls(figure).map(label)).toEqual(["Vollbild", "Voriges Bild", "Nächstes Bild"]);
   });
 
+  it("names its controls in English on a page in another language", () => {
+    document.documentElement.lang = "en";
+    try {
+      const figure = mount(four);
+      expect(controls(figure).map(label)).toEqual([
+        "Present fullscreen",
+        "Previous image",
+        "Next image"
+      ]);
+    } finally {
+      document.documentElement.removeAttribute("lang");
+    }
+  });
+
   it("scrolls to the next picture, and round from the last to the first", () => {
     const figure = mount(four);
     const track = figure.querySelector(".slideshow-items");

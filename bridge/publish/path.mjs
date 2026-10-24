@@ -185,6 +185,33 @@ export function pagePath(slug) {
 }
 
 /**
+ * Whether a note is a page at its slug. The start page's note is the site's
+ * `index.html` instead, and the footer is part of every page and none, so
+ * neither claims its slug's address.
+ */
+export function hasOwnPage(note) {
+  return !note.home && !note.footer;
+}
+
+/**
+ * Whether a note is listed: on the start page, on a tag page, in what makes a
+ * tag page worth having. Every note but the footer, which has no page to
+ * lead to.
+ */
+export function isListed(note) {
+  return !note.footer;
+}
+
+/**
+ * Where a link to a note leads from a page `up` below the site's root: the
+ * root itself for the start page, the slug's directory for any other note.
+ * Not escaped; the caller writes it where it goes.
+ */
+export function noteHref(note, up) {
+  return note.home ? up || "./" : `${up}${note.slug}/`;
+}
+
+/**
  * Validate a path the bridge is about to write, relative to a target root.
  *
  * Rejects anything that could leave the root, anything that could confuse a

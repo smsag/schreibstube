@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+A website can have a front page. One note in the publish folder says which
+kind of site it is — `schreibstubeHome: list` for a blog with an introduction
+above the list, `schreibstubeHome: marketing` for a page of a product or a
+person that stands alone — and another, `schreibstubeFooter: true`, is drawn
+at the foot of every page. Each account names the language of its pages, a
+note may say its own, and a video plays by itself when its embed says `loop`
+or `autoplay`.
+
+Mobile checklist: not run. What to try first: publish a folder with a
+`schreibstubeHome: marketing` note and a footer note from a phone, and open
+the start page, a note and a tag page; the footer should be under each, with
+working links. Then type `Deutsch` into **Sprache der Seiten** and leave the
+field; it should be refused with a notice.
+
+The bridge moves from 3.4.0 to 3.5.0 and the protocol from 9 to 10. A site
+that uses a start page, a footer or a language is not published through an
+older bridge; the notice says to redeploy it. The render version moves to
+10, so every page is drawn again on the next publish.
+
+### Added
+
+- **A start page.** A note with `schreibstubeHome: marketing` is the site's start page, alone; with `schreibstubeHome: list` its text comes first and every other note follows, newest first. It is served at the site's root under its own title and description, without a date, and every link to it leads there. A note that had its own page before loses it at the next publish, and taking the property away gives it back. The start page takes no address of its own, so another note may have its slug.
+- **A footer on every page.** A note with `schreibstubeFooter: true` is drawn beneath the start page, every note and every tag page, with links that work from each. It has no page of its own and is in no list, a link to it is plain text, and its footnotes and headings keep their own anchors, so they never lead into the page above. It gets no AI description, and the address it had as a page is removed from it at the next publish.
+- **The language of the pages.** **Sprache der Seiten** in each account takes a language tag such as `en` or `en-GB`; empty is German, as before. A note says otherwise with `schreibstubePageLanguage`, which the frontmatter fields can map to `lang` where notes already say it. The page's language goes into its `<html lang>`, and the words the site writes itself — the tag links' label, the empty list, a slideshow's labels and controls, a note index's summary — and the dates follow it: German and `12.09.2026` on a German page, English and `2026-09-12` on any other. The field is saved when you leave it; a word that is no language tag is refused with a notice.
+- **Videos that play by themselves.** `![[clip.mp4|loop]]` plays a video silently over and over, `![[clip.mp4|autoplay]]` once, `![[clip.mp4|muted]]` silently on a click; the words combine with `|`, a size may follow, and `![loop](clip.mp4)` works too. Only these words count, and only alone: a caption that happens to hold one of them stays a caption. The controls always stay.
+- **Two property sets for a website.** **Website start page** adds what a front page needs, marked as a marketing start page; **Website footer** adds the footer's two keys.
+
 ## 1.88.2 - 2026-10-21
 
 An icon that is a link's words follows its link in Live Preview. Clicking

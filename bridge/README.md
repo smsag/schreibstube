@@ -29,7 +29,7 @@ route that does not exist yet.
 
 | Bridge | Protocol | Plugin          | Notes                                                                                                |
 | ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
-| 3.5.x  | 10       | 1.8.0 and later | Start page, footer note, page language, playing videos; render version 9; see Start page             |
+| 3.5.x  | 10       | 1.8.0 and later | Start page, footer note, page language, playing videos; render version 10; see Start page            |
 | 3.4.x  | 9        | 1.8.0 and later | `:folder:` in a link's words and in the index is drawn as the icon; render version 8                 |
 | 3.3.x  | 9        | 1.8.0 and later | A shared link's address is two words (and a number without a password); no-index and no-AI signals   |
 | 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links    |
@@ -388,32 +388,43 @@ as on the list. Its links and pictures are resolved from the site's root, and
 every link to it leads there (`../` from a note page, `../../` from a tag
 page). With `homeList: true` the other notes follow its text, listed as the
 list lists them. A page the note had under its slug before is planned for
-deletion, like any page no note claims. The content security policy names the
-diagram loader of both depths, so a start page may hold a Mermaid diagram. A
-protocol-9 plugin sends neither field, and the start page is the list.
+deletion, like any page no note claims. The note takes no address of its own,
+so its slug may be another note's, and even `s`. The content security policy
+names the diagram loader of every depth a page sits at (the root, a note, a
+tag page), so a diagram may be anywhere, the footer included. A protocol-9
+plugin sends neither field, and the start page is the list.
 
 ### Footer, language and video
 
 A note may carry `footer: true` (at most one, never with `home`): it is drawn
 in a `<footer class="site">` beneath the content of every page, rendered once
 for each depth a page sits at so its links work from all of them. It has no
-page of its own, is in no list or tag page, and a link to it is plain text; a
-page it had before is planned for deletion. What it needs (KaTeX, Mermaid, a
-slideshow) is loaded on every page.
+page of its own and takes no address, is in no list or tag page, and a link to
+it is plain text; a page it had before is planned for deletion. What it needs
+(KaTeX, Mermaid, a slideshow) is loaded on every page. Its ids are its own, so
+they cannot meet the page's: its footnotes are `fn-footer-1`, its headings
+`footer--kontakt`, which no heading's slug can be. In another language than the
+page it carries its own `lang`.
 
 The index may carry `language` and a note `language`, each a language tag
 (`de`, `en-GB`; anything else is refused, since the value lands in an
 attribute). A page is in its note's language, else the site's, else German as
 before; index and tag pages are in the site's. The page's `<html lang>`, the
-tag links' label, the empty list's sentence and the dates follow it:
-`12.09.2026` in German, `2026-09-12` otherwise.
+tag links' label, the empty list's sentence, a slideshow's region label and
+its script's controls, a note index's summary and the dates follow it: German
+words and `12.09.2026` on a German page, English words and `2026-09-12` on any
+other. `contracts/language-cases.json` holds the tags both sides accept, and
+the English words are in the slideshow and index contracts beside the German.
 
 A video embed reads the words where a picture's alt text goes: `loop` adds
 `autoplay muted loop playsinline`, `autoplay` adds `autoplay muted
 playsinline`, `muted` adds `muted`; a video that plays by itself preloads
-fully. The controls always stay, since moving content longer than five
-seconds must be stoppable. That changed the output of some sources, so the
-render version is 9.
+fully. The words may be separated by `|`, commas or spaces, and count only
+when nothing else is there: a video's alt text was ignored before, so a
+caption that happens to hold `loop` stays a caption. The controls always
+stay, since moving content longer than five seconds must be stoppable. That
+changed the output of some sources, and so did the footer's ids, so the
+render version is 10.
 
 A theme may name the site's **tab icon**:
 `--site-icon: url("data:image/svg+xml,…")` anywhere in `theme.css` (a PNG as

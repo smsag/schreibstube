@@ -139,24 +139,32 @@ function applySize(token, { width, height }) {
   if (height) token.attrSet("height", String(height));
 }
 
+/** The words that say how a video plays. */
+const PLAYBACK_WORDS = new Set(["loop", "autoplay", "muted"]);
+
 /**
  * How a video plays, from the words written where a picture's alt text goes:
- * `![[clip.mp4|loop]]`, `![[clip.mp4|autoplay|640]]`, `![loop](clip.mp4)`.
+ * `![[clip.mp4|loop]]`, `![[clip.mp4|autoplay|muted|640]]`, `![loop](clip.mp4)`.
  * `loop` plays it over and over from the start, `autoplay` starts it once,
  * `muted` silences it. A browser starts a video by itself only when it is
- * silent, so playing by itself implies muted. Other words are ignored, as
- * they always were on a video.
+ * silent, so playing by itself implies muted.
+ *
+ * The words count only when they are all there is, apart from `|`, commas and
+ * spaces between them. A video's alt text used to be ignored, so a caption
+ * that happens to hold one of them — "the feedback loop, explained" — is a
+ * caption, and the video waits for a click as it always did.
  */
 export function videoPlayback(text) {
-  const words = new Set(
-    String(text ?? "")
-      .toLowerCase()
-      .split(/[\s,]+/)
-      .filter(Boolean)
-  );
-  const loop = words.has("loop");
-  const autoplay = loop || words.has("autoplay");
-  return { loop, autoplay, muted: autoplay || words.has("muted") };
+  const words = String(text ?? "")
+    .toLowerCase()
+    .split(/[\s,|]+/)
+    .filter(Boolean);
+  if (words.length === 0 || words.some((word) => !PLAYBACK_WORDS.has(word))) {
+    return { loop: false, autoplay: false, muted: false };
+  }
+  const loop = words.includes("loop");
+  const autoplay = loop || words.includes("autoplay");
+  return { loop, autoplay, muted: autoplay || words.includes("muted") };
 }
 
 // The controls stay on a video that plays by itself: moving content that runs
@@ -399,11 +407,13 @@ function overrideFence(md, allowDiagrams) {
       // A slideshow line may wrap its path in angle brackets, which the
       // Markdown parser would have taken off an ordinary image.
       const resolve = (src) => findAsset(site, /^<(.+)>$/.exec(src)?.[1] ?? src, notePath);
-      const rendered = renderSlideshow(tokens[index].content, resolve);
+      const rendered = renderSlideshow(tokens[index].content, resolve, env?.lang);
       if (rendered.slideshow) env.usedSlideshow = true;
       return rendered.html;
     }
-    if (info === NOTE_INDEX_LANGUAGE) return renderNoteIndex(tokens[index].content, tokens);
+    if (info === NOTE_INDEX_LANGUAGE) {
+      return renderNoteIndex(tokens[index].content, tokens, env?.lang);
+    }
     if (info === "mermaid" && allowDiagrams) {
       env.usedMermaid = true;
       return `<pre class="mermaid">${escapeHtml(tokens[index].content)}</pre>\n`;

@@ -18,6 +18,7 @@ import {
 import {
   PROTOCOL_VERSION,
   isEmptyPlan,
+  protocolNeeded,
   type PublishAsset,
   type PublishBridgeConfig,
   type PublishIndex,
@@ -96,11 +97,11 @@ import type { FreezeEntry } from "../services/table-formulas";
 export class PublishCommands {
   private busy = false;
   /**
-   * The bridges whose version this session has checked, by URL: once per
-   * session for each, and a bridge the settings switch to mid-session is a
-   * new one to ask.
+   * The protocol each bridge this session has checked said it speaks, by URL,
+   * null when it could not say. A bridge the settings switch to mid-session
+   * is a new one to ask.
    */
-  private readonly handshaken = new Set<string>();
+  private readonly handshaken = new Map<string, number | null>();
   private readonly diagrams: DiagramCapture;
   /** Canvases drawn for an earlier publish in this session, by content. */
   private readonly drawn = new DrawnDiagrams();
@@ -361,9 +362,15 @@ export class PublishCommands {
     if (!bridge) return null;
 
     try {
-      await this.checkBridgeVersion(bridge);
+      const protocol = await this.checkBridgeVersion(bridge);
       const collected = await this.collect(account);
       if (!collected) return null;
+
+      const needed = protocolNeeded(collected.index);
+      if (protocol !== null && protocol < needed) {
+        new Notice(t().common.notice(t().publish.bridgeTooOld(protocol, needed)));
+        return null;
+      }
 
       const plan = await planPublish(bridge, account.target, collected.index);
       this.logger.debug("Publish plan.", plan);
@@ -447,7 +454,6 @@ export class PublishCommands {
     const sources = new Map<string, ArrayBuffer>();
     const assets = new Map<string, CollectedAsset>();
     const assetEntries: PublishAsset[] = [];
-    const resolved = [];
     let homeList = false;
 
     // Read first, so that the canvases of every note can be counted before
@@ -478,13 +484,16 @@ export class PublishCommands {
           },
           keys
         );
-        resolved.push(note);
+        const start = readHomeFields(cache?.frontmatter);
+        const footer = readFooter(cache?.frontmatter);
 
         // Only the message is kept, bounded, not the note: the folder's text
-        // is already held once for the upload.
+        // is already held once for the upload. The footer has no page, list
+        // entry or meta tag a description could appear in.
         const body = stripFrontmatter(content);
         if (
           account.aiDescription &&
+          !footer &&
           body.trim().length > 0 &&
           leavesDescriptionToModel(cache?.frontmatter, keys)
         ) {
@@ -518,14 +527,13 @@ export class PublishCommands {
         sources.set(sha256, bytes.buffer as ArrayBuffer);
         const carried =
           account.headerTags.length > 0 ? headerTagsOf(noteTags(cache), account.headerTags) : [];
-        const start = readHomeFields(cache?.frontmatter);
         if (start.home) homeList = start.homeList;
         notes.push({
           ...note,
           sha256,
           ...(carried.length > 0 ? { tags: carried } : {}),
           ...(start.home ? { home: true as const } : {}),
-          ...(readFooter(cache?.frontmatter) ? { footer: true as const } : {})
+          ...(footer ? { footer: true as const } : {})
         });
 
         // A filmstrip shows its pictures small as well, and asks for thumbnails.
@@ -573,7 +581,7 @@ export class PublishCommands {
     }
 
     const collision =
-      findSlugCollision(resolved) ?? findHomeCollision(notes) ?? findFooterCollision(notes);
+      findSlugCollision(notes) ?? findHomeCollision(notes) ?? findFooterCollision(notes);
     if (collision) {
       new Notice(t().common.notice(collision));
       return null;
@@ -698,9 +706,11 @@ export class PublishCommands {
           if (account.writeBack) {
             frontmatter[keys.publishedAt] = at;
             // A bridge that named no usable site address leaves the last one.
-            // The footer has no address of its own to record.
+            // The footer has no address of its own, and the one it had as a
+            // page went with this publish.
             const url = baseUrl ? publishedUrl(baseUrl, note) : null;
-            if (url) frontmatter[keys.publishedUrl] = url;
+            if (note.footer) delete frontmatter[keys.publishedUrl];
+            else if (url) frontmatter[keys.publishedUrl] = url;
           }
           // A description typed while the run was under way is the person's.
           if (description !== undefined && leavesDescriptionToModel(frontmatter, keys)) {
@@ -736,27 +746,32 @@ export class PublishCommands {
   }
 
   /**
-   * Say plainly when the bridge is behind the plugin.
+   * Say plainly when the bridge is behind the plugin, and which protocol it
+   * speaks: null when it could not say.
    *
    * The two are deployed separately and will drift. Without this, an older
    * bridge answers a request for a route it does not have with a 404, which
-   * reads as a wrong URL rather than as a missing redeploy.
+   * reads as a wrong URL rather than as a missing redeploy. A bridge found
+   * current is not asked again this session; one found behind is, since it
+   * may have been redeployed in the meantime, but says so only once.
    */
-  async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<void> {
-    if (this.handshaken.has(bridge.baseUrl)) return;
-    this.handshaken.add(bridge.baseUrl);
+  async checkBridgeVersion(bridge: PublishBridgeConfig): Promise<number | null> {
+    const known = this.handshaken.get(bridge.baseUrl);
+    if (known === null || (known !== undefined && known >= PROTOCOL_VERSION)) return known;
+    this.handshaken.set(bridge.baseUrl, known ?? null);
 
     try {
-      const health = await bridgeHealth(bridge);
-      if (health.protocol < PROTOCOL_VERSION) {
-        new Notice(
-          t().common.notice(t().publish.bridgeOutdated(health.protocol, PROTOCOL_VERSION))
-        );
+      const { protocol } = await bridgeHealth(bridge);
+      this.handshaken.set(bridge.baseUrl, protocol);
+      if (protocol < PROTOCOL_VERSION && known === undefined) {
+        new Notice(t().common.notice(t().publish.bridgeOutdated(protocol, PROTOCOL_VERSION)));
       }
+      return protocol;
     } catch (error) {
       // A bridge that cannot answer /health will fail the real request in a
       // moment, with a better message than anything this could add.
       this.logger.debug("Bridge health check failed.", error);
+      return known ?? null;
     }
   }
 

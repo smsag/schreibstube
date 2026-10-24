@@ -1,5 +1,5 @@
 /** The manifest: what the bridge has published, and what that lets it delete. */
-import { assetPath, pagePath, tagPagePath, thumbnailPath } from "./path.mjs";
+import { assetPath, hasOwnPage, isListed, pagePath, tagPagePath, thumbnailPath } from "./path.mjs";
 
 export const MANIFEST_VERSION = 1;
 
@@ -79,17 +79,7 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   // Only pages and uploaded assets can be judged before rendering. Generator
   // assets — the stylesheet, the fonts, the diagram bundle — depend on what the
   // pages turn out to use, so they are settled at commit.
-  // The start page's note is index.html, which is never deleted, rather than
-  // a page under its slug; the footer's is part of every page and none.
-  const expectedPages = new Set(
-    index.notes.filter((note) => !note.home && !note.footer).map((note) => pagePath(note.slug))
-  );
-  // A header tag's page is the site's own, like a note's, as long as a note
-  // carries the tag.
-  for (const tag of index.headerTags ?? []) {
-    if (index.notes.some((note) => !note.footer && note.tags?.includes(tag)))
-      expectedPages.add(tagPagePath(tag));
-  }
+  const expectedPages = new Set(pagePaths(index));
   const willDelete = [...published].filter((path) => {
     if (path === "index.html") return false;
     if (path.endsWith("/index.html")) return !expectedPages.has(path);
@@ -114,14 +104,24 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
  * bundle — is only known at commit, and is checked there.
  */
 export function plannedOutputs(index, plan) {
-  const paths = new Set(["index.html", "assets/theme.css"]);
-  for (const note of index.notes) if (!note.home && !note.footer) paths.add(pagePath(note.slug));
-  for (const tag of index.headerTags ?? []) {
-    if (index.notes.some((note) => !note.footer && note.tags?.includes(tag)))
-      paths.add(tagPagePath(tag));
-  }
+  const paths = new Set(["index.html", "assets/theme.css", ...pagePaths(index)]);
   for (const entry of [...plan.uploadAssets, ...plan.uploadThumbnails]) paths.add(entry.path);
   return [...paths].sort();
+}
+
+/**
+ * The pages under the root an index makes: one for each note that has its
+ * own, and one for each header tag a listed note carries. The site's
+ * `index.html` is always written and never deleted, so it is not among them.
+ */
+function pagePaths(index) {
+  const paths = index.notes.filter(hasOwnPage).map((note) => pagePath(note.slug));
+  for (const tag of index.headerTags ?? []) {
+    if (index.notes.some((note) => isListed(note) && note.tags?.includes(tag))) {
+      paths.push(tagPagePath(tag));
+    }
+  }
+  return paths;
 }
 
 /**

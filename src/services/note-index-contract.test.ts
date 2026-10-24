@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { de } from "../i18n/de";
+import { en } from "../i18n/en";
 import { buildHeadingIndex } from "./heading-index";
 import {
   DEFAULT_INDEX_DEPTH,
@@ -38,6 +39,7 @@ const table = JSON.parse(readFileSync("contracts/index-cases.json", "utf8")) as 
   headings: { name: string; source: string; levels: number[]; texts?: string[] }[];
   limits: { defaultDepth: number; maxDepth: number; maxEntries: number };
   labels: { summary: string; summaryOne: string };
+  englishLabels: { summary: string; summaryOne: string };
 };
 
 function levelsOf(test: PlanCase): number[] {
@@ -93,5 +95,10 @@ describe("the shared index contract, in the plugin", () => {
   it("speaks the site's German: the plugin's strings are the shared ones", () => {
     expect(de.noteIndex.summary(12)).toBe(table.labels.summary.replace("{n}", "12"));
     expect(de.noteIndex.summary(1)).toBe(table.labels.summaryOne);
+  });
+
+  it("speaks the site's English: the plugin's strings are the shared ones", () => {
+    expect(en.noteIndex.summary(12)).toBe(table.englishLabels.summary.replace("{n}", "12"));
+    expect(en.noteIndex.summary(1)).toBe(table.englishLabels.summaryOne);
   });
 });

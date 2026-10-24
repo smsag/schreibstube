@@ -11,6 +11,7 @@
  */
 import { escapeAttribute, escapeHtml } from "./html.mjs";
 import { textWithIcons } from "./icons.mjs";
+import { DEFAULT_LANGUAGE, isGerman } from "./language.mjs";
 
 export const NOTE_INDEX_LANGUAGE = "schreibstube-index";
 
@@ -23,9 +24,12 @@ const MAX_OPTION_LINES = 20;
 const DEPTH_PATTERN = /^depth\s*:\s*(.*)$/i;
 const COLLAPSED_PATTERN = /^collapsed\s*:\s*(.*)$/i;
 
-/** What a reader of the site reads, in German, the site's language. */
+/** What a reader of the site reads: German on a German page, English on any other. */
 export const LABELS = {
-  summary: (count) => `Inhalt · ${count} ${count === 1 ? "Abschnitt" : "Abschnitte"}`
+  summary: (count, lang = DEFAULT_LANGUAGE) =>
+    isGerman(lang)
+      ? `Inhalt · ${count} ${count === 1 ? "Abschnitt" : "Abschnitte"}`
+      : `Contents · ${count} ${count === 1 ? "section" : "sections"}`
 };
 
 /**
@@ -132,13 +136,13 @@ export function pageHeadings(tokens) {
 }
 
 /** The block as HTML, or nothing when there is no list to show. */
-export function renderNoteIndex(source, tokens) {
+export function renderNoteIndex(source, tokens, lang = DEFAULT_LANGUAGE) {
   const options = parseNoteIndexOptions(source);
   const plan = planNoteIndex(pageHeadings(tokens), options.depth);
   if (plan.kind !== "entries") return "";
 
   const open = options.collapsed ? "" : " open";
-  const summary = escapeHtml(LABELS.summary(plan.entries.length)).replace(
+  const summary = escapeHtml(LABELS.summary(plan.entries.length, lang)).replace(
     /(\d+)/g,
     "<strong>$1</strong>"
   );

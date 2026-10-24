@@ -236,6 +236,8 @@ export const en = {
       "Up to three tags linked at the top of every page, each to a page listing the notes that carry it. Nested tags count: projekt also lists notes tagged projekt/alpha. A tag no published note carries is left out.",
     headerTagPlaceholder: "#tag",
     language: "Language of the pages",
+    languageInvalid: (typed: string) =>
+      `${typed} is not a language tag, so the language stays as it was. Write one such as en, de or en-GB.`,
     languageDesc:
       "A language tag such as en, de or en-GB. It tells browsers, screen readers and search engines which language the pages are in. A note says otherwise with its own language field. Empty: German.",
     targetPlaceholder: "Target on the bridge",
@@ -322,7 +324,9 @@ export const en = {
       `connection to ${target} works (${entries} entries).`,
     connectionFailed: (reason: string) => reason,
     bridgeOutdated: (bridge: number, plugin: number) =>
-      `the bridge speaks protocol ${bridge}, the plugin expects ${plugin} — redeploy the bridge.`
+      `the bridge speaks protocol ${bridge}, the plugin expects ${plugin} — redeploy the bridge.`,
+    bridgeTooOld: (bridge: number, needed: number) =>
+      `nothing was published: this site has a start page, a footer or a page language, which a bridge reads from protocol ${needed}, and this one speaks ${bridge}. Redeploy the bridge, then publish again.`
   },
 
   share: {

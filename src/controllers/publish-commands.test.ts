@@ -96,6 +96,7 @@ const { listTargets } = await import("../platform/publish-client");
 
 const { DEFAULT_SETTINGS, normalizeSettings } = await import("../services/plugin-settings");
 const { DESCRIPTION_TIMEOUT_MS } = await import("../services/publish-description");
+const { PROTOCOL_VERSION } = await import("../services/publish-protocol");
 const { setLanguage } = await import("../i18n");
 
 setLanguage("en");
@@ -195,7 +196,11 @@ beforeEach(() => {
     mimeType: "image/jpeg"
   });
   client.health.mockReset();
-  client.health.mockResolvedValue({ version: "2.1.0", protocol: 1, capabilities: ["publish"] });
+  client.health.mockResolvedValue({
+    version: "3.5.0",
+    protocol: PROTOCOL_VERSION,
+    capabilities: ["publish"]
+  });
   capture.capture.mockReset();
   capture.capture.mockResolvedValue({ pictures: [], expected: 0, title: "" });
 });
@@ -363,7 +368,7 @@ describe("which notes are published", () => {
         {
           path: "Blog/Impressum.md",
           content: "# Impressum",
-          frontmatter: { ...published, lang: "de" }
+          frontmatter: { ...published, schreibstubePageLanguage: "de" }
         },
         {
           path: "Blog/Footer.md",
@@ -397,6 +402,27 @@ describe("which notes are published", () => {
     await controller(vault).commands.preview();
     expect(client.plan).not.toHaveBeenCalled();
     expect(Notice.shown.join(" ")).toContain("Blog/Erste.md");
+  });
+
+  it("lets the start page and the footer share a slug with a page, since neither takes its address", async () => {
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Start/Impressum.md",
+          content: "# Willkommen",
+          frontmatter: { ...published, schreibstubeHome: "marketing" }
+        },
+        {
+          path: "Blog/Fuss/Impressum.md",
+          content: "© Blog",
+          frontmatter: { ...published, schreibstubeFooter: true }
+        },
+        { path: "Blog/Recht/Impressum.md", content: "# Impressum", frontmatter: published }
+      ]
+    });
+
+    await controller(vault).commands.preview();
+    expect(plannedIndex().notes).toHaveLength(3);
   });
 
   it("refuses when two notes want to be the start page", async () => {
@@ -724,6 +750,78 @@ describe("publishing", () => {
     await commands.preview();
 
     expect(client.health).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks a bridge found behind again, since it may have been redeployed, but says so once", async () => {
+    client.health.mockResolvedValue({ version: "3.4.0", protocol: 9, capabilities: [] });
+    const { commands } = controller(vault());
+    await commands.preview();
+    await commands.preview();
+
+    expect(client.health).toHaveBeenCalledTimes(2);
+    expect(Notice.shown.filter((message) => /redeploy the bridge/.test(message))).toHaveLength(1);
+  });
+
+  it("publishes a plain site through a bridge that is behind, as before", async () => {
+    client.health.mockResolvedValue({ version: "3.4.0", protocol: 9, capabilities: [] });
+    const { commands } = controller(vault());
+    await commands.preview();
+
+    expect(client.plan).toHaveBeenCalled();
+  });
+
+  it("publishes nothing through a bridge that would drop the start page, the footer or a language", async () => {
+    client.health.mockResolvedValue({ version: "3.4.0", protocol: 9, capabilities: [] });
+    const sites = [
+      { ...published, schreibstubeHome: "list" },
+      { ...published, schreibstubeFooter: true },
+      { ...published, schreibstubePageLanguage: "en" }
+    ];
+    for (const frontmatter of sites) {
+      Notice.shown = [];
+      const target = fakeVault({
+        notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter }]
+      });
+      await controller(target).commands.preview();
+
+      expect(client.plan).not.toHaveBeenCalled();
+      expect(Notice.shown.join(" ")).toMatch(/protocol 10.*speaks 9/);
+    }
+    const language = fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "# Erste", frontmatter: published }]
+    });
+    await controller(language, {
+      publishAccounts: [{ ...account, language: "en" }]
+    }).commands.preview();
+    expect(client.plan).not.toHaveBeenCalled();
+  });
+
+  it("forgets the address of a page that became the footer, which this publish takes down", async () => {
+    const target = fakeVault({
+      notes: [
+        { path: "Blog/Erste.md", content: "# Erste", frontmatter: published },
+        {
+          path: "Blog/Footer.md",
+          content: "© Blog",
+          frontmatter: {
+            ...published,
+            schreibstubeFooter: true,
+            publishedUrl: "https://blog.example.com/footer/"
+          }
+        }
+      ]
+    });
+    const { commands } = controller(target);
+    await commands.publish();
+    await runEnded();
+
+    await vi.waitFor(() =>
+      expect(target.frontmatterOf("Blog/Footer.md").publishedAt).toBeDefined()
+    );
+    expect(target.frontmatterOf("Blog/Footer.md")).not.toHaveProperty("publishedUrl");
+    expect(target.frontmatterOf("Blog/Erste.md").publishedUrl).toBe(
+      "https://blog.example.com/erste/"
+    );
   });
 
   it("asks another bridge the settings switch to, once as well", async () => {
@@ -1283,6 +1381,18 @@ describe("descriptions written by the model", () => {
         publishedUrl: "https://blog.example.com/erste/"
       })
     );
+  });
+
+  it("asks for none for the footer, which has nowhere to show one", async () => {
+    const target = vault({ published: true, schreibstubeFooter: true });
+    const { commands } = controller(target, ai);
+    await commands.publish();
+    await runEnded();
+
+    expect(llm.send).not.toHaveBeenCalled();
+    expect(committed()).not.toHaveProperty("description");
+    await vi.waitFor(() => expect(target.frontmatterOf("Blog/Erste.md").publishedAt).toBeDefined());
+    expect(target.frontmatterOf("Blog/Erste.md")).not.toHaveProperty("description");
   });
 
   it("fills an empty one, and writes it even when the publication is not recorded", async () => {

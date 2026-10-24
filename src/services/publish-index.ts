@@ -43,7 +43,11 @@ export const DEFAULT_PUBLISH_KEYS: PublishKeyMap = {
   date: "date",
   description: "description",
   slug: "slug",
-  language: "lang",
+  // Schreibstube's own, unlike the rest: `lang` is a key other tools write
+  // for their own ends, and a glossary's `schreibstubeLanguage` says what its
+  // terms are in. Read by default, either would set a page's language without
+  // anyone having asked; a vault that means it maps the role to it.
+  language: "schreibstubePageLanguage",
   publishedAt: "publishedAt",
   publishedUrl: "publishedUrl"
 };
@@ -56,24 +60,45 @@ export const PUBLISH_KEY_ROLES = Object.keys(DEFAULT_PUBLISH_KEYS) as (keyof Pub
  *
  * A blank field means "unchanged", so a half-cleared setting cannot silently
  * stop a role from being read at all. Two roles cannot share a key either: the
- * plugin would have no way to tell which meaning was intended, so the later
- * role falls back to its default.
+ * plugin would have no way to tell which meaning was intended. A role left at
+ * its default keeps it, since nobody moved it; a role mapped onto a key that
+ * is taken falls back to its default, and to a key of Schreibstube's own when
+ * that is taken too.
  */
 export function normalizePublishKeys(value: unknown): PublishKeyMap {
   const record =
     typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
-  const keys = { ...DEFAULT_PUBLISH_KEYS };
-  const taken = new Set<string>();
-
+  const wanted = { ...DEFAULT_PUBLISH_KEYS };
   for (const role of PUBLISH_KEY_ROLES) {
     const configured = typeof record[role] === "string" ? (record[role] as string).trim() : "";
-    const key = configured || DEFAULT_PUBLISH_KEYS[role];
-    keys[role] = taken.has(key) ? DEFAULT_PUBLISH_KEYS[role] : key;
+    if (configured) wanted[role] = configured;
+  }
+
+  const keys = { ...DEFAULT_PUBLISH_KEYS };
+  // The defaults differ from each other, so the roles that kept theirs never collide.
+  const taken = new Set(
+    PUBLISH_KEY_ROLES.filter((role) => wanted[role] === DEFAULT_PUBLISH_KEYS[role]).map(
+      (role) => DEFAULT_PUBLISH_KEYS[role]
+    )
+  );
+  for (const role of PUBLISH_KEY_ROLES) {
+    if (wanted[role] === DEFAULT_PUBLISH_KEYS[role]) continue;
+    keys[role] =
+      [wanted[role], DEFAULT_PUBLISH_KEYS[role]].find((key) => !taken.has(key)) ??
+      ownKey(role, taken);
     taken.add(keys[role]);
   }
 
   return keys;
+}
+
+/** A key nobody configured, for a role whose own two were both taken. */
+function ownKey(role: keyof PublishKeyMap, taken: ReadonlySet<string>): string {
+  const base = `schreibstube${role[0]!.toUpperCase()}${role.slice(1)}`;
+  let key = base;
+  for (let n = 2; taken.has(key); n += 1) key = `${base}${n}`;
+  return key;
 }
 
 export interface PublishFields {
@@ -283,14 +308,30 @@ export function publishedUrl(
   return note.home ? `${baseUrl}/` : `${baseUrl}/${note.slug}/`;
 }
 
+/** The longest language tag sent: room for a language, a script, a region and a variant. */
+export const MAX_LANGUAGE_CHARS = 35;
+
+const LANGUAGE_TAG = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,4}$/;
+
 /**
- * A language tag as a page's `lang` takes it: `de`, `en`, `en-GB`. This has to
- * agree with the bridge, which refuses an index carrying anything else.
+ * A language tag as a page's `lang` takes it: `de`, `en`, `en-GB`. The bridge
+ * refuses an index carrying anything else, so both read the same table
+ * (contracts/language-cases.json).
  */
 export function checkLanguage(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const tag = value.trim();
-  return tag.length <= 35 && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,4}$/.test(tag) ? tag : null;
+  return tag.length <= MAX_LANGUAGE_CHARS && LANGUAGE_TAG.test(tag) ? tag : null;
+}
+
+/**
+ * What the site's language field saves once it is left: the tag, nothing for
+ * an empty field — German, as an account without one always was — or null
+ * for anything else, which is refused whole rather than kept in part.
+ */
+export function readLanguageField(typed: string): string | null {
+  const value = typed.trim();
+  return value === "" ? "" : checkLanguage(value);
 }
 
 /**
@@ -298,10 +339,15 @@ export function checkLanguage(value: unknown): string | null {
  *
  * Caught here rather than on the bridge as well, so the message names vault
  * paths the user can open instead of whatever the index happened to carry.
+ * The start page is served from the root and the footer from nowhere, so
+ * neither takes its slug's address from a note that wants it.
  */
-export function findSlugCollision(notes: ResolvedNote[]): string | null {
+export function findSlugCollision(
+  notes: readonly { sourcePath: string; slug: string; home?: boolean; footer?: boolean }[]
+): string | null {
   const seen = new Map<string, string>();
   for (const note of notes) {
+    if (note.home || note.footer) continue;
     const previous = seen.get(note.slug);
     if (previous) {
       return t().publish.slugCollision(note.slug, previous, note.sourcePath);

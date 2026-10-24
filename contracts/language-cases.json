@@ -1,0 +1,32 @@
+{
+  "comment": "One table of page languages, read by both implementations. The plugin checks a site's or a note's language before it sends it and the bridge checks it again, since the value lands in an attribute; if the two ever disagree, the bridge refuses the whole index and nothing is published. The values are as the plugin sends them, trimmed. 'german' says whether the bridge writes a page in that language in German or in English.",
+  "maxChars": 35,
+  "valid": [
+    { "tag": "de", "german": true },
+    { "tag": "DE", "german": true },
+    { "tag": "de-AT", "german": true },
+    { "tag": "de-CH-1996", "german": true },
+    { "tag": "en", "german": false },
+    { "tag": "en-GB", "german": false },
+    { "tag": "pt-BR", "german": false },
+    { "tag": "zh-Hant-TW", "german": false },
+    { "tag": "dea", "german": false },
+    { "tag": "sl-rozaj-biske-1994", "german": false },
+    { "tag": "abc-12345678-12345678-12345678-1234", "german": false }
+  ],
+  "invalid": [
+    "",
+    "e",
+    "de-",
+    "-de",
+    "de_DE",
+    "deutsch",
+    "english!",
+    "de AT",
+    "de\" onload=\"x",
+    "de-<b>",
+    "en-aaaaaaaaa",
+    "en-a-b-c-d-e",
+    "abc-12345678-12345678-12345678-12345"
+  ]
+}

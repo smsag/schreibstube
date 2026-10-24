@@ -8,7 +8,9 @@ import {
   parseHealth,
   parsePlan,
   parseSummary,
-  parseTargets
+  parseTargets,
+  protocolNeeded,
+  SITE_PAGES_PROTOCOL
 } from "./publish-protocol";
 
 /** Everything the bridge returns is remote JSON, so each field is validated. */
@@ -226,6 +228,27 @@ describe("isEmptyPlan", () => {
 
   it("is not empty with a note to publish, even an unchanged one", () => {
     expect(isEmptyPlan(plan({ notes: 1 }))).toBe(false);
+  });
+});
+
+describe("protocolNeeded", () => {
+  const note = { sourcePath: "a.md", sha256: "a".repeat(64), slug: "a", title: "A", date: "" };
+  const index = (overrides = {}) => ({ siteTitle: "S", notes: [note], assets: [], ...overrides });
+
+  it("asks nothing of a bridge for a site as it always was", () => {
+    expect(protocolNeeded(index())).toBe(1);
+    expect(protocolNeeded(index({ headerTags: ["projekt"] }))).toBe(1);
+  });
+
+  it("asks for the protocol that reads a start page, a footer or a language", () => {
+    for (const overrides of [
+      { notes: [{ ...note, home: true as const }], homeList: false },
+      { notes: [{ ...note, footer: true as const }] },
+      { notes: [{ ...note, language: "en" }] },
+      { language: "en" }
+    ]) {
+      expect(protocolNeeded(index(overrides))).toBe(SITE_PAGES_PROTOCOL);
+    }
   });
 });
 

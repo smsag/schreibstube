@@ -79,6 +79,18 @@ describe("checking the start page in an index", () => {
     }
   });
 
+  it("claims no address, so a page may have its slug, the shared links' included", () => {
+    const notes = [
+      note("karussell", start, { home: true, slug: "impressum" }),
+      note("impressum", imprint)
+    ];
+    expect(() => checkIndex(index({ notes }))).not.toThrow();
+    const shared = [note("karussell", start, { home: true, slug: "s" })];
+    expect(() => checkIndex(index({ notes: shared, assets: [] }))).not.toThrow();
+    const page = [note("karussell", start), note("impressum", imprint, { slug: "s" })];
+    expect(() => checkIndex(index({ notes: page }))).toThrow(/kept for shared links/);
+  });
+
   it("accepts the list choice only as true or false, and only with a start page", () => {
     expect(() => checkIndex(index({ homeList: "yes" }))).toThrow(/homeList must be true or false/);
     const notes = [note("impressum", imprint)];

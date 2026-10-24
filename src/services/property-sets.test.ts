@@ -54,7 +54,7 @@ describe("publishSet", () => {
       { key: "date", value: "" },
       { key: "description", value: "" },
       { key: "slug", value: "" },
-      { key: "lang", value: "" },
+      { key: "schreibstubePageLanguage", value: "" },
       { key: "publishedAt", value: "" },
       { key: "publishedUrl", value: "" }
     ]);
@@ -74,7 +74,7 @@ describe("publishSet", () => {
       "datum",
       "description",
       "slug",
-      "lang",
+      "schreibstubePageLanguage",
       "publishedAt",
       "publishedUrl"
     ]);
@@ -90,7 +90,7 @@ describe("the website sets", () => {
       { key: "published", value: false },
       { key: "title", value: "" },
       { key: "description", value: "" },
-      { key: "lang", value: "" },
+      { key: "schreibstubePageLanguage", value: "" },
       { key: "schreibstubeHome", value: "marketing" }
     ]);
     expect(set.offeredBy).toEqual(["schreibstubeHome"]);
@@ -335,7 +335,14 @@ describe("setsToComplete", () => {
     expect(setsToComplete([publish], ["Published"], { Published: true, title: "Hallo" })).toEqual([
       {
         set: publish,
-        missing: ["date", "description", "slug", "lang", "publishedAt", "publishedUrl"]
+        missing: [
+          "date",
+          "description",
+          "slug",
+          "schreibstubePageLanguage",
+          "publishedAt",
+          "publishedUrl"
+        ]
       }
     ]);
   });
