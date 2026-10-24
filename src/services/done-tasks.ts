@@ -401,6 +401,15 @@ function fileInArchive(
  * back unchanged, with a count of nought, when there is nothing to clear.
  */
 export function clearDoneTasks(content: string, mode: DoneTaskMode): DoneTasksResult {
+  // Read with `\n` and written back as it came: the `\r` a Windows line keeps
+  // hid the archive heading and the rules from every pattern below, and each
+  // run filed its tasks under another new archive.
+  if (content.includes("\r\n")) {
+    const result = clearDoneTasks(content.replace(/\r\n/g, "\n"), mode);
+    return result.count === 0
+      ? { content, count: 0 }
+      : { content: result.content.replace(/\n/g, "\r\n"), count: result.count };
+  }
   const lines = content.split("\n");
   const reader = new Reader(lines);
   const archive = reader.archiveSection();

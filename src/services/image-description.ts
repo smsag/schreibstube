@@ -17,6 +17,7 @@
  * picture changed since it was described.
  */
 import { normalizeVaultFolder } from "./file-name";
+import { splitFrontmatter } from "./frontmatter-block";
 import { normalizeTag, tagKey } from "./tag-suggestions";
 
 /** Bounds on what a description may carry into the vault. A model's answer is
@@ -145,7 +146,12 @@ function boundedText(value: unknown, max: number, singleLine: boolean): string {
   if (typeof value !== "string") return "";
   let text = sanitizeDescriptionText(value);
   if (singleLine) text = text.replace(/\s*\n\s*/g, " ");
-  return text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
+  // Cut by characters: a cut through an emoji leaves half of it, which the
+  // frontmatter writes as an escape no YAML reader can turn back into text.
+  const chars = [...text];
+  if (chars.length <= max) return text;
+  const kept = chars.slice(0, max - 1).join("");
+  return `${kept.trimEnd()}…`;
 }
 
 /**
@@ -359,11 +365,15 @@ function keywordTags(keywords: readonly string[]): string[] {
   return tags;
 }
 
-/** A frontmatter block at the top of a note: its lines and where the body starts. */
+/**
+ * A frontmatter block at the top of a note: its lines between the fences, and
+ * where the body starts. The block `splitFrontmatter` finds, so a note closed
+ * with `...` keeps its properties here as it does everywhere else.
+ */
 function frontmatterOf(note: string): { lines: string[]; body: string } | null {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(note);
-  if (!match) return null;
-  return { lines: (match[1] ?? "").split(/\r?\n/), body: note.slice(match[0].length) };
+  const { block, body } = splitFrontmatter(note);
+  if (!block) return null;
+  return { lines: block.split(/\r?\n/).slice(1, block.endsWith("\n") ? -2 : -1), body };
 }
 
 /** The key a top-level frontmatter line opens, unquoted, or null for a line that continues one. */

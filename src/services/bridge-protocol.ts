@@ -111,8 +111,10 @@ export function extractCode(body: string): string {
   return str(asRecord(jsonOrNull(body)).code);
 }
 
+/** The bridge's message, or the start of a body that is not the bridge's. Bounded
+ *  either way: whatever answered on the bridge's address chose its length. */
 export function extractError(body: string): string {
-  return str(asRecord(jsonOrNull(body)).error) || body.trim().slice(0, 200);
+  return (str(asRecord(jsonOrNull(body)).error) || body.trim()).slice(0, 200);
 }
 
 function jsonOrNull(body: string): unknown {

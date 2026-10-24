@@ -398,25 +398,33 @@ export function reattachOrphans(
       : data;
   }
 
+  // Counted once rather than asked per tombstone: a folder of twenty thousand
+  // notes moved outside Obsidian held the pane for eleven seconds.
   const byName = new Map<string, string[]>();
   for (const path of unclaimed) {
     const name = basename(path);
-    byName.set(name, [...(byName.get(name) ?? []), path]);
+    const known = byName.get(name);
+    if (known) known.push(path);
+    else byName.set(name, [path]);
+  }
+  const orphanName = ([path, entry]: [string, ExplorerEntry]): string =>
+    entry.name ?? basename(path);
+  const orphansNamed = new Map<string, number>();
+  for (const orphan of stillMissing) {
+    const name = orphanName(orphan);
+    orphansNamed.set(name, (orphansNamed.get(name) ?? 0) + 1);
   }
 
   const entries = { ...data.entries, ...revived };
   let touched = Object.keys(revived).length > 0;
 
-  for (const [orphanPath, entry] of stillMissing) {
-    const name = entry.name ?? basename(orphanPath);
+  for (const orphan of stillMissing) {
+    const [orphanPath, entry] = orphan;
+    const name = orphanName(orphan);
     const candidates = byName.get(name) ?? [];
     const [candidate] = candidates;
     if (candidate === undefined || candidates.length !== 1) continue;
-
-    const sameName = stillMissing.filter(
-      ([path, other]) => (other.name ?? basename(path)) === name
-    );
-    if (sameName.length !== 1) continue;
+    if (orphansNamed.get(name) !== 1) continue;
 
     const { orphanedAt: _gone, name: _remembered, ...live } = entry;
     entries[candidate] = { ...live, updatedAt: now };
