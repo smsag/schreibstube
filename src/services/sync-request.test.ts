@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
 import {
   interpretSourceResponse,
+  MAX_ETAG_CHARS,
   MAX_SOURCE_BYTES,
   planSourceRequest,
   type FetchOptions,
@@ -89,6 +90,22 @@ describe("interpretSourceResponse", () => {
       respond(200, "# Hi", { "content-type": "text/markdown", ETag: '"v2"' })
     );
     expect(outcome).toEqual({ status: "updated", body: "# Hi", etag: '"v2"' });
+  });
+
+  it("keeps no validator that could not be sent back, or is past all bounds", () => {
+    const etagOf = (etag: string): unknown => {
+      const outcome = interpretSourceResponse(
+        plain,
+        planSourceRequest(plain),
+        respond(200, "# Hi", { "content-type": "text/markdown", etag })
+      );
+      return outcome.status === "updated" ? outcome.etag : null;
+    };
+    expect(etagOf('W/"a1"')).toBe('W/"a1"');
+    expect(etagOf('"a\u0000b"')).toBe("");
+    expect(etagOf('"a b"')).toBe("");
+    expect(etagOf('"Größe"')).toBe("");
+    expect(etagOf(`"${"x".repeat(MAX_ETAG_CHARS)}"`)).toBe("");
   });
 
   it("keeps the old validator on a 304", () => {
