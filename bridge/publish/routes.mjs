@@ -45,6 +45,7 @@ import {
 } from "./pending.mjs";
 import { opensTarget, presentedToken } from "./target-access.mjs";
 import { AbandonedError, connect, SftpError } from "./sftp.mjs";
+import { StateFileError } from "./state-file.mjs";
 import { createConnectionPool } from "./connection-pool.mjs";
 import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
 import { SourceCache } from "./source-cache.mjs";
@@ -909,7 +910,8 @@ export async function guardState(remote) {
 }
 
 async function readManifest(remote, target) {
-  return normalizeManifest(await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)), target.name);
+  const raw = await remote.readJson(remote.stateAbsolute(MANIFEST_FILE), { strict: true });
+  return normalizeManifest(raw, target.name);
 }
 
 async function storedSourceHashes(remote) {
@@ -1036,6 +1038,7 @@ export async function withRemote(pool, target, timeoutMs, work) {
     });
   } catch (err) {
     if (err.status || err instanceof TimeoutError) throw err;
+    if (err instanceof StateFileError) throw httpError(409, "state_unreadable", err.message);
     // Before the work began, the login itself failed.
     if (!started) throw httpError(502, "sftp_unreachable", clientMessage(err), detailOf(err));
     throw httpError(502, "sftp_error", clientMessage(err), detailOf(err));

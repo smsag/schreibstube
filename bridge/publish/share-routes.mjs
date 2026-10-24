@@ -92,7 +92,9 @@ export function createShareRoutes(
   });
 
   async function load(remote) {
-    return normalizeShares(await remote.readJson(remote.stateAbsolute(SHARES_FILE)));
+    return normalizeShares(
+      await remote.readJson(remote.stateAbsolute(SHARES_FILE), { strict: true })
+    );
   }
 
   async function save(remote, target, shares) {

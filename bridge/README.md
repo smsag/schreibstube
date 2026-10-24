@@ -235,6 +235,16 @@ is the same file and goes ahead. `PUBLISH_<TARGET>_ADOPT_EXISTING=true` lets a
 target take such files over — for a site that was published before by other
 means, or whose manifest was lost.
 
+**A record that does not read stops the work.** `<state>/manifest.json` says
+which files are the bridge's, and `<state>/shares.json` which links it made.
+One that is there but does not read — not JSON, another version, a path the
+bridge would never write, an entry without its hash and size, a link whose
+files lie outside its own directory — is refused with `409 state_unreadable`
+naming the file and what is wrong, and nothing is written or removed. Read as
+empty or trimmed, the bridge forgot what it had written, and those files stayed
+on the host for good. Correct the file, or remove it to start over; without
+one, every file already on the host counts as someone else's.
+
 **Uploads have a budget.** Uploads arrive outside the publish lock, before
 the commit that names them. Between two commits a target takes at most
 `PUBLISH_MAX_UPLOADS` uploads (4000) and `PUBLISH_MAX_PUBLISH_BYTES` (500 MB)

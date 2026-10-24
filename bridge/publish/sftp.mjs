@@ -6,6 +6,7 @@ import { createHash, randomBytes } from "node:crypto";
 import Client from "ssh2-sftp-client";
 import { TimeoutError, withDeadline } from "../timeout.mjs";
 import { joinRemote } from "./path.mjs";
+import { StateFileError } from "./state-file.mjs";
 
 /**
  * An SFTP failure with a wording the client may see. The full message is for
@@ -455,7 +456,7 @@ export class Remote {
    * an earlier one had published became a file nothing knew about and nothing
    * would ever remove.
    */
-  async readJson(path) {
+  async readJson(path, { strict = false } = {}) {
     let text;
     try {
       text = (await this.readFile(path)).toString("utf8");
@@ -467,8 +468,10 @@ export class Remote {
     try {
       return JSON.parse(text);
     } catch {
-      // Present but not JSON is a file this bridge did not write. Starting
-      // over is the only thing it can do with one.
+      // Present but not JSON is a file this bridge did not write. For a
+      // cache, starting over is all it can do with one; for a record of
+      // what it owns (`strict`), starting over forgets what it wrote.
+      if (strict) throw new StateFileError(path.slice(path.lastIndexOf("/") + 1), "it is not JSON");
       return null;
     }
   }

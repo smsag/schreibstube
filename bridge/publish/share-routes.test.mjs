@@ -270,6 +270,20 @@ describe("GET /publish/shares", () => {
   });
 });
 
+describe("a shares file that does not read", () => {
+  it("stops the request with the file named, and removes nothing", async () => {
+    const { host, share, list } = setup();
+    const kept = await share({ ...note, title: "Bleibt" });
+    host.files.set(
+      "/state/shares.json",
+      Buffer.from(JSON.stringify({ shares: [{ code: "../x" }] }))
+    );
+    await expect(list()).rejects.toMatchObject({ status: 409, code: "state_unreadable" });
+    await expect(list()).rejects.toThrow(/shares\.json/);
+    expect(host.files.has(`/site/s/${kept.code}/index.html`)).toBe(true);
+  });
+});
+
 describe("POST /publish/share/revoke", () => {
   it("removes the link's files and its record, and nothing else", async () => {
     const { host, share, revoke, list } = setup();

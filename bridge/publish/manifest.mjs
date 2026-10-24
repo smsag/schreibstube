@@ -1,7 +1,9 @@
 /** The manifest: what the bridge has published, and what that lets it delete. */
+import { StateFileError } from "./state-file.mjs";
 import {
   assetName,
   assetPath,
+  checkRelativePath,
   hasOwnPage,
   isListed,
   pagePath,
@@ -25,12 +27,59 @@ export function emptyManifest(target) {
   };
 }
 
-/** A manifest from the host, reduced to something safe to reason about. */
+/** More entries than a site of the largest size a target allows could ever leave. */
+export const MAX_MANIFEST_FILES = 250_000;
+
+/**
+ * A manifest from the host, checked entry by entry; none at all is a first
+ * publish. Anything else that does not read — another version, a path the
+ * bridge would never write, an entry without its hash — is refused whole
+ * (`StateFileError`): the manifest is what says which files are the bridge's.
+ */
 export function normalizeManifest(raw, target) {
-  if (!raw || typeof raw !== "object" || raw.version !== MANIFEST_VERSION) {
-    return emptyManifest(target);
+  if (raw === null || raw === undefined) return emptyManifest(target);
+  const bad = (reason) => new StateFileError("manifest.json", reason);
+  if (typeof raw !== "object" || Array.isArray(raw)) throw bad("it is not an object");
+  if (raw.version !== MANIFEST_VERSION) {
+    throw bad(`its version is ${JSON.stringify(raw.version)}, not ${MANIFEST_VERSION}`);
   }
-  return { ...emptyManifest(target), ...raw, files: raw.files ?? {} };
+  const { files } = raw;
+  if (!files || typeof files !== "object" || Array.isArray(files)) {
+    throw bad("it lists no files");
+  }
+  const entries = Object.entries(files);
+  if (entries.length > MAX_MANIFEST_FILES) {
+    throw bad(`it lists more than ${MAX_MANIFEST_FILES} files`);
+  }
+  const checked = {};
+  for (const [path, entry] of entries) {
+    try {
+      checkRelativePath(path);
+    } catch {
+      throw bad(`${JSON.stringify(path.slice(0, 200))} is no path the bridge writes`);
+    }
+    if (
+      !/^[0-9a-f]{64}$/.test(entry?.sha256 ?? "") ||
+      !Number.isInteger(entry?.bytes) ||
+      entry.bytes < 0
+    ) {
+      throw bad(`the entry for ${path} has no hash and size`);
+    }
+    checked[path] = { sha256: entry.sha256, bytes: entry.bytes };
+  }
+  for (const field of ["updatedAt", "generator"]) {
+    if (raw[field] != null && typeof raw[field] !== "string") throw bad(`${field} is not text`);
+  }
+  if (raw.renderVersion != null && !Number.isInteger(raw.renderVersion)) {
+    throw bad("renderVersion is not a number");
+  }
+  return {
+    ...emptyManifest(target),
+    updatedAt: raw.updatedAt ?? null,
+    generator: raw.generator ?? null,
+    renderVersion: raw.renderVersion ?? null,
+    files: checked
+  };
 }
 
 /**

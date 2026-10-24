@@ -380,6 +380,26 @@ describe("a second publish with no changes", () => {
   });
 });
 
+describe("a manifest on the host that does not read", () => {
+  it("stops the publish, says which file, and touches nothing", async () => {
+    const path = join(sftp.root, "state", "manifest.json");
+    const kept = await readFile(path, "utf8");
+    const page = await readFile(siteFile("zweite", "index.html"), "utf8");
+    try {
+      for (const damaged of ["{ not json", JSON.stringify({ version: 1, files: { x: 1 } })]) {
+        await writeFile(path, damaged);
+        const plan = await post("/publish/plan", { target: "blog", index: bothNotes() });
+        expect(plan.status).toBe(409);
+        expect(plan.json.code).toBe("state_unreadable");
+        expect(plan.json.error).toMatch(/manifest\.json/);
+      }
+      expect(await readFile(siteFile("zweite", "index.html"), "utf8")).toBe(page);
+    } finally {
+      await writeFile(path, kept);
+    }
+  });
+});
+
 describe("an edited note", () => {
   const edited = "# Erste\n\nGeänderter Text.\n";
 
