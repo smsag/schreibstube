@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   backlinkIndex,
   isRareTag,
+  MAX_TAG_SCORE,
   linkDegrees,
   rankRelated,
   RELATED_LIMIT,
@@ -80,9 +81,11 @@ describe("rankRelated", () => {
     // The two viewings share no link, no tag with each other beyond "termin",
     // and no text — only the Objekt note that lists them both.
     const related = rankRelated("Termine/Besichtigung A.md", VAULT);
+    const sibling = related.find((entry) => entry.path === "Termine/Besichtigung B.md");
 
-    expect(related[0]?.path).toBe("Termine/Besichtigung B.md");
-    expect(related[0]?.reasons.map((reason) => reason.kind)).toContain("co-citation");
+    expect(sibling?.reasons.map((reason) => reason.kind)).toContain("co-citation");
+    // The Objekt note links here: a person said so, and it stays first.
+    expect(related[0]?.path).toBe("Objekte/Objekt 12.md");
   });
 
   it("leaves out a note sharing nothing with the source", () => {
@@ -329,7 +332,36 @@ describe("limit", () => {
   });
 });
 
+describe("a direct link against everything else", () => {
+  it("ranks above a note that only shares a tag, however rare the tag", () => {
+    const crowd = Array.from({ length: 2000 }, (_, i) => note(`Archiv/${i}.md`));
+    const vault: RelatedSubject[] = [
+      note("Quelle.md", { tags: ["selten"], links: ["Verlinkt.md"] }),
+      note("Verlinkt.md"),
+      note("Getaggt.md", { tags: ["selten"] }),
+      ...Array.from({ length: 8 }, (_, i) => note(`Selten ${i}.md`, { tags: ["selten"] })),
+      ...crowd
+    ];
+    const related = rankRelated("Quelle.md", vault);
+    expect(related[0]?.path).toBe("Verlinkt.md");
+    expect(related.find((r) => r.path === "Getaggt.md")?.score).toBeLessThanOrEqual(MAX_TAG_SCORE);
+  });
+});
+
 describe("the folder as a tiebreak", () => {
+  it("never outweighs a shared link, however small the folder", () => {
+    const vault: RelatedSubject[] = [
+      note("Klein/Quelle.md", { links: ["Mittel.md", "Hub.md"] }),
+      note("Klein/Nachbar.md", { links: ["Hub.md"] }),
+      note("Anderswo/Teilt.md", { links: ["Mittel.md"] }),
+      ...Array.from({ length: 98 }, (_, i) => note(`Archiv/M${i}.md`, { links: ["Mittel.md"] })),
+      ...Array.from({ length: 500 }, (_, i) => note(`Archiv/H${i}.md`, { links: ["Hub.md"] }))
+    ];
+    // Sharing a link a hundred notes carry beats sharing the folder and a link
+    // five hundred carry; with the folder counted, the neighbour came first.
+    expect(rankRelated("Klein/Quelle.md", vault)[0]?.path).toBe("Anderswo/Teilt.md");
+  });
+
   it("orders two notes that share the same thing", () => {
     const vault: RelatedSubject[] = [
       note("Ordner/Quelle.md", { tags: ["thema"] }),

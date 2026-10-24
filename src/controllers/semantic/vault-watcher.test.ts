@@ -216,6 +216,13 @@ describe("registerVaultWatcher — which vault events reach the index", () => {
     expect(w.applied).toEqual([{ changed: ["new.md"], deleted: ["old.md"] }]);
   });
 
+  it("a note renamed to another kind of file still leaves the index", () => {
+    const w = watcher();
+    w.handlers.rename(w.file("Notiz.txt", "txt"), "Notiz.md");
+    w.flush();
+    expect(w.applied).toEqual([{ changed: [], deleted: ["Notiz.md"] }]);
+  });
+
   it("a non-markdown edit does not reach the index", () => {
     const w = watcher();
     w.handlers.modify(w.file("img.png", "png"));

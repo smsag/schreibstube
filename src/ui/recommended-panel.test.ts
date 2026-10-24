@@ -81,6 +81,7 @@ describe("RecommendedPanel", () => {
             label: "Conversation in Pythia",
             icon: "pythia",
             linkable: true,
+            openable: true,
             reasons: ALIKE
           }
         },
@@ -124,6 +125,7 @@ describe("RecommendedPanel", () => {
             label: "Conversation in Pythia",
             icon: "pythia",
             linkable: true,
+            openable: true,
             reasons: ALIKE
           }
         },
@@ -288,6 +290,7 @@ describe("RecommendedPanel", () => {
             label: "Conversation in Pythia",
             icon: "pythia",
             linkable: true,
+            openable: true,
             reasons: ALIKE
           }
         }
@@ -345,6 +348,83 @@ describe("RecommendedPanel", () => {
     panel.refresh();
     panel.refresh();
     expect(recommend).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks once more when the time is up for a change that came too soon", async () => {
+    vi.useFakeTimers();
+    try {
+      let items = [note("first.md")];
+      const recommend = vi.fn(async () => ({ items }));
+      const { root, panel } = setup(recommend);
+      document.body.append(root);
+      panel.show("a.md");
+      await vi.advanceTimersByTimeAsync(5_000);
+      items = [note("first.md"), note("written-since.md")];
+      panel.refresh();
+      panel.refresh();
+      expect(recommend).toHaveBeenCalledTimes(1);
+
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(recommend).toHaveBeenCalledTimes(2);
+      expect(titles(root)).toContain("written-since");
+      root.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("asks nothing later once it is off the page or on another note", async () => {
+    vi.useFakeTimers();
+    try {
+      const recommend = vi.fn(async () => null);
+      const { root, panel } = setup(recommend);
+      document.body.append(root);
+      panel.show("a.md");
+      panel.refresh();
+      root.remove();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(recommend).toHaveBeenCalledTimes(1);
+
+      const other = setup(recommend);
+      document.body.append(other.root);
+      other.panel.show("a.md");
+      other.panel.refresh();
+      other.panel.show("b.md");
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(recommend.mock.calls.map((call) => (call as unknown[])[0])).toEqual([
+        "a.md",
+        "a.md",
+        "b.md"
+      ]);
+      other.root.remove();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("draws a row its source can neither open nor link to as text, not as a link", async () => {
+    const { root, panel, host } = setup(async () => ({
+      items: [
+        {
+          kind: "item",
+          item: {
+            key: "source:reader:h1",
+            title: "Markierung",
+            label: "Highlight",
+            linkable: false,
+            openable: false,
+            reasons: ALIKE
+          }
+        }
+      ]
+    }));
+    panel.show("a.md");
+    await settle();
+    const row = root.querySelector<HTMLElement>(".schreibstube-related-card.is-item");
+    expect(row?.getAttribute("role")).toBeNull();
+    expect(row?.getAttribute("tabindex")).toBeNull();
+    row?.click();
+    expect(host.openItem).not.toHaveBeenCalled();
   });
 
   it("asks for the place it ranks from: the cursor in the sidebar, the end under the note", () => {
@@ -431,6 +511,7 @@ describe("RecommendedPanel", () => {
             label: "Conversation in Pythia",
             icon: "pythia",
             linkable: true,
+            openable: true,
             reasons: [{ kind: "attached", count: 1 }]
           }
         }

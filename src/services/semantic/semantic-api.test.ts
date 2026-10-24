@@ -18,7 +18,10 @@ import {
   relevance,
   splitItemKey,
   wants,
-  type Hit
+  type Hit,
+  MAX_KIND_POOL,
+  reachedSources,
+  vaultPool
 } from "./semantic-api";
 
 const isIcon = (name: string) => name === "pythia" || name === "book";
@@ -122,6 +125,33 @@ describe("a source registering", () => {
     expect(readLink("https://example.com/x")).toBe("https://example.com/x");
     expect(readLink("javascript:alert(1)")).toBeNull();
     expect(readLink("file:///etc/passwd")).toBeNull();
+  });
+});
+
+describe("what a question reaches", () => {
+  const allowed = [
+    { source: "pythia", kind: "conversation" },
+    { source: "reader", kind: "highlight" }
+  ];
+
+  it("reaches only the sources whose kind is wanted, among those named", () => {
+    expect(reachedSources(new Set(["conversation"]), null, allowed)).toEqual(new Set(["pythia"]));
+    expect(reachedSources(new Set(["conversation"]), new Set(["reader"]), allowed)).toEqual(
+      new Set()
+    );
+    expect(reachedSources(new Set(["note"]), null, allowed)).toEqual(new Set());
+  });
+
+  it("reaches the sources named, or every allowed one, when no kind is named", () => {
+    expect(reachedSources(null, null, allowed)).toBeNull();
+    expect(reachedSources(null, new Set(["reader"]), allowed)).toEqual(new Set(["reader"]));
+  });
+
+  it("asks the vault for enough rows that one of its kinds alone can fill the limit", () => {
+    expect(vaultPool(null, 10, 2)).toBe(12);
+    expect(vaultPool(new Set(["note", "image"]), 10)).toBe(10);
+    expect(vaultPool(new Set(["image"]), 10)).toBe(MAX_KIND_POOL);
+    expect(vaultPool(new Set(["note", "conversation"]), 10, 3)).toBe(MAX_KIND_POOL + 3);
   });
 });
 

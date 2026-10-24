@@ -8,6 +8,7 @@ import { cosine, rankYieldEvery } from "./vector-math";
 import { passageHash } from "./embedding-index";
 import { optedOut, vaultNoteChunks } from "./vault-retrieval";
 import type { IndexKeeper } from "./embedding-index";
+import { escapeRegExp } from "../escape-regexp";
 
 /** The file's name, in Schreibstube's plugin folder. */
 export const RELATED_FILE_NAME = "nimbus-related.json";
@@ -33,6 +34,20 @@ export const PROJECT_KEY = "nimbusProject";
  * are few, so twenty related notes are found long before this.
  */
 export const MAX_CANDIDATE_READS = 120;
+/**
+ * Notes Obsidian says may carry a project's tag that are read to tell which
+ * do. Read past the anchors as well: a carrier never told apart was scored as
+ * a candidate, ranked first, as the project's own notes read most like it,
+ * and spent the candidate reads being set aside. Past this, a note Obsidian
+ * says may carry the tag is left out as if it did.
+ */
+export const MAX_CARRIER_READS = 400;
+/**
+ * Notes whose passages one run keeps once read. The reading is the same for
+ * every project, so it is shared across them, the least recently asked
+ * going first past this.
+ */
+export const MAX_CACHED_NOTES = 1000;
 /**
  * Projects one run looks at. Each costs a pass over every indexed passage; a
  * vault holding more project notes than this is not one the contract was
@@ -110,10 +125,6 @@ export function projectTag(value: unknown): string | null {
 const NOT_BEFORE_TAG = /[\p{L}\p{N}_#&/\][=]/u;
 /** What continues a tag, so a match followed by it names another tag. */
 const TAG_CHAR = /[\p{L}\p{N}_-]/u;
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 function startsTag(text: string, at: number): boolean {
   return at === 0 || !NOT_BEFORE_TAG.test(text[at - 1] ?? "");
@@ -272,18 +283,17 @@ export interface RelatedInput {
   load(path: string): Promise<string | null>;
 }
 
-/** The related notes of one project, best first. */
-async function relatedFor(
-  project: { tag: string; note: string },
-  input: RelatedInput,
-  notes: ReadonlyMap<string, ExportNote>,
-  rows: ReadonlyMap<string, ExportRow>
-): Promise<RelatedEntry[]> {
-  const { tag } = project;
+type PassagesOf = (path: string) => Promise<NotePassages | null>;
+
+/** A note's passages as the index cut them, read once a run and shared by
+ *  every project, at most MAX_CACHED_NOTES of them held. */
+function passageReader(input: RelatedInput, rows: ReadonlyMap<string, ExportRow>): PassagesOf {
   const read = new Map<string, Promise<NotePassages | null>>();
-  const passagesOf = (path: string): Promise<NotePassages | null> => {
+  return (path) => {
     let found = read.get(path);
-    if (!found) {
+    if (found) {
+      read.delete(path);
+    } else {
       found = input
         .load(path)
         .catch(() => null)
@@ -292,15 +302,31 @@ async function relatedFor(
           const texts = vaultNoteChunks(markdown, input.maxChars);
           return { texts, aligned: aligned(texts, rows.get(path)) };
         });
-      read.set(path, found);
+    }
+    read.set(path, found);
+    if (read.size > MAX_CACHED_NOTES) {
+      const oldest = read.keys().next().value;
+      if (oldest !== undefined) read.delete(oldest);
     }
     return found;
   };
+}
+
+/** The related notes of one project, best first. */
+async function relatedFor(
+  project: { tag: string; note: string },
+  input: RelatedInput,
+  notes: ReadonlyMap<string, ExportNote>,
+  rows: ReadonlyMap<string, ExportRow>,
+  passagesOf: PassagesOf
+): Promise<RelatedEntry[]> {
+  const { tag } = project;
 
   // The project's own passages: its note's first, then the passages of other
-  // notes that carry its tag, by path.
+  // notes that carry its tag, by path. `leftOut`: the notes that carry it,
+  // which are the project's own and no candidates.
   const anchors: Int8Array[] = [];
-  const carriers = new Set<string>();
+  const leftOut = new Set<string>();
   const take = (path: string, own: NotePassages, wanted: (text: string) => boolean): void => {
     const row = rows.get(path);
     if (!row || !own.aligned) return;
@@ -315,12 +341,17 @@ async function relatedFor(
   const hinted = [...notes.values()]
     .filter((note) => note.path !== project.note && mayCarry(note.tags, tag))
     .sort((a, b) => byCodeUnits(a.path, b.path));
+  let carrierReads = 0;
   for (const note of hinted) {
-    if (anchors.length >= MAX_ANCHORS) break;
+    if (carrierReads >= MAX_CARRIER_READS) {
+      leftOut.add(note.path);
+      continue;
+    }
+    carrierReads++;
     const passages = await passagesOf(note.path);
     if (!passages?.texts.some((text) => carriesTag(text, tag))) continue;
-    carriers.add(note.path);
-    take(note.path, passages, (text) => carriesTag(text, tag));
+    leftOut.add(note.path);
+    if (anchors.length < MAX_ANCHORS) take(note.path, passages, (text) => carriesTag(text, tag));
   }
   if (anchors.length === 0) return [];
 
@@ -334,7 +365,7 @@ async function relatedFor(
       note &&
       row.chunks.length > 0 &&
       row.id !== project.note &&
-      !carriers.has(row.id) &&
+      !leftOut.has(row.id) &&
       !isSummaryNote(note.frontmatter)
     ) {
       const best = bestAgainst(anchors, row.chunks);
@@ -373,9 +404,13 @@ async function relatedFor(
 export async function buildRelatedFile(input: RelatedInput): Promise<RelatedFile> {
   const notes = new Map(input.notes.map((note) => [note.path, note]));
   const rows = new Map(input.rows.map((row) => [row.id, row]));
+  const passagesOf = passageReader(input, rows);
   const projects: RelatedProject[] = [];
   for (const project of findProjects(input.notes).slice(0, MAX_PROJECTS)) {
-    projects.push({ ...project, related: await relatedFor(project, input, notes, rows) });
+    projects.push({
+      ...project,
+      related: await relatedFor(project, input, notes, rows, passagesOf)
+    });
   }
   return fitBudget({
     format: RELATED_FORMAT,
@@ -520,9 +555,72 @@ export function sameRelatedContent(onDisk: string | null, file: RelatedFile): bo
 }
 
 /**
- * What this device does with the file: only the device that keeps the index
- * (a desktop) writes it, so two devices never write it at once, and it is
- * deleted there when search by meaning is switched off. A phone leaves it.
+ * The file beside the list that names the one desktop writing it. A vault
+ * open on two desktops has an index on each, and both wrote the list: while
+ * their indexes differed each replaced the other's every five minutes, and
+ * a sync could keep the two writes as copies Nimbus never reads. Nimbus does
+ * not read this file.
+ */
+export const RELATED_WRITER_FILE_NAME = "nimbus-related.writer.json";
+/** How long a desktop's claim stands without being renewed: past it another
+ *  desktop takes the list over, the first being gone or switched off. */
+export const RELATED_CLAIM_MS = 3 * 24 * 60 * 60_000;
+/** How old its own claim is before a desktop writes it again on a run. */
+export const RELATED_RENEW_MS = 24 * 60 * 60_000;
+
+const DEVICE_ID = /^[a-z0-9-]{8,64}$/;
+
+/** A device id as this device keeps it, or null when it is none. */
+export function readDeviceId(value: unknown): string | null {
+  return typeof value === "string" && DEVICE_ID.test(value) ? value : null;
+}
+
+export interface WriterClaim {
+  device: string;
+  /** Epoch milliseconds. */
+  at: number;
+}
+
+/** The claim file as written, or null when it holds none: another device's
+ *  hand-edit or a write cut short is no claim, and the next writer replaces it. */
+export function readWriterClaim(text: string | null): WriterClaim | null {
+  if (text === null || text.length > 1024) return null;
+  try {
+    const raw = JSON.parse(text) as Record<string, unknown> | null;
+    const device = readDeviceId(raw?.device);
+    const at = typeof raw?.at === "string" ? Date.parse(raw.at) : NaN;
+    return device !== null && Number.isFinite(at) ? { device, at } : null;
+  } catch {
+    return null;
+  }
+}
+
+export function serializeWriterClaim(claim: WriterClaim): string {
+  return `${JSON.stringify({ device: claim.device, at: new Date(claim.at).toISOString() })}\n`;
+}
+
+/**
+ * Whether this desktop handles the list — writes it, or deletes it when
+ * switched off — and whether it writes its claim first. A claim dated far
+ * from now either way is as good as none, so a clock set wrong once cannot
+ * hold the list for ever.
+ */
+export function writerDecision(
+  claim: WriterClaim | null,
+  me: string,
+  now: number
+): { handles: boolean; claims: boolean } {
+  const age = claim === null ? Infinity : Math.abs(now - claim.at);
+  if (claim === null || age >= RELATED_CLAIM_MS) return { handles: true, claims: true };
+  if (claim.device === me) return { handles: true, claims: age >= RELATED_RENEW_MS };
+  return { handles: false, claims: false };
+}
+
+/**
+ * What this device does with the file: only a device that keeps the index
+ * (a desktop) writes it, and it is deleted there when search by meaning is
+ * switched off. A phone leaves it. Of two desktops, `writerDecision` says
+ * which one.
  */
 export function relatedFileAction(state: {
   device: IndexKeeper;

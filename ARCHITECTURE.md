@@ -211,9 +211,11 @@ Nimbus, a native app on the same vault, reads the index's answer for its
 project notes from a file rather than from the index: `nimbus-related.json` in
 the plugin folder, whose shape and rules are `contracts/RELATED.md`. The
 desktop alone writes it (`controllers/semantic/related-export.ts`), as it alone
-keeps the index, so the two devices never write it at once. A run waits for
-the vault to be quiet after the index or a project note changed, runs at most
-every five minutes, and ranks from stored vectors only, never the model. A
+keeps the index; of two desktops on one vault, the one named in
+`nimbus-related.writer.json`, so no two devices write it at once. A run waits
+for the vault to be quiet after the vault index or a project note changed — a
+source's sync is not a reason — runs at most every five minutes, and ranks
+from stored vectors only, never the model. A
 passage's text comes from cutting the note again the way the index cut it,
 and is trusted only where the stored passage hashes match, so a note edited
 since its embed is passed over until it is embedded again. The decisions —
@@ -269,8 +271,15 @@ counts them as a link between the item and each note, and they are not
 embedded. A hit names an item `<source>:<id>` and carries both halves.
 
 `"unavailable"` means nothing changes until the person acts: the build failed,
-automatic builds are paused, or a phone waits for the desktop's index. A caller
-stops waiting then, where `"loading"` says an answer is on its way.
+automatic builds are paused, a phone waits for the desktop's index, or a
+phone's model is paused after it ended Obsidian twice. A caller stops waiting
+then, where `"loading"` says an answer is on its way.
+
+`kinds` chooses which sources are asked, so a question for one kind is not
+filled with another's and cut to nothing; asked for pictures alone or notes
+alone, the vault is ranked deep enough for that kind to fill the limit.
+`related({ path })` takes a picture's path, as a hit names it, and answers
+from the description note it is indexed by.
 
 A hit's `score` is its relevance, 0 to 1, read against the floor measured for
 what was compared — note to note, note to item, a query to either — so kinds

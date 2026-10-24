@@ -5,14 +5,19 @@ import {
   buildRelatedFile,
   namesProject,
   nextRelatedRun,
+  readDeviceId,
+  readWriterClaim,
   relatedFileAction,
   sameRelatedContent,
   serializeRelatedFile,
+  serializeWriterClaim,
+  writerDecision,
   MAX_RELATED_BYTES,
   RELATED_DEBOUNCE_MS,
   RELATED_FILE_NAME,
   RELATED_INTERVAL_MS,
   RELATED_RETRY_MS,
+  RELATED_WRITER_FILE_NAME,
   type ExportNote,
   type ExportRow
 } from "../../services/semantic/related-export";
@@ -36,6 +41,29 @@ export interface RelatedExportHost {
   snapshot(): RelatedSnapshot | null;
   /** What a search can find changed. Returns the unsubscribe. */
   onContentChange(listener: () => void): () => void;
+  /** Moves when a row of the vault index is added, changed or dropped: what
+   *  the list is made from. A source's items are not, and their syncs move
+   *  the content event without moving this. */
+  vaultRevision(): number;
+  /** This device's own id, kept on this device and never synced. */
+  deviceId(): string;
+}
+
+const DEVICE_KEY = "schreibstube-nimbus-writer-device";
+/** The id made this session, should the device's storage not keep it: a new
+ *  one at every run would find its own claim of a moment ago another's. */
+let madeThisSession: string | null = null;
+
+/** The id this device claims the list under: made once, in its own storage. */
+export function localDeviceId(app: {
+  loadLocalStorage?(key: string): unknown;
+  saveLocalStorage?(key: string, value: unknown): void;
+}): string {
+  const known = readDeviceId(app.loadLocalStorage?.(DEVICE_KEY));
+  if (known) return known;
+  madeThisSession ??= globalThis.crypto.randomUUID();
+  app.saveLocalStorage?.(DEVICE_KEY, madeThisSession);
+  return madeThisSession;
 }
 
 export interface RelatedExportTiming {
@@ -72,6 +100,8 @@ export class RelatedExportWriter {
    *  of one is a change to the list too. */
   private projectNotes = new Set<string>();
   private unsubscribe: (() => void) | null = null;
+  /** The vault index's revision at the last content event that scheduled a run. */
+  private seenRevision: number | null = null;
 
   constructor(
     private readonly plugin: Plugin,
@@ -85,10 +115,23 @@ export class RelatedExportWriter {
     return normalizePath(`${pluginDir(this.plugin)}/${RELATED_FILE_NAME}`);
   }
 
+  /** The file naming the desktop that writes the list. */
+  claimPath(): string {
+    return normalizePath(`${pluginDir(this.plugin)}/${RELATED_WRITER_FILE_NAME}`);
+  }
+
   start(): void {
     // A phone never writes the file, nor deletes it: it is the desktop's.
     if (this.host.device !== "desktop") return;
-    this.unsubscribe = this.host.onContentChange(() => this.schedule());
+    // Only the vault index makes the list. A source syncing — Pythia saves
+    // after every message — moves the content event too, and each one cost a
+    // whole run that found nothing new.
+    this.unsubscribe = this.host.onContentChange(() => {
+      const revision = this.host.vaultRevision();
+      if (revision === this.seenRevision) return;
+      this.seenRevision = revision;
+      this.schedule();
+    });
     this.plugin.registerEvent(
       this.plugin.app.metadataCache.on("changed", (file, _data, cache) => {
         if (this.projectNotes.has(file.path) || namesProject(cache.frontmatter)) this.schedule();
@@ -107,7 +150,7 @@ export class RelatedExportWriter {
     if (action === "write") this.schedule();
     else if (action === "delete") {
       this.cancel();
-      void this.remove();
+      void this.removeIfHeld();
     }
   }
 
@@ -148,7 +191,7 @@ export class RelatedExportWriter {
       return;
     }
     const action = this.action();
-    if (action === "delete") return this.remove();
+    if (action === "delete") return this.removeIfHeld();
     if (action !== "write") return;
     const snapshot = this.host.snapshot();
     if (!snapshot) {
@@ -159,6 +202,8 @@ export class RelatedExportWriter {
     this.running = true;
     this.lastRunAt = this.timing.now();
     try {
+      // Another desktop writes the list: this one builds nothing.
+      if (!(await this.claim())) return;
       const file = await buildRelatedFile({
         ...snapshot,
         notes: this.collect(),
@@ -230,10 +275,44 @@ export class RelatedExportWriter {
     await adapter.write(this.path(), text);
   }
 
-  private async remove(): Promise<void> {
-    try {
+  /**
+   * Whether this desktop writes the list, its claim written first when it
+   * takes the list or the claim is due to be renewed (`writerDecision`).
+   */
+  private async claim(): Promise<boolean> {
+    const me = this.host.deviceId();
+    const now = this.timing.now();
+    const decision = writerDecision(readWriterClaim(await this.read(this.claimPath())), me, now);
+    if (decision.claims) {
       const adapter = this.plugin.app.vault.adapter;
-      if (await adapter.exists(this.path())) await adapter.remove(this.path());
+      const dir = pluginDir(this.plugin);
+      if (!(await adapter.exists(dir))) await adapter.mkdir(dir);
+      await adapter.write(this.claimPath(), serializeWriterClaim({ device: me, at: now }));
+    }
+    return decision.handles;
+  }
+
+  /** The text of a small file in the plugin folder; null when there is none. */
+  private async read(path: string): Promise<string | null> {
+    const adapter = this.plugin.app.vault.adapter;
+    return (await adapter.exists(path)) ? adapter.read(path) : null;
+  }
+
+  /**
+   * Switched off: the list goes, and the claim with it so another desktop
+   * may take the list at once — but only where this desktop held it. A
+   * second desktop with search by meaning off deleted the list the first
+   * one kept writing.
+   */
+  private async removeIfHeld(): Promise<void> {
+    try {
+      const claim = readWriterClaim(await this.read(this.claimPath()));
+      const decision = writerDecision(claim, this.host.deviceId(), this.timing.now());
+      if (!decision.handles) return;
+      const adapter = this.plugin.app.vault.adapter;
+      for (const path of [this.path(), this.claimPath()]) {
+        if (await adapter.exists(path)) await adapter.remove(path);
+      }
     } catch (e) {
       this.logger.warn("related export: the list for Nimbus could not be removed", e);
     }

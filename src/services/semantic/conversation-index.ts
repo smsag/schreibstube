@@ -47,7 +47,7 @@ export class ConversationIndex {
    *  and each one used to read and decode the whole index again beside the
    *  others — several copies of it at once, on the device with least memory. */
   private loading: Promise<void> | null = null;
-  private syncing: Promise<void> | null = null;
+  private syncing: Promise<unknown> | null = null;
 
   /** The stored file's modification time as last read or written here. */
   private storedMtime: number | null = null;
@@ -163,12 +163,20 @@ export class ConversationIndex {
    * where every item is in `changed`; an incremental sync hands over only
    * what moved, so the full texts of everything else need not be held.
    * Concurrent calls run one after another.
+   *
+   * Answers the ids of `changed` whose embed failed: each keeps its old row,
+   * if it had one, and the caller hands it in again rather than forgetting
+   * it, since an incremental source will not list it a second time.
    */
-  async update(changed: readonly ConversationItem[], keep: readonly string[]): Promise<void> {
+  async update(
+    changed: readonly ConversationItem[],
+    keep: readonly string[]
+  ): Promise<ReadonlySet<string>> {
     while (this.syncing) await this.syncing.catch(() => undefined);
-    this.syncing = this.doUpdate(changed, keep);
+    const run = this.doUpdate(changed, keep);
+    this.syncing = run;
     try {
-      await this.syncing;
+      return await run;
     } finally {
       this.syncing = null;
     }
@@ -177,7 +185,8 @@ export class ConversationIndex {
   private async doUpdate(
     changed: readonly ConversationItem[],
     keep: readonly string[]
-  ): Promise<void> {
+  ): Promise<ReadonlySet<string>> {
+    const failed = new Set<string>();
     await this.load();
     const byId = new Map(this.items.map((i) => [i.id, i]));
     const wanted = new Set(keep);
@@ -190,27 +199,27 @@ export class ConversationIndex {
     }
     const dropped = [...byId.keys()].some((id) => !wanted.has(id));
     const reordered = !sameOrder(this.items, keep, byId);
-    if (embed.length === 0 && !dropped && !reordered) return;
+    if (embed.length === 0 && !dropped && !reordered) return failed;
 
-    let failures = 0;
     for (const d of embed) {
       try {
         const raw = await this.embedAll(d.chunks);
         byId.set(d.id, { id: d.id, contentHash: d.contentHash, chunks: raw.map(quantize) });
       } catch (e) {
         // A backend that is gone ends the sync; one item that fails keeps its
-        // old row, if it had one, and is tried at the next sync.
+        // old row, if it had one, and is named to the caller to try again.
         if (isBackendGone(e) || isOutOfMemoryError(e)) throw e;
-        failures++;
+        failed.add(d.id);
       }
     }
-    if (embed.length > 0 && failures === embed.length && !dropped) return; // nothing new
+    if (embed.length > 0 && failed.size === embed.length && !dropped) return failed; // nothing new
     this.items = keep
       .map((id) => byId.get(id))
       .filter((i): i is IndexedConversation => i !== undefined);
     await this.store.write(serializeIndex(this.items, this.provider.dim));
     // This device's own write is not another device's: no re-read for it.
     await this.rememberMtime();
+    return failed;
   }
 
   private async embedAll(chunks: string[]): Promise<Float32Array[]> {

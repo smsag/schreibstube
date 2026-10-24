@@ -663,13 +663,13 @@ export class VaultIndexService {
       chunks: raw.map(quantize),
       passages: passageHashes(chunks)
     };
-    // A known row is changed in place: it keeps its place in the list without
-    // a scan for it, and nothing holds a row across two batches.
-    if (prev) Object.assign(prev, item);
-    else {
-      this.rows.push(item);
-      this.byId.set(note.path, item);
-    }
+    // A known row is replaced, never changed: a reader holding a snapshot —
+    // the Nimbus list, ranked over many turns — keeps the row it ranked, and
+    // changed under it, a passage's score was written beside another's text.
+    const at = prev ? this.rows.indexOf(prev) : -1;
+    if (at >= 0) this.rows[at] = item;
+    else this.rows.push(item);
+    this.byId.set(note.path, item);
     this.changes++;
     return "embedded";
   }
@@ -1094,8 +1094,9 @@ export class VaultIndexService {
 
   /**
    * Every row as it stands, for a reader that ranks the whole index against
-   * itself over several turns of the event loop: a copy of the list, so an
-   * edit landing meanwhile replaces rows rather than moving them under it.
+   * itself over several turns of the event loop: a copy of the list, and rows
+   * are never changed once made, so an edit landing meanwhile replaces a row
+   * rather than changing the one the reader holds.
    */
   rowsSnapshot(): IndexedConversation[] {
     return [...this.items];

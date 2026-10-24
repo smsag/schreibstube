@@ -86,7 +86,9 @@ export interface RelatedNote {
  *
  * A direct link is a flat score rather than a weighted one: it is not evidence
  * that two notes might be related, it is a person saying they are, and no
- * amount of shared tags should outrank it.
+ * amount of shared tags should outrank it. The folder is worth nothing to the
+ * score: it only orders notes that scored alike, and its weight orders the
+ * reasons a row names.
  */
 const WEIGHTS: Record<RelatedReasonKind, number> = {
   link: 3,
@@ -96,6 +98,13 @@ const WEIGHTS: Record<RelatedReasonKind, number> = {
   tag: 0.6,
   folder: 0.35
 };
+
+/**
+ * The most shared tags add, all of them together: less than a direct link.
+ * Weighted by rarity, one tag ten notes in two thousand carry was worth 3.7,
+ * and a note that only shared it ranked above a note linked by hand.
+ */
+export const MAX_TAG_SCORE = WEIGHTS.link * 0.9;
 
 /**
  * How many results the sidebar is willing to draw.
@@ -306,7 +315,7 @@ export function rankRelated(
   const myBacklinks = new Set(source.backlinks.filter((path) => path !== sourcePath));
   const myTags = new Set(source.tags);
 
-  const ranked: RelatedNote[] = [];
+  const ranked: (RelatedNote & { folderTie: number })[] = [];
 
   for (const note of notes) {
     if (note.path === sourcePath) continue;
@@ -348,7 +357,7 @@ export function rankRelated(
       (tag) => myTags.has(tag) && isRareTag(frequencies.tags.get(tag) ?? 0, total)
     );
     if (tags.count > 0 && (!byTagsAlone || rareShared)) {
-      add("tag", tags.count, WEIGHTS.tag * tags.weight);
+      add("tag", tags.count, Math.min(MAX_TAG_SCORE, WEIGHTS.tag * tags.weight));
     }
 
     // Sharing nothing else, a note is not related, whatever folder it is in.
@@ -358,10 +367,13 @@ export function rankRelated(
     // notes that read alike.
     if (score <= 0) continue;
 
-    // The folder only ever breaks a tie, and only in a folder small enough for
-    // sitting in it to have meant something.
+    // The folder only ever breaks a tie, and a smaller folder breaks it
+    // first: sitting in it means more. Added to the score, a small folder
+    // outweighed most shared links, which is no tiebreak.
+    let folderTie = 0;
     if (note.folder === source.folder) {
-      add("folder", 1, WEIGHTS.folder * idf(frequencies.folders.get(note.folder) ?? 0, total));
+      folderTie = idf(frequencies.folders.get(note.folder) ?? 0, total);
+      reasons.push({ reason: { kind: "folder", count: 1 }, weight: WEIGHTS.folder * folderTie });
     }
 
     reasons.sort((a, b) => b.weight - a.weight);
@@ -369,14 +381,19 @@ export function rankRelated(
       path: note.path,
       score,
       reasons: reasons.map((entry) => entry.reason),
-      modifiedAt: note.modifiedAt
+      modifiedAt: note.modifiedAt,
+      folderTie
     });
   }
 
-  // The most recently touched of two equally related notes is the one being
-  // worked on, and a stable order beats one that shuffles between draws.
+  // Then the most recently touched of two equally related notes is the one
+  // being worked on, and a stable order beats one that shuffles between draws.
   ranked.sort(
-    (a, b) => b.score - a.score || b.modifiedAt - a.modifiedAt || comparePaths(a.path, b.path)
+    (a, b) =>
+      b.score - a.score ||
+      b.folderTie - a.folderTie ||
+      b.modifiedAt - a.modifiedAt ||
+      comparePaths(a.path, b.path)
   );
 
   const limit = Math.min(
@@ -385,5 +402,8 @@ export function rankRelated(
   );
   const top = ranked[0]?.score ?? 0;
   const cutoff = top * RELATED_FLOOR;
-  return ranked.filter((note) => note.score >= cutoff).slice(0, limit);
+  return ranked
+    .filter((note) => note.score >= cutoff)
+    .slice(0, limit)
+    .map(({ folderTie: _tie, ...note }) => note);
 }

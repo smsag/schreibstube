@@ -13,6 +13,7 @@
  * rewrite text.
  */
 import { descriptionNotePath } from "./image-description";
+import { escapeRegExp } from "./escape-regexp";
 
 /**
  * Whether a link that is broken now pointed at the file that was at `oldPath`.
@@ -46,10 +47,6 @@ export function followedNotePath(
   if (notePath !== descriptionNotePath(folder, oldImage)) return null;
   const next = descriptionNotePath(folder, newImage);
   return next === notePath ? null : next;
-}
-
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**

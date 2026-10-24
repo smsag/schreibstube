@@ -19,6 +19,11 @@ import { SemanticIndexFiles } from "./index-files";
  *  answer that never comes must not hold a search forever. */
 const LIST_DEADLINE_MS = 5000;
 
+/** Syncs an item's embed may fail in before it is left until it changes:
+ *  one that fails every time would otherwise load the model for it at every
+ *  sync, a Recommended answer's catching up included. */
+export const MAX_EMBED_TRIES = 3;
+
 export interface SourceIndexHost {
   plugin: Plugin;
   logger: Logger;
@@ -75,6 +80,12 @@ export class SourceIndex {
   /** The index lags what was listed. */
   private dirty = true;
   private released = false;
+  /** Moves whenever what was listed is forgotten — the source refused, the
+   *  index reset, the source let go — so a listing still on its way then is
+   *  dropped rather than applied to a listing that no longer exists. */
+  private generation = 0;
+  /** Syncs each pending item's embed failed in, by id. */
+  private failures = new Map<string, number>();
   /** A background sync started by the Recommended panel is running. */
   private catchingUp = false;
   private listingRun: Promise<void> | null = null;
@@ -113,6 +124,7 @@ export class SourceIndex {
   /** Stop: no listing, no embed and no write happens for this index after this. */
   release(): void {
     this.released = true;
+    this.generation++;
     try {
       this.unsubscribe();
     } catch (e) {
@@ -175,11 +187,13 @@ export class SourceIndex {
   }
 
   private forgetListing(): void {
+    this.generation++;
     this.cursor = null;
     this.listed = false;
     this.stale = true;
     this.dirty = true;
     this.pending.clear();
+    this.failures.clear();
   }
 
   private files(modelId: EmbeddingModelId): SemanticIndexFiles {
@@ -208,40 +222,54 @@ export class SourceIndex {
     // Marked read before asking: a change the source reports while it answers
     // makes the next question ask again.
     this.stale = false;
+    const generation = this.generation;
+    // An answer that arrives after the person refused the source, or after the
+    // index was reset or the source let go, is about a listing that no longer
+    // exists: applied, it put a refused source's titles and texts back into
+    // memory. It is dropped, and the next question asks again.
+    const current = (): boolean => {
+      if (!this.released && this.generation === generation && this.allowed()) return true;
+      this.stale = true;
+      return false;
+    };
     try {
-      const delta = this.source.changes ? await this.askChanges() : null;
-      if (this.released) return;
-      if (delta && this.listed) this.applyDelta(delta);
-      else if (delta) this.applyFull(delta.changed, delta.cursor);
-      else {
-        const items = normalizeConversations(await this.ask(() => this.source.list(), "list()"));
-        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
-        if (this.released) return;
-        this.applyFull(items, null);
+      if (this.source.changes) {
+        const cursor = this.listed ? this.cursor : null;
+        const delta = await this.askChanges(cursor);
+        if (!current()) return;
+        if (delta) {
+          // What the answer is follows from what was asked: a null cursor
+          // asks for everything, and what comes back replaces the listing.
+          if (cursor === null) this.applyFull(delta.changed, delta.cursor);
+          else this.applyDelta(delta);
+          return;
+        }
+        this.host.logger.warn(
+          `semantic sources: ${this.id} answered changes() with something else`
+        );
+        this.listed = false;
+        this.cursor = null;
       }
+      const items = normalizeConversations(await this.ask(() => this.source.list(), "list()"));
+      if (!current()) return;
+      this.applyFull(items, null);
     } catch (e) {
       this.stale = true;
       throw e;
     }
   }
 
-  /** The source's changes since its cursor, or null when the answer was not
+  /** The source's changes since `cursor`, or null when the answer was not
    *  one: then the whole list is read, and the cursor starts over. */
-  private async askChanges(): Promise<ItemChanges | null> {
-    const cursor = this.listed ? this.cursor : null;
+  private async askChanges(cursor: string | null): Promise<ItemChanges | null> {
     const answer = await this.ask(() => this.source.changes!(cursor), "changes()");
-    const delta = normalizeChanges(answer, MAX_CURSOR_CHARS);
-    if (!delta) {
-      this.host.logger.warn(`semantic sources: ${this.id} answered changes() with something else`);
-      this.listed = false;
-      this.cursor = null;
-    }
-    return delta;
+    return normalizeChanges(answer, MAX_CURSOR_CHARS);
   }
 
   private applyFull(items: readonly ConversationItem[], cursor: string | null): void {
     this.meta = new Map(items.map((item) => [item.id, metaOf(item)]));
     this.pending = this.embedsHere ? new Map(items.map((item) => [item.id, item])) : new Map();
+    this.failures.clear();
     this.cursor = cursor;
     this.listed = true;
     this.dirty = true;
@@ -255,6 +283,8 @@ export class SourceIndex {
     for (const item of delta.changed) {
       this.meta.set(item.id, metaOf(item));
       if (this.embedsHere) this.pending.set(item.id, item);
+      // Changed, it is a new text: the tries it used up were the old one's.
+      this.failures.delete(item.id);
     }
     // The same cap as a whole list: the newest, however they arrived.
     if (this.meta.size > MAX_CONVERSATIONS) {
@@ -319,11 +349,27 @@ export class SourceIndex {
     if (this.released || !this.allowed() || this.index !== index) return;
     const changed = [...this.pending.values()];
     const keep = [...this.meta].sort((a, b) => b[1].updatedAt - a[1].updatedAt).map(([id]) => id);
-    await index.update(changed, keep);
+    const failed = await index.update(changed, keep);
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
     if (this.released || this.index !== index) return;
-    for (const item of changed)
-      if (this.pending.get(item.id) === item) this.pending.delete(item.id);
+    for (const item of changed) {
+      if (this.pending.get(item.id) !== item) continue;
+      // An item whose embed failed stays pending: a source with a cursor will
+      // not list it again until it changes, and dropped here it was never
+      // found by meaning for the rest of the session.
+      const tries = failed.has(item.id) ? (this.failures.get(item.id) ?? 0) + 1 : 0;
+      if (tries > 0 && tries < MAX_EMBED_TRIES) {
+        this.failures.set(item.id, tries);
+        continue;
+      }
+      if (tries > 0) {
+        this.host.logger.warn(
+          `semantic sources: ${this.id}: an item could not be embedded in ${tries} tries; it is tried again when it changes`
+        );
+      }
+      this.pending.delete(item.id);
+      this.failures.delete(item.id);
+    }
     this.dirty = this.pending.size > 0;
     this.host.changed();
   }
@@ -415,6 +461,11 @@ export class SourceIndex {
     const known = await this.host.queryVector(text);
     if (known) return index.queryByVector(known, opts);
     return (await this.host.modelWork(() => index.query(text, opts))) ?? [];
+  }
+
+  /** Whether the source shows an item itself when its row is pressed. */
+  opensItself(): boolean {
+    return !this.released && typeof this.source.open === "function";
   }
 
   open(id: string): boolean {

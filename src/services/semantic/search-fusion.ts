@@ -108,6 +108,25 @@ export function meaningFloor(query: string): MeaningFloor {
   return queryTokens(query).length < 2 ? WORD_FLOOR : PHRASE_FLOOR;
 }
 
+/**
+ * `applyMeaningFloor` for two lists read as one: the relative cut is against
+ * the best of either, so a source's items for a lone word are held to what
+ * the notes are held to. Without it they came back at the bare absolute
+ * floor, which is the noise the relative cut is there to take out.
+ */
+export function applyMeaningFloorAcross<A extends { score: number }, B extends { score: number }>(
+  first: readonly A[],
+  second: readonly B[],
+  floor: MeaningFloor
+): [A[], B[]] {
+  const a = first.filter((hit) => hit.score >= floor.minScore);
+  const b = second.filter((hit) => hit.score >= floor.minScore);
+  const top = [...a, ...b].reduce((best, hit) => Math.max(best, hit.score), -Infinity);
+  if (floor.relative <= 0 || !Number.isFinite(top)) return [a, b];
+  const near = (hit: { score: number }): boolean => hit.score >= top * floor.relative;
+  return [a.filter(near), b.filter(near)];
+}
+
 /** Keep the hits that clear `floor`, best first as they came. */
 export function applyMeaningFloor<T extends { score: number }>(
   hits: readonly T[],

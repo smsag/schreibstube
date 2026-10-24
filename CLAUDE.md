@@ -56,7 +56,10 @@ asks for the sentence.
 ## Conventions worth knowing
 
 - User-visible strings live in `src/i18n/`; English is the type, German must
-  satisfy it. Frontmatter keys are prefixed `schreibstube`, without exception.
+  satisfy it. Frontmatter keys Schreibstube defines are prefixed `schreibstube`,
+  without exception. The plain ones are not its own: publishing's, which a
+  person maps to their vault's names, and those another app owns that it only
+  reads — Nimbus's `nimbusProject`, a report's `type: summary`.
 - Comments explain why, never what. A commit message says what changed for the
   user and why, in prose; `CHANGELOG.md` gets an entry for every user-visible
   change under `## Unreleased`.

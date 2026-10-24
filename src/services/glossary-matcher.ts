@@ -19,6 +19,7 @@ import {
   type TermStatus
 } from "./glossary-parser";
 import { overlapsAny, type TextRange } from "./markdown-segments";
+import { escapeRegExp } from "./escape-regexp";
 
 export type HitKind = "substitution" | "existence" | "capitalization";
 
@@ -264,8 +265,4 @@ function resolveOverlaps(hits: GlossaryHit[], compiled: CompiledTerm[]): Glossar
   }
 
   return kept;
-}
-
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

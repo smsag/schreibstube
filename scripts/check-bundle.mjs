@@ -158,8 +158,17 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * language setting and key, the two website property sets, and their words in
  * two languages. The 1560 ceiling had been spent to 0.9 KB on main; the owner
  * agreed to the raise in this change.
+ *
+ * Raised to 1572 KB at 1568 KB, for the fixes a review of search by meaning,
+ * Recommended, the API and the Nimbus list found (+4.3 KB on 1564): the
+ * Explorer filter's waits, a source index that drops a listing a refusal
+ * overtook and tries a failed embed again, the bounds on what a source lists,
+ * the API's questions by kind, Recommended's later ask, and the desktop that
+ * claims the Nimbus list. The 1564 ceiling had been spent to 0.2 KB on main,
+ * so no fix of any size fitted under it; the owner agreed to the raise in
+ * this change. What is left is for the next one, not a new normal.
  */
-const MAX_BUNDLE_KB = 1564;
+const MAX_BUNDLE_KB = 1572;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

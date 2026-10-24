@@ -50,6 +50,7 @@ import {
 import type { Logger } from "../services/logger";
 import { folderOf } from "../services/path-follow";
 import { FileSearchIndex } from "../services/search-index";
+import { FilterTimers } from "../services/filter-timers";
 import { BodyIndex, BodyLoader } from "../services/body-index";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
 import { ITEM_RESULTS_PER_SOURCE } from "../services/semantic/conversation-search";
@@ -196,6 +197,8 @@ export interface ItemResult {
   /** The source's name for its items, as a section header says it. */
   plural: string;
   icon?: string;
+  /** Whether pressing it does anything: its source opens it, or links to it. */
+  openable: boolean;
 }
 
 /** A source that named no icon of the set: a stack, which says "items of a kind". */
@@ -265,11 +268,12 @@ export class ExplorerPaneView extends ItemView {
   private drawnShelfCapacity: number | null = null;
   /** A resize waiting for its frame to be measured; null when none is. */
   private resizeFrame: number | null = null;
-  /** Waiting for the typing to stop before the filter redraws. */
-  private filterTimer: number | null = null;
-  /** Waiting for a longer pause before asking by meaning. */
-  private meaningTimer: number | null = null;
-  private itemTimer: number | null = null;
+  /** The words' short wait before the filter redraws, and the longer one
+   *  before asking by meaning and for items. */
+  private readonly timers = new FilterTimers({
+    setTimeout: (run, ms) => this.containerEl.win.setTimeout(run, ms),
+    clearTimeout: (id) => this.containerEl.win.clearTimeout(id)
+  });
   /** The sources' items found for a query, kept against it. */
   private itemHits: { query: string; hits: ItemResult[] } | null = null;
   /** What meaning found, and for which query; ignored once the query moved on. */
@@ -623,7 +627,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   protected override async onClose(): Promise<void> {
-    this.cancelFilter();
+    this.timers.end("close");
     // The text read is this pane's; closed, it would read on into nothing.
     this.bodyLoader.cancel();
     const win = this.containerEl.win;
@@ -647,15 +651,6 @@ export class ExplorerPaneView extends ItemView {
     this.itemHits = null;
   }
 
-  private cancelFilter(): void {
-    if (this.filterTimer !== null) this.containerEl.win.clearTimeout(this.filterTimer);
-    this.filterTimer = null;
-    if (this.meaningTimer !== null) this.containerEl.win.clearTimeout(this.meaningTimer);
-    this.meaningTimer = null;
-    if (this.itemTimer !== null) this.containerEl.win.clearTimeout(this.itemTimer);
-    this.itemTimer = null;
-  }
-
   /**
    * Ask the sources for their items once the typing has paused.
    *
@@ -670,8 +665,7 @@ export class ExplorerPaneView extends ItemView {
       this.itemHits = null;
       return;
     }
-    this.itemTimer = this.containerEl.win.setTimeout(() => {
-      this.itemTimer = null;
+    this.timers.start("items", MEANING_DEBOUNCE_MS, () => {
       void ask(raw.trim(), ITEM_RESULTS_PER_SOURCE)
         .then((hits) => {
           if (this.query !== key) return;
@@ -679,7 +673,7 @@ export class ExplorerPaneView extends ItemView {
           this.requestRender();
         })
         .catch(() => undefined);
-    }, MEANING_DEBOUNCE_MS);
+    });
   }
 
   /**
@@ -692,9 +686,7 @@ export class ExplorerPaneView extends ItemView {
   private askByMeaning(raw: string, key: string): void {
     const ask = this.host?.meaning;
     if (!ask || meaningQuery(raw) === null) return;
-    if (this.meaningTimer !== null) this.containerEl.win.clearTimeout(this.meaningTimer);
-    this.meaningTimer = this.containerEl.win.setTimeout(() => {
-      this.meaningTimer = null;
+    this.timers.start("meaning", MEANING_DEBOUNCE_MS, () => {
       // Asked after the pause, when the words have had their turn: one word
       // the words already answer is not asked by meaning.
       const text = meaningQuery(raw, this.wordHitsFor(key));
@@ -716,7 +708,7 @@ export class ExplorerPaneView extends ItemView {
         })
         .catch(() => undefined)
         .finally(settle);
-    }, MEANING_DEBOUNCE_MS);
+    });
   }
 
   /** How many files the words alone find for `key`, counted by the last draw
@@ -762,9 +754,13 @@ export class ExplorerPaneView extends ItemView {
     return hasSearchWords(value) ? value : "";
   }
 
-  /** Take the field's query now, without waiting for the typing to stop. */
+  /**
+   * Take the field's query now, without waiting for the typing to stop. Only
+   * the words' wait ends: the search by meaning and the items asked for the
+   * same typing still come.
+   */
   private applyFilter(): void {
-    this.cancelFilter();
+    this.timers.end("apply");
     const query = this.fieldQuery();
     if (query === this.query) return;
     this.query = query;
@@ -773,7 +769,7 @@ export class ExplorerPaneView extends ItemView {
   }
 
   private scheduleFilter(): void {
-    this.cancelFilter();
+    this.timers.end("type");
     const raw = this.search?.value ?? "";
     const value = this.fieldQuery();
     this.rawQuery = raw;
@@ -786,10 +782,7 @@ export class ExplorerPaneView extends ItemView {
       this.applyFilter();
       return;
     }
-    this.filterTimer = this.containerEl.win.setTimeout(() => {
-      this.filterTimer = null;
-      this.applyFilter();
-    }, FILTER_DEBOUNCE_MS);
+    this.timers.start("filter", FILTER_DEBOUNCE_MS, () => this.applyFilter());
   }
 
   private clearFilter(): void {
@@ -1706,15 +1699,18 @@ export class ExplorerPaneView extends ItemView {
       });
       if (!block) continue;
       for (const hit of found) {
+        // An item its source can neither open nor link to is a row of text.
         const row = block.createDiv({
           cls: "schreibstube-explorer-row is-item",
-          attr: { role: "link", tabindex: "0", title: hit.title }
+          attr: hit.openable
+            ? { role: "link", tabindex: "0", title: hit.title }
+            : { title: hit.title }
         });
         indent(row, 0);
         row.createSpan({ cls: "schreibstube-explorer-twisty" });
         applyIcon(row.createSpan({ cls: "schreibstube-explorer-glyph" }), icon);
         row.createSpan({ cls: "schreibstube-explorer-name", text: hit.title });
-        pressable(row, () => open(hit.key));
+        if (hit.openable) pressable(row, () => open(hit.key));
       }
     }
   }

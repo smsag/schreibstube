@@ -71,6 +71,25 @@ describe("VaultIndexService", () => {
     expect(svc.rowsSnapshot()).toHaveLength(3);
   });
 
+  it("replaces an edited note's row rather than changing the one a snapshot holds", async () => {
+    const svc = new VaultIndexService(new FakeProvider(), new MemStore());
+    await svc.sync([alpha, beta]);
+    const before = svc.rowsSnapshot()[0]!;
+    const { contentHash, chunks } = before;
+    await svc.applyBatch({
+      updates: [note("Notes/alpha.md", "now about beta instead")],
+      removes: []
+    });
+
+    expect(before.contentHash).toBe(contentHash);
+    expect(before.chunks).toBe(chunks);
+    const after = svc.rowsSnapshot();
+    expect(after.map((row) => row.id)).toEqual(["Notes/alpha.md", "Notes/beta.md"]);
+    expect(after[0]).not.toBe(before);
+    expect(after[0]?.contentHash).not.toBe(contentHash);
+    expect(svc.sourceOf("Notes/alpha.md")?.chunks).toBe(after[0]?.chunks);
+  });
+
   it("re-embeds nothing when unchanged (incremental)", async () => {
     const p = new FakeProvider();
     const store = new MemStore();
