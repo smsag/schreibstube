@@ -52,6 +52,26 @@ describe("descriptionUserMessage", () => {
     const message = descriptionUserMessage("", "a".repeat(DESCRIPTION_MAX_INPUT_CHARS * 2));
     expect(message).toHaveLength(DESCRIPTION_MAX_INPUT_CHARS);
   });
+
+  it("never sends a comment written for oneself", () => {
+    const body = "Öffentlich. %%Gehalt: 4.200 €%%\n\n%%\nprivat\n%%\nWeiter.";
+    const message = descriptionUserMessage("", body);
+    expect(message).not.toContain("Gehalt");
+    expect(message).not.toContain("privat");
+    expect(message).toContain("Öffentlich.");
+    expect(message).toContain("Weiter.");
+  });
+
+  it("removes a comment before cutting, so half of one is not sent", () => {
+    const body = `${"a".repeat(DESCRIPTION_MAX_INPUT_CHARS - 10)} %%geheim und lang%% b`;
+    expect(descriptionUserMessage("", body)).not.toContain("geheim");
+  });
+
+  it("keeps percent signs inside code, which are no comment", () => {
+    expect(descriptionUserMessage("", 'Format `printf("%%d")` und %%weg%%')).toBe(
+      'Format `printf("%%d")` und'
+    );
+  });
 });
 
 describe("parseDescriptionResponse", () => {
