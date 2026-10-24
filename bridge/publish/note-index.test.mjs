@@ -73,6 +73,12 @@ describe("the shared index contract, on the bridge", () => {
   it("labels the index in the shared words", () => {
     expect(LABELS.summary(12)).toBe(table.labels.summary.replace("{n}", "12"));
     expect(LABELS.summary(1)).toBe(table.labels.summaryOne);
+    expect(LABELS.summary(12, "de-AT")).toBe(table.labels.summary.replace("{n}", "12"));
+  });
+
+  it("labels the index in the shared English words on a page in another language", () => {
+    expect(LABELS.summary(12, "en")).toBe(table.englishLabels.summary.replace("{n}", "12"));
+    expect(LABELS.summary(1, "fr")).toBe(table.englishLabels.summaryOne);
   });
 });
 

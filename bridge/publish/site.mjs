@@ -9,11 +9,15 @@
  */
 import { createHash } from "node:crypto";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
-import { DEFAULT_LANGUAGE, homePage, indexPage, notePage, tagPage } from "./render/page.mjs";
+import { homePage, indexPage, notePage, PAGE_DEPTHS, tagPage } from "./render/page.mjs";
+import { DEFAULT_LANGUAGE, isLanguageTag } from "./render/language.mjs";
 import {
   assetPath,
   extensionOf,
+  hasOwnPage,
+  isListed,
   isValidSlug,
+  noteHref,
   pagePath,
   isHeaderTag,
   MAX_HEADER_TAGS,
@@ -74,14 +78,6 @@ export function checkIndex(index) {
     if (!isValidSlug(note.slug)) {
       throw new IndexError(`${note.sourcePath}: unusable slug ${JSON.stringify(note.slug)}.`);
     }
-    // The shared links live there, with a page of their own that keeps a
-    // listing host from naming them; a note at the same address would take
-    // that page over, and unpublishing it would delete it.
-    if (note.slug === SHARE_DIRECTORY) {
-      throw new IndexError(
-        `${note.sourcePath}: the address "${SHARE_DIRECTORY}" is kept for shared links; give the note another slug.`
-      );
-    }
     for (const field of ["title", "date", "description"]) {
       if (note[field] !== undefined && typeof note[field] !== "string") {
         throw new IndexError(`${note.sourcePath}: ${field} must be a string.`);
@@ -111,13 +107,25 @@ export function checkIndex(index) {
         `${note.sourcePath}: unusable language ${JSON.stringify(note.language)}.`
       );
     }
-    const previous = seen.get(note.slug);
-    if (previous) {
-      throw new IndexError(
-        `Two notes claim the slug "${note.slug}": ${previous} and ${note.sourcePath}.`
-      );
+    // Only a note with a page of its own takes its slug's address; the start
+    // page and the footer leave theirs to any note that wants it.
+    if (hasOwnPage(note)) {
+      // The shared links live there, with a page of their own that keeps a
+      // listing host from naming them; a note at the same address would take
+      // that page over, and unpublishing it would delete it.
+      if (note.slug === SHARE_DIRECTORY) {
+        throw new IndexError(
+          `${note.sourcePath}: the address "${SHARE_DIRECTORY}" is kept for shared links; give the note another slug.`
+        );
+      }
+      const previous = seen.get(note.slug);
+      if (previous) {
+        throw new IndexError(
+          `Two notes claim the slug "${note.slug}": ${previous} and ${note.sourcePath}.`
+        );
+      }
+      seen.set(note.slug, note.sourcePath);
     }
-    seen.set(note.slug, note.sourcePath);
     if (note.tags !== undefined) {
       if (!Array.isArray(note.tags) || note.tags.some((tag) => !headerTags.includes(tag))) {
         throw new IndexError(`${note.sourcePath}: tags must be among the header tags.`);
@@ -222,7 +230,7 @@ export function headerNav(index) {
       label: tagLabel(tag),
       slug: slugify(tag),
       path: tagPagePath(tag),
-      notes: ordered.filter((note) => !note.footer && note.tags?.includes(tag))
+      notes: ordered.filter((note) => isListed(note) && note.tags?.includes(tag))
     }))
     .filter((entry) => entry.notes.length > 0);
 }
@@ -246,8 +254,8 @@ export async function buildSite(index, sources, options = {}) {
   // A note marked as the footer is drawn beneath every page and is no page
   // of its own; the rest are pages.
   const footerNote = index.notes.find((note) => note.footer) ?? null;
-  const ordered = orderNotes(index.notes.filter((note) => note !== footerNote));
-  const site = lookups(index, options.thumbnails, "../");
+  const ordered = orderNotes(index.notes.filter(isListed));
+  const site = lookups(index, options.thumbnails, PAGE_DEPTHS.note);
   const md = createRenderer(options);
   // A note marked as home is the start page, served from the site's root.
   const home = ordered.find((note) => note.home) ?? null;
@@ -262,12 +270,15 @@ export async function buildSite(index, sources, options = {}) {
       if (source === undefined) {
         throw new IndexError(`Source not uploaded for ${footerNote.sourcePath}.`);
       }
-      footers.set(
-        up,
-        renderMarkdown(md, source, lookups(index, options.thumbnails, up), {
-          sourcePath: footerNote.sourcePath
-        })
-      );
+      const lang = footerNote.language ?? siteLanguage;
+      const rendered = renderMarkdown(md, source, lookups(index, options.thumbnails, up), {
+        sourcePath: footerNote.sourcePath,
+        lang,
+        // The footer sits on a page beside that page's own text, whose
+        // footnotes and headings would otherwise share its ids.
+        idScope: "footer"
+      });
+      footers.set(up, { ...rendered, lang });
     }
     return footers.get(up);
   };
@@ -288,11 +299,12 @@ export async function buildSite(index, sources, options = {}) {
 
     // The start page sits one level higher than a note page, so its links
     // are resolved from there.
+    const lang = note.language ?? siteLanguage;
     const rendered = renderMarkdown(
       md,
       source,
-      note === home ? lookups(index, options.thumbnails, "") : site,
-      { sourcePath: note.sourcePath }
+      note === home ? lookups(index, options.thumbnails, PAGE_DEPTHS.root) : site,
+      { sourcePath: note.sourcePath, lang }
     );
     usedMath = usedMath || rendered.usedMath;
     usedMermaid = usedMermaid || rendered.usedMermaid;
@@ -312,8 +324,8 @@ export async function buildSite(index, sources, options = {}) {
             usedMath: rendered.usedMath,
             usedMermaid: rendered.usedMermaid,
             usedSlideshow: rendered.usedSlideshow,
-            lang: note.language ?? siteLanguage,
-            footer: footerAt("")
+            lang,
+            footer: footerAt(PAGE_DEPTHS.root)
           }),
           "utf8"
         )
@@ -333,8 +345,8 @@ export async function buildSite(index, sources, options = {}) {
           usedMath: rendered.usedMath,
           usedMermaid: rendered.usedMermaid,
           usedSlideshow: rendered.usedSlideshow,
-          lang: note.language ?? siteLanguage,
-          footer: footerAt("../")
+          lang,
+          footer: footerAt(PAGE_DEPTHS.note)
         }),
         "utf8"
       )
@@ -351,7 +363,7 @@ export async function buildSite(index, sources, options = {}) {
           nav,
           icon,
           lang: siteLanguage,
-          footer: footerAt("")
+          footer: footerAt(PAGE_DEPTHS.root)
         }),
         "utf8"
       )
@@ -367,7 +379,7 @@ export async function buildSite(index, sources, options = {}) {
           nav,
           icon,
           lang: siteLanguage,
-          footer: footerAt("../../")
+          footer: footerAt(PAGE_DEPTHS.tag)
         }),
         "utf8"
       )
@@ -402,14 +414,13 @@ export async function buildSite(index, sources, options = {}) {
  * `up` leads from there to the site's root, `../` from a note page and nothing
  * from the start page. A link to the start page leads to the root.
  */
-function lookups(index, thumbnails = new Set(), up = "../") {
+function lookups(index, thumbnails = new Set(), up = PAGE_DEPTHS.note) {
   const notes = new Map();
   for (const note of index.notes) {
     // The footer has no page of its own, so a link to it is plain text, as a
     // link to an unpublished note is.
-    if (note.footer) continue;
-    const url = note.home ? up || "./" : `${up}${note.slug}/`;
-    const entry = { url, title: note.title, slug: note.slug };
+    if (!isListed(note)) continue;
+    const entry = { url: noteHref(note, up), title: note.title, slug: note.slug };
     for (const alias of aliases(note.sourcePath)) notes.set(alias, entry);
   }
 
@@ -443,19 +454,6 @@ function aliases(sourcePath) {
 
 function basename(path) {
   return String(path).split("/").pop() ?? String(path);
-}
-
-/**
- * A language tag as a page's `lang` takes it: `de`, `en`, `en-GB`, `pt-BR`.
- * Only its shape is checked; a browser treats a tag it does not know as
- * unknown, which is harmless, but a quote in one would break the page.
- */
-export function isLanguageTag(value) {
-  return (
-    typeof value === "string" &&
-    value.length <= 35 &&
-    /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8}){0,4}$/.test(value)
-  );
 }
 
 function isHash(value) {

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { assetCandidates, key } from "./render/obsidian.mjs";
-import { LABELS } from "./client/slideshow.mjs";
+import { ENGLISH_LABELS, LABELS, labelsFor } from "./client/slideshow.mjs";
 import { MAX_THUMBNAIL_BYTES, thumbnailExtension } from "./path.mjs";
 import { imagesForLayout, parseSlideshow, regionLabel, stripColumns } from "./render/slideshow.mjs";
 
@@ -39,15 +39,26 @@ describe("the shared slideshow contract, on the bridge", () => {
   it("names each layout in the shared words", () => {
     for (const [layout, template] of Object.entries(table.labels.region)) {
       expect(regionLabel(layout, 3)).toBe(template.replace("{n}", "3"));
+      expect(regionLabel(layout, 3, "de-CH")).toBe(template.replace("{n}", "3"));
+    }
+    for (const [layout, template] of Object.entries(table.englishLabels.region)) {
+      expect(regionLabel(layout, 3, "en")).toBe(template.replace("{n}", "3"));
     }
   });
 
   it("labels the site's controls in the shared words", () => {
-    const { labels } = table;
-    for (const name of ["previous", "next", "fullscreen", "exit", "compareHandle"]) {
-      expect(LABELS[name]).toBe(labels[name]);
+    for (const [words, labels] of [
+      [LABELS, table.labels],
+      [ENGLISH_LABELS, table.englishLabels]
+    ]) {
+      for (const name of ["previous", "next", "fullscreen", "exit", "compareHandle"]) {
+        expect(words[name]).toBe(labels[name]);
+      }
+      expect(words.showImage(2)).toBe(labels.showImage.replace("{n}", "2"));
     }
-    expect(LABELS.showImage(2)).toBe(labels.showImage.replace("{n}", "2"));
+    expect(labelsFor("de")).toBe(LABELS);
+    expect(labelsFor(undefined)).toBe(LABELS);
+    expect(labelsFor("en-GB")).toBe(ENGLISH_LABELS);
   });
 
   it("serves thumbnails of the same pictures, in the same types, within the same limit", () => {

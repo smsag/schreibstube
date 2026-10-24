@@ -18,10 +18,11 @@ import katexModule from "@vscode/markdown-it-katex";
 import { iconShortcodes } from "./icons.mjs";
 import { obsidian } from "./obsidian.mjs";
 import { slugify } from "../path.mjs";
+import { DEFAULT_LANGUAGE } from "./language.mjs";
 
 /** Bumped when the output of a given source would change. A changed version
  *  re-renders every page on the next commit, without re-uploading anything. */
-export const RENDER_VERSION = 9;
+export const RENDER_VERSION = 10;
 
 const katex = katexModule.default ?? katexModule;
 
@@ -42,7 +43,10 @@ export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) 
     .use(sub)
     .use(sup)
     .use(taskLists, { label: false })
-    .use(anchor, { slugify, tabIndex: false })
+    .use(anchor, {
+      slugifyWithState: (text, state) => `${state.env.idPrefix ?? ""}${slugify(text)}`,
+      tabIndex: false
+    })
     .use(katex, { throwOnError: false })
     .use(obsidian, { allowDiagrams })
     .use(iconShortcodes);
@@ -54,10 +58,25 @@ export function createRenderer({ allowHtml = true, allowDiagrams = true } = {}) 
  * `site` carries the lookup tables the Obsidian rules need. The returned flags
  * say which generator assets the page has to load, so a site without diagrams
  * never ships a diagram bundle. `sourcePath` is the note's place in the vault,
- * which a relative image path is read against.
+ * which a relative image path is read against. `lang` is the language of the
+ * page it goes on, which the words the bridge writes itself follow.
+ *
+ * `idScope` keeps the ids of a text drawn on a page beside another text — the
+ * footer — apart from that page's own: its footnotes become `fn-<scope>-1`
+ * and its headings `<scope>--…`, which no heading of the page can be, since a
+ * slug never holds two dashes in a row.
  */
-export function renderMarkdown(md, source, site, { sourcePath = "" } = {}) {
-  const env = { site, sourcePath, usedMermaid: false, usedSlideshow: false };
+export function renderMarkdown(
+  md,
+  source,
+  site,
+  { sourcePath = "", lang = DEFAULT_LANGUAGE, idScope = null } = {}
+) {
+  const env = { site, sourcePath, lang, usedMermaid: false, usedSlideshow: false };
+  if (idScope) {
+    env.docId = idScope;
+    env.idPrefix = `${idScope}--`;
+  }
   const html = md.render(prepare(source), env);
   return {
     html,

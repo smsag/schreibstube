@@ -4,6 +4,7 @@
  * block's text is note text, so it is bounded and every value is escaped.
  */
 import { escapeAttribute, escapeHtml } from "./html.mjs";
+import { DEFAULT_LANGUAGE, isGerman } from "./language.mjs";
 
 export const SLIDESHOW_LANGUAGE = "schreibstube-slideshow";
 
@@ -96,21 +97,27 @@ export function stripColumns(count) {
   return count <= MAX_STRIP_COLUMNS ? count : STRIP_WRAP_COLUMNS;
 }
 
-/** What a screen reader hears for the block: the plugin's German labels. */
-export function regionLabel(layout, count) {
+/**
+ * What a screen reader hears for the block: the plugin's labels, in German on
+ * a German page and in English on any other.
+ */
+export function regionLabel(layout, count, lang = DEFAULT_LANGUAGE) {
+  const german = isGerman(lang);
   switch (layout) {
     case "feature":
-      return `Szene mit Details, ${count} Bilder`;
+      return german ? `Szene mit Details, ${count} Bilder` : `Scene with details, ${count} images`;
     case "strip":
-      return `Bildreihe, ${count} Bilder`;
+      return german ? `Bildreihe, ${count} Bilder` : `Image strip, ${count} images`;
     case "filmstrip":
-      return `Diaschau mit Vorschaubildern, ${count} Bilder`;
+      return german
+        ? `Diaschau mit Vorschaubildern, ${count} Bilder`
+        : `Slideshow with thumbnails, ${count} images`;
     case "masonry":
-      return `Bilderwand, ${count} Bilder`;
+      return german ? `Bilderwand, ${count} Bilder` : `Image wall, ${count} images`;
     case "compare":
-      return "Vorher und nachher";
+      return german ? "Vorher und nachher" : "Before and after";
     default:
-      return `Diaschau, ${count} Bilder`;
+      return german ? `Diaschau, ${count} Bilder` : `Slideshow, ${count} images`;
   }
 }
 
@@ -127,7 +134,7 @@ export function regionLabel(layout, count) {
  * `slideshow` says whether the page needs the slideshow's stylesheet and
  * script.
  */
-export function renderSlideshow(source, resolve) {
+export function renderSlideshow(source, resolve, lang = DEFAULT_LANGUAGE) {
   const parsed = parseSlideshow(source);
   if (!parsed.ok) return { html: "", slideshow: false };
 
@@ -170,7 +177,7 @@ export function renderSlideshow(source, resolve) {
   return {
     html:
       `<figure class="slideshow slideshow-${layout}" data-layout="${layout}" role="group" ` +
-      `aria-label="${escapeAttribute(regionLabel(layout, images.length))}"${style}>\n` +
+      `aria-label="${escapeAttribute(regionLabel(layout, images.length, lang))}"${style}>\n` +
       `<div class="slideshow-items">\n${items}\n</div>\n` +
       `</figure>\n`,
     slideshow: true

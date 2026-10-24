@@ -3,7 +3,8 @@ import { emptyManifest, plannedOutputs, planUploads } from "./manifest.mjs";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { videoPlayback } from "./render/obsidian.mjs";
 import { formatDate } from "./render/page.mjs";
-import { buildSite, checkIndex, isLanguageTag, sha256 } from "./site.mjs";
+import { isLanguageTag } from "./render/language.mjs";
+import { buildSite, checkIndex, sha256 } from "./site.mjs";
 
 /**
  * What a site says about itself beyond its notes: the language each page is
@@ -103,9 +104,38 @@ describe("a footer note", () => {
     expect(paths).not.toContain("footer/index.html");
     for (const path of ["index.html", "imprint/index.html"]) {
       const html = page(path);
-      expect(html).toContain('<footer class="site">');
-      expect(html.indexOf("</main>")).toBeLessThan(html.indexOf('<footer class="site">'));
+      expect(html).toContain('<footer class="site"');
+      expect(html.indexOf("</main>")).toBeLessThan(html.indexOf('<footer class="site"'));
     }
+  });
+
+  it("says its own language where it is not the page's", async () => {
+    const { page } = await site();
+    expect(page("index.html")).toContain('<footer class="site">\n');
+    expect(page("imprint/index.html")).toContain('<footer class="site" lang="en">');
+  });
+
+  it("keeps its footnotes and headings apart from the page's own", async () => {
+    const body = "# Karussell\n\n## Kontakt\n\nText[^1].\n\n[^1]: Of the page.\n";
+    const own = "## Kontakt\n\nMail[^1].\n\n[^1]: Of the footer.\n";
+    const notes = [note("Karussell", body, { home: true }), note("Footer", own, { footer: true })];
+    const files = await buildSite(
+      checkIndex(index({ notes })),
+      new Map([
+        [sha256(body), body],
+        [sha256(own), own]
+      ])
+    );
+    const html = files.get("index.html").toString("utf8");
+    const ids = [...html.matchAll(/ id="([^"]+)"/g)].map((match) => match[1]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toEqual(
+      expect.arrayContaining(["kontakt", "footer--kontakt", "fn1", "fn-footer-1"])
+    );
+    const footer = html.slice(html.indexOf("<footer"));
+    expect(footer).toContain('href="#fn-footer-1"');
+    expect(footer).toContain('href="#fnref-footer-1"');
+    expect(footer).not.toContain('href="#fn1"');
   });
 
   it("resolves its links from the page it is drawn on", async () => {
@@ -146,6 +176,17 @@ describe("a footer note", () => {
     expect(() => checkIndex(index({ notes: wrong }))).toThrow(/footer must be true/);
   });
 
+  it("claims no address, so a page may have its slug", () => {
+    const notes = [
+      note("Karussell", start, { home: true }),
+      note("Imprint", imprint),
+      note("Footer", footer, { footer: true, slug: "imprint" })
+    ];
+    expect(() => checkIndex(index({ notes }))).not.toThrow();
+    const shared = [note("Footer", footer, { footer: true, slug: "s" })];
+    expect(() => checkIndex(index({ notes: shared }))).not.toThrow();
+  });
+
   it("asks for no page of its own, and lets an old one go", () => {
     const manifest = {
       ...emptyManifest("karussell"),
@@ -178,6 +219,27 @@ describe("how a video plays", () => {
     expect(videoPlayback(undefined)).toEqual({ loop: false, autoplay: false, muted: false });
   });
 
+  it("reads them between pipes, as Obsidian writes an embed's words", () => {
+    expect(videoPlayback("autoplay|loop")).toEqual({ loop: true, autoplay: true, muted: true });
+    expect(videoPlayback("muted | autoplay")).toEqual({ loop: false, autoplay: true, muted: true });
+    expect(render("![[clip.mp4|autoplay|muted|640]]")).toContain(
+      '<video class="embed" controls autoplay muted playsinline preload="auto" src="../assets/bbb-clip.mp4" width="640">'
+    );
+    expect(render("![[clip.mp4|autoplay|loop]]")).toContain("autoplay muted loop playsinline");
+  });
+
+  it("leaves a caption that happens to hold one of them a caption", () => {
+    expect(videoPlayback("The feedback loop explained")).toEqual({
+      loop: false,
+      autoplay: false,
+      muted: false
+    });
+    expect(render("![[clip.mp4|The feedback loop explained]]")).toContain(
+      '<video class="embed" controls preload="metadata" src="../assets/bbb-clip.mp4">'
+    );
+    expect(render("![Muted trumpet, live](clip.mp4)")).toContain('controls preload="metadata"');
+  });
+
   it("loops silently, keeping the controls so it can be stopped", () => {
     expect(render("![[clip.mp4|loop]]")).toContain(
       '<video class="embed" controls autoplay muted loop playsinline preload="auto" src="../assets/bbb-clip.mp4">'
@@ -195,5 +257,35 @@ describe("how a video plays", () => {
     expect(render("![[clip.mp4]]")).toContain(
       '<video class="embed" controls preload="metadata" src="../assets/bbb-clip.mp4">'
     );
+  });
+});
+
+describe("the words the bridge writes itself", () => {
+  const four = ["a", "b", "c", "d"].map((name) => ({
+    sourcePath: `Site/${name}.png`,
+    sha256: name.repeat(64),
+    name: `${name}.png`,
+    bytes: 3
+  }));
+  const gallery =
+    "# Gallery\n\n```schreibstube-index\n```\n\n## One\n\n## Two\n\n" +
+    "```schreibstube-slideshow\n![A](a.png)\n![B](b.png)\n![C](c.png)\n![D](d.png)\n```\n";
+
+  async function gallerySite(language) {
+    const notes = [note("Gallery", gallery, language ? { language } : {})];
+    const files = await buildSite(
+      checkIndex(index({ language: "en", notes, assets: four })),
+      new Map([[sha256(gallery), gallery]])
+    );
+    return files.get("gallery/index.html").toString("utf8");
+  }
+
+  it("follow the page's language, in a slideshow and in a note's index", async () => {
+    const english = await gallerySite();
+    expect(english).toContain('aria-label="Slideshow, 4 images"');
+    expect(english).toContain("<summary>Contents · <strong>3</strong> sections</summary>");
+    const german = await gallerySite("de");
+    expect(german).toContain('aria-label="Diaschau, 4 Bilder"');
+    expect(german).toContain("<summary>Inhalt · <strong>3</strong> Abschnitte</summary>");
   });
 });

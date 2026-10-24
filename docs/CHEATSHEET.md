@@ -394,7 +394,7 @@ slug: hallo-welt
 ```
 
 - All but `published` are optional; slideshows, diagrams, index and totals carry over. Never `slug: s`
-  (shared links). `schreibstubeHome: marketing` (note alone) or `list` (note, then the list): start page; `schreibstubeFooter: true`: footer of every page; `lang: en`: page language.
+  (shared links). `schreibstubeHome: marketing` (note alone) or `list` (note, then the list): start page; `schreibstubeFooter: true`: footer of every page; `schreibstubePageLanguage: en`: page language. A video whose only words are `loop`, `autoplay` or `muted` plays that way: `![[clip.mp4|autoplay|muted|640]]`; any other words are a caption.
 - Leave `description` out rather than guess: an empty one may be written by
   the AI when the note is published.
 - **Share note as a link** (`Notiz als Link teilen`) needs no key: any note, as written. On the

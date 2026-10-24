@@ -864,7 +864,7 @@
     [9, 3]
   ],
   "labels": {
-    "comment": "What a reader hears and reads, in German, the site's language. '{n}' stands for a count or a position. The plugin's German strings, the bridge's region labels and the site's script are each checked against these.",
+    "comment": "What a reader hears and reads on a German page. '{n}' stands for a count or a position. The plugin's German strings, the bridge's region labels and the site's script are each checked against these.",
     "region": {
       "slideshow": "Diaschau, {n} Bilder",
       "filmstrip": "Diaschau mit Vorschaubildern, {n} Bilder",
@@ -879,6 +879,23 @@
     "exit": "Vollbild verlassen",
     "compareHandle": "Trenner verschieben",
     "showImage": "Bild {n} anzeigen"
+  },
+  "englishLabels": {
+    "comment": "The same on a page in any other language: the plugin's English strings, checked the same way.",
+    "region": {
+      "slideshow": "Slideshow, {n} images",
+      "filmstrip": "Slideshow with thumbnails, {n} images",
+      "feature": "Scene with details, {n} images",
+      "strip": "Image strip, {n} images",
+      "masonry": "Image wall, {n} images",
+      "compare": "Before and after"
+    },
+    "previous": "Previous image",
+    "next": "Next image",
+    "fullscreen": "Present fullscreen",
+    "exit": "Exit presentation",
+    "compareHandle": "Move the divider",
+    "showImage": "Show image {n}"
   },
   "thumbnails": {
     "comment": "Which pictures a filmstrip gets a thumbnail of, as what file type, and the most one may weigh. The plugin makes them by this rule and the bridge serves them by it; null is none.",

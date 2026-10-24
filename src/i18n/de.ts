@@ -221,6 +221,8 @@ export const de: Messages = {
       "Bis zu drei Schlagwörter, oben auf jeder Seite verlinkt, jedes mit einer Seite der Notizen, die es tragen. Verschachtelte zählen mit: projekt listet auch Notizen mit projekt/alpha. Ein Schlagwort, das keine veröffentlichte Notiz trägt, bleibt weg.",
     headerTagPlaceholder: "#schlagwort",
     language: "Sprache der Seiten",
+    languageInvalid: (typed: string) =>
+      `${typed} ist kein Sprachkürzel, darum bleibt die Sprache, wie sie war. Eins wie de, en oder en-GB eintragen.`,
     languageDesc:
       "Ein Sprachkürzel wie de, en oder en-GB. Es sagt Browsern, Screenreadern und Suchmaschinen, in welcher Sprache die Seiten sind. Eine Notiz sagt mit ihrem eigenen Sprachfeld etwas anderes. Leer: Deutsch.",
     targetPlaceholder: "Ziel auf der Bridge",
@@ -308,7 +310,9 @@ export const de: Messages = {
       `Verbindung zu ${target} steht (${entries} Einträge).`,
     connectionFailed: (reason: string) => reason,
     bridgeOutdated: (bridge: number, plugin: number) =>
-      `die Bridge spricht Protokoll ${bridge}, das Plugin erwartet ${plugin} — Bridge neu ausrollen.`
+      `die Bridge spricht Protokoll ${bridge}, das Plugin erwartet ${plugin} — Bridge neu ausrollen.`,
+    bridgeTooOld: (bridge: number, needed: number) =>
+      `nichts veröffentlicht: Diese Website hat eine Startseite, eine Fußzeile oder eine Seitensprache, die eine Bridge ab Protokoll ${needed} liest, und diese spricht ${bridge}. Bridge neu ausrollen, dann erneut veröffentlichen.`
   },
 
   share: {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { de } from "../i18n/de";
+import { en } from "../i18n/en";
 import { referencedAttachments } from "./publish-index";
 import { MAX_THUMBNAIL_BYTES, thumbnailType } from "./publish-thumbnail";
 import { imagesForLayout, parseSlideshow, stripColumns } from "./slideshow";
@@ -38,6 +39,7 @@ const table = JSON.parse(readFileSync("contracts/slideshow-cases.json", "utf8"))
   cases: Case[];
   stripColumns: [number, number][];
   labels: Labels;
+  englishLabels: Labels;
   thumbnails: { maxBytes: number; types: [string, string | null][] };
 };
 
@@ -66,22 +68,25 @@ describe("the shared slideshow contract, in the plugin", () => {
     });
   }
 
-  it("speaks the site's German: the plugin's strings are the shared ones", () => {
-    const { labels } = table;
-    const words = de.slideshow;
-    expect(words.region(3)).toBe(count(labels.region.slideshow!, 3));
-    expect(words.regionFilmstrip(3)).toBe(count(labels.region.filmstrip!, 3));
-    expect(words.regionFeature(3)).toBe(count(labels.region.feature!, 3));
-    expect(words.regionStrip(3)).toBe(count(labels.region.strip!, 3));
-    expect(words.regionMasonry(3)).toBe(count(labels.region.masonry!, 3));
-    expect(words.regionCompare).toBe(labels.region.compare);
-    expect(words.previous).toBe(labels.previous);
-    expect(words.next).toBe(labels.next);
-    expect(words.fullscreen).toBe(labels.fullscreen);
-    expect(words.exit).toBe(labels.exit);
-    expect(words.compareHandle).toBe(labels.compareHandle);
-    expect(words.showImage(2)).toBe(count(labels.showImage, 2));
-  });
+  for (const [language, words, labels] of [
+    ["German", de.slideshow, table.labels],
+    ["English", en.slideshow, table.englishLabels]
+  ] as const) {
+    it(`speaks the site's ${language}: the plugin's strings are the shared ones`, () => {
+      expect(words.region(3)).toBe(count(labels.region.slideshow!, 3));
+      expect(words.regionFilmstrip(3)).toBe(count(labels.region.filmstrip!, 3));
+      expect(words.regionFeature(3)).toBe(count(labels.region.feature!, 3));
+      expect(words.regionStrip(3)).toBe(count(labels.region.strip!, 3));
+      expect(words.regionMasonry(3)).toBe(count(labels.region.masonry!, 3));
+      expect(words.regionCompare).toBe(labels.region.compare);
+      expect(words.previous).toBe(labels.previous);
+      expect(words.next).toBe(labels.next);
+      expect(words.fullscreen).toBe(labels.fullscreen);
+      expect(words.exit).toBe(labels.exit);
+      expect(words.compareHandle).toBe(labels.compareHandle);
+      expect(words.showImage(2)).toBe(count(labels.showImage, 2));
+    });
+  }
 
   it("makes thumbnails of the same pictures, in the same types, within the same limit", () => {
     const extension: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg" };

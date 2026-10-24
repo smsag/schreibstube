@@ -16,6 +16,8 @@ import {
   isPublishableAttachment,
   isoDate,
   normalizePublishKeys,
+  PUBLISH_KEY_ROLES,
+  readLanguageField,
   readPublishFields,
   headerTagsOf,
   MAX_HEADER_TAGS,
@@ -151,6 +153,27 @@ describe("normalizePublishKeys", () => {
     expect(keys.description).toBe(DEFAULT_PUBLISH_KEYS.description);
   });
 
+  it("keeps a role on its default when another is mapped onto that key", () => {
+    const keys = normalizePublishKeys({ title: "slug" });
+    expect(keys.slug).toBe("slug");
+    expect(keys.title).toBe(DEFAULT_PUBLISH_KEYS.title);
+  });
+
+  it("gives every role a key of its own even when its default is taken as well", () => {
+    const keys = normalizePublishKeys({ published: "x", title: "date", date: "x" });
+    expect(keys).toMatchObject({ published: "x", title: "date", date: "schreibstubeDate" });
+    expect(new Set(Object.values(keys)).size).toBe(PUBLISH_KEY_ROLES.length);
+  });
+
+  it("reads a page's language from a key of its own unless told to read `lang`", () => {
+    expect(DEFAULT_PUBLISH_KEYS.language).toBe("schreibstubePageLanguage");
+    expect(normalizePublishKeys({ language: "lang" }).language).toBe("lang");
+    expect(normalizePublishKeys({ slug: "lang" })).toMatchObject({
+      slug: "lang",
+      language: "schreibstubePageLanguage"
+    });
+  });
+
   it("ignores anything that is not a mapping", () => {
     expect(normalizePublishKeys("titel")).toEqual(DEFAULT_PUBLISH_KEYS);
   });
@@ -272,6 +295,16 @@ describe("findSlugCollision", () => {
     expect(message).toContain("Blog/a.md");
     expect(message).toContain("Blog/b.md");
   });
+
+  it("lets the start page and the footer share a page's slug, since neither takes its address", () => {
+    expect(
+      findSlugCollision([
+        { ...note("Blog/Start/x.md", "x"), home: true },
+        { ...note("Blog/Fuss/x.md", "x"), footer: true },
+        note("Blog/x.md", "x")
+      ])
+    ).toBeNull();
+  });
 });
 
 describe("readHomeFields", () => {
@@ -361,6 +394,13 @@ describe("checkLanguage", () => {
     }
   });
 
+  it("saves the site's language field whole or not at all, so a word typed out is no tag", () => {
+    expect(readLanguageField(" en-GB ")).toBe("en-GB");
+    expect(readLanguageField("  ")).toBe("");
+    expect(readLanguageField("Deutsch")).toBeNull();
+    expect(readLanguageField("english")).toBeNull();
+  });
+
   it("gives a note the language its frontmatter names, under the configured key", () => {
     const input = {
       path: "Site/Impressum.md",
@@ -369,12 +409,18 @@ describe("checkLanguage", () => {
       createdMs: 0
     };
     expect(
-      resolveNote({ ...input, frontmatter: { lang: "de" } }, DEFAULT_PUBLISH_KEYS).language
+      resolveNote(
+        { ...input, frontmatter: { schreibstubePageLanguage: "de" } },
+        DEFAULT_PUBLISH_KEYS
+      ).language
     ).toBe("de");
     const keys = normalizePublishKeys({ language: "sprache" });
     expect(resolveNote({ ...input, frontmatter: { sprache: "en" } }, keys).language).toBe("en");
     expect(
-      resolveNote({ ...input, frontmatter: { lang: "Deutsch" } }, DEFAULT_PUBLISH_KEYS)
+      resolveNote(
+        { ...input, frontmatter: { schreibstubePageLanguage: "Deutsch" } },
+        DEFAULT_PUBLISH_KEYS
+      )
     ).not.toHaveProperty("language");
   });
 });

@@ -9,14 +9,14 @@
  * `nosniff`, so a browser serves a file as the type its name gives it.
  */
 import { createHash } from "node:crypto";
-import { mermaidLoader } from "./render/page.mjs";
+import { mermaidLoader, PAGE_DEPTHS } from "./render/page.mjs";
 
 /** Where the bridge writes them, and which of them it manages. */
 export const SITE_HTACCESS = ".htaccess";
 export const ASSETS_HTACCESS = "assets/.htaccess";
 export const HTACCESS_FILES = new Set([SITE_HTACCESS, ASSETS_HTACCESS]);
 
-/** The hash a page's one inline script is allowed by; only note pages draw diagrams. */
+/** The hash a page's one inline script is allowed by. */
 export function scriptHash(text) {
   return `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`;
 }
@@ -30,9 +30,12 @@ export function scriptHash(text) {
  */
 export const DEFAULT_CSP = [
   "default-src 'self'",
-  // A note page loads the diagram bundle from one level up; a start page
-  // that holds a diagram, from where it is.
-  `script-src 'self' ${scriptHash(mermaidLoader("../"))} ${scriptHash(mermaidLoader(""))}`,
+  // The loader names the bundle relative to its page, so each depth a page
+  // sits at is its own script: a diagram can be in a note, in the start
+  // page, and in the footer that every page carries, tag pages included.
+  `script-src 'self' ${Object.values(PAGE_DEPTHS)
+    .map((up) => scriptHash(mermaidLoader(up)))
+    .join(" ")}`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "media-src 'self' https:",

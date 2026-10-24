@@ -115,7 +115,7 @@ describe("PropertySetController.pick", () => {
       datum: "",
       description: "",
       slug: "",
-      lang: "",
+      schreibstubePageLanguage: "",
       publishedAt: "",
       publishedUrl: ""
     });

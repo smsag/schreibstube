@@ -366,5 +366,9 @@
   "labels": {
     "summary": "Inhalt · {n} Abschnitte",
     "summaryOne": "Inhalt · 1 Abschnitt"
+  },
+  "englishLabels": {
+    "summary": "Contents · {n} sections",
+    "summaryOne": "Contents · 1 section"
   }
 }

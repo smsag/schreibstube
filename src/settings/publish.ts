@@ -12,10 +12,10 @@ import { Notice, SecretComponent, Setting } from "obsidian";
 import { t } from "../i18n";
 import type { PublishAccount } from "../types";
 import {
-  checkLanguage,
   DEFAULT_PUBLISH_KEYS,
   MAX_HEADER_TAGS,
   normalizeHeaderTags,
+  readLanguageField,
   PUBLISH_KEY_ROLES,
   type PublishKeyMap
 } from "../services/publish-index";
@@ -175,17 +175,21 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
   new Setting(containerEl)
     .setName(t().publish.language)
     .setDesc(t().publish.languageDesc)
-    .addText((text) =>
-      text
-        .setPlaceholder("de")
-        .setValue(account.language ?? "")
-        .onChange((value) => {
-          const language = checkLanguage(value);
-          // A tag half typed is kept out of the account until it is one; an
-          // empty field is German, as an account without one always was.
-          if (language || value.trim() === "") void update({ language: language ?? "" });
-        })
-    );
+    .addText((text) => {
+      text.setPlaceholder("de").setValue(account.language ?? "");
+      // Saved when the field is left rather than on every key: a word typed
+      // out passes through prefixes that are tags of their own — "Deu" on the
+      // way to "Deutsch" — and the last of them would have been kept unsaid.
+      text.inputEl.addEventListener("change", () => {
+        const language = readLanguageField(text.inputEl.value);
+        if (language !== null) {
+          void update({ language });
+          return;
+        }
+        new Notice(t().common.notice(t().publish.languageInvalid(text.inputEl.value.trim())));
+        text.setValue(ctx.plugin.settings.publishAccounts[position]?.language ?? "");
+      });
+    });
 
   const ai = ctx.plugin.aiReady();
   const describe = new Setting(containerEl)
