@@ -258,9 +258,12 @@ function resolveOverlaps(hits: GlossaryHit[], compiled: CompiledTerm[]): Glossar
     return b.to - a.to;
   });
 
+  // Taken in order of where they start and never overlapping, the kept hits
+  // end in order too, so the last one is the only one a hit can run into:
+  // asking every kept hit made a long note full of terms quadratic.
   const kept: GlossaryHit[] = [];
   for (const hit of ranked) {
-    if (kept.some((other) => hit.from < other.to && hit.to > other.from)) continue;
+    if (hit.from < (kept[kept.length - 1]?.to ?? 0)) continue;
     kept.push(hit);
   }
 
