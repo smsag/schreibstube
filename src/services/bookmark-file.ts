@@ -134,8 +134,10 @@ export function parseBookmarkFile(text: string): BookmarkTree {
   const tree = emptyBookmarkTree();
   let body = text;
   if (body.length > MAX_BOOKMARK_FILE_CHARS) {
-    // Cut at the last whole line, so the last row read is not half a link.
-    body = body.slice(0, body.lastIndexOf("\n", MAX_BOOKMARK_FILE_CHARS));
+    // Cut at the last whole line, so the last row read is not half a link. No
+    // line ending before the ceiling means no whole line: slicing to -1 then
+    // kept all of the file but its last character.
+    body = body.slice(0, Math.max(0, body.lastIndexOf("\n", MAX_BOOKMARK_FILE_CHARS)));
     tree.truncated = true;
   }
 

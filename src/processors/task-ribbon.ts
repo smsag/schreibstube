@@ -16,6 +16,9 @@ export function registerTaskRibbon(plugin: Plugin): void {
 }
 
 class TaskRibbon extends LiveNoteBlock {
+  /** The line as last drawn: a keystroke in a paragraph leaves it as it was. */
+  private drawn: string | null = null;
+
   constructor(app: App, containerEl: HTMLElement, sourcePath: string) {
     super(app, containerEl, sourcePath);
     containerEl.addClass("schreibstube-task-ribbon");
@@ -23,17 +26,16 @@ class TaskRibbon extends LiveNoteBlock {
 
   protected draw(content: string): void {
     const summary = summarizeTasks(content);
+    const text =
+      summary.total === 0
+        ? t().tasks.none
+        : t().tasks.ribbon(summary.open, summary.total, summary.progress, summary.cancelled);
+    if (text === this.drawn) return;
+    this.drawn = text;
 
     this.containerEl.empty();
     const line = this.containerEl.createDiv({ cls: "schreibstube-task-ribbon-line" });
-    if (summary.total === 0) {
-      line.setText(t().tasks.none);
-      return;
-    }
-
-    appendWithStrongFigures(
-      line,
-      t().tasks.ribbon(summary.open, summary.total, summary.progress, summary.cancelled)
-    );
+    if (summary.total === 0) line.setText(text);
+    else appendWithStrongFigures(line, text);
   }
 }

@@ -23,6 +23,7 @@ import {
   encryptShare,
   expiredShares,
   fitsOpenLink,
+  isClosed,
   isShareCode,
   MAX_SHARES,
   maxShareRequestBytes,
@@ -91,7 +92,9 @@ export function createShareRoutes(
   });
 
   async function load(remote) {
-    return normalizeShares(await remote.readJson(remote.stateAbsolute(SHARES_FILE)));
+    return normalizeShares(
+      await remote.readJson(remote.stateAbsolute(SHARES_FILE), { strict: true })
+    );
   }
 
   async function save(remote, target, shares) {
@@ -243,8 +246,11 @@ export function createShareRoutes(
             const shares = await load(remote);
             await settle(remote, target, shares, say);
 
+            // A link taken down, or out of time, whose files the host kept is
+            // still on record; rewritten from a list read before it closed, it
+            // came back at its old address as if it had never been revoked.
             const existing = request.code ? shares.get(request.code) : undefined;
-            if (request.code && !existing) {
+            if (request.code && (!existing || isClosed(existing, now()))) {
               throw httpError(404, "unknown_share", `No such share: ${request.code}.`);
             }
             if (!existing && shares.size >= MAX_SHARES) {

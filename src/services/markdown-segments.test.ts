@@ -139,4 +139,15 @@ describe("what the review must not be shown", () => {
     const [block] = segmentMarkdown("Die Formel $a + b$ gilt.").blocks;
     expect(block?.masked).not.toContain("a + b");
   });
+
+  it("masks a comment written for oneself, and puts it back as it was", () => {
+    const { blocks, placeholders } = segmentMarkdown(
+      "Der Text %%frag Anna wegen dem Preis%% geht weiter.\nZweite %%offen\nbis hier"
+    );
+    const [block] = blocks;
+    expect(block?.masked).not.toContain("Anna");
+    expect(block?.masked).not.toContain("bis hier");
+    expect(block?.masked).toContain("geht weiter.");
+    expect(restorePlaceholders(block?.masked ?? "", placeholders)).toBe(block?.text);
+  });
 });

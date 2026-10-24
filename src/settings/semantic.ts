@@ -94,7 +94,9 @@ export function renderSemantic(ctx: SettingsContext): void {
   let last = 0;
   let trailing: number | null = null;
   // The tab is redrawn from scratch, so each drawing listens only until the
-  // next; the plugin's unload releases a listener no redraw came for.
+  // next, or until the tab closes. Handed to the plugin instead, every
+  // drawing stayed in its list until the plugin unloaded, and with it the
+  // whole tab it was drawn into.
   const off = engine.onChange(() => {
     if (!status.settingEl.isConnected) {
       release();
@@ -117,7 +119,7 @@ export function renderSemantic(ctx: SettingsContext): void {
     if (trailing !== null) window.clearTimeout(trailing);
     trailing = null;
   };
-  ctx.plugin.register(release);
+  ctx.onClose(release);
 
   new Setting(ctx.containerEl)
     .setName(strings.rebuild)

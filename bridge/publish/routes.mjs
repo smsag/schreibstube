@@ -8,6 +8,7 @@
  *   render   rebuild from stored state alone, for a template change
  */
 import { createHash } from "node:crypto";
+import { prefixOf } from "../config.mjs";
 import { httpError } from "../http.mjs";
 import { TimeoutError, withDeadline } from "../timeout.mjs";
 import {
@@ -19,6 +20,7 @@ import {
   planUploads
 } from "./manifest.mjs";
 import {
+  assetName,
   assetPath,
   checkRelativePath,
   extensionOf,
@@ -43,6 +45,7 @@ import {
 } from "./pending.mjs";
 import { opensTarget, presentedToken } from "./target-access.mjs";
 import { AbandonedError, connect, SftpError } from "./sftp.mjs";
+import { StateFileError } from "./state-file.mjs";
 import { createConnectionPool } from "./connection-pool.mjs";
 import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
 import { SourceCache } from "./source-cache.mjs";
@@ -382,14 +385,7 @@ export function createPublishRoutes(config, { version, now = () => Date.now() })
 
             const manifest = await readManifest(remote, target);
             const assets = availableAssets(index, manifest, uploads.written(target.name));
-            if (assets.missing.length > 0) {
-              throw httpError(
-                409,
-                "assets_missing",
-                `${assets.missing.length} asset(s) were never uploaded; run the plan again: ` +
-                  assets.missing.join(", ")
-              );
-            }
+            if (assets.missing.length > 0) throw missingAssetsError(assets.missing, "run the plan");
 
             await remote.writeAbsolute(
               remote.stateAbsolute(INDEX_FILE),
@@ -440,14 +436,7 @@ export function createPublishRoutes(config, { version, now = () => Date.now() })
             // Rebuilt from what the last commit recorded: an asset it did not
             // record was never on the host, and a page may not point at it.
             const assets = availableAssets(index, manifest, uploads.written(target.name));
-            if (assets.missing.length > 0) {
-              throw httpError(
-                409,
-                "assets_missing",
-                `${assets.missing.length} asset(s) were never uploaded; publish again: ` +
-                  assets.missing.join(", ")
-              );
-            }
+            if (assets.missing.length > 0) throw missingAssetsError(assets.missing, "publish");
             return publishSite({
               remote,
               signal,
@@ -686,11 +675,12 @@ async function readSources(remote, index, cache) {
  * the same file, and not in the way.
  */
 async function planConflicts(remote, index, plan, manifest, known) {
+  // By hash, once, rather than a walk of the index for every upload: the
+  // first index entry with a hash is the one it promises, as before.
+  const byHash = new Map();
+  for (const asset of index.assets) if (!byHash.has(asset.sha256)) byHash.set(asset.sha256, asset);
   const promised = new Map(
-    plan.uploadAssets.map((entry) => [
-      entry.path,
-      index.assets.find((asset) => asset.sha256 === entry.sha256)
-    ])
+    plan.uploadAssets.map((entry) => [entry.path, byHash.get(entry.sha256)])
   );
   const candidates = plannedOutputs(index, plan).filter(
     (path) => !manifest.files[path] && !known.has(path)
@@ -723,19 +713,38 @@ async function present(remote, paths) {
 /** Whether the file at `absolute` holds exactly the bytes `entry` promises. */
 async function sameContent(remote, absolute, entry) {
   if ((await remote.sizeOf(absolute)) !== entry.bytes) return false;
-  return matches(await remote.readFile(absolute), entry);
+  // A video may be larger than any file the bridge keeps for itself, and its
+  // size is known by now.
+  return matches(await remote.readFile(absolute, { maxBytes: entry.bytes }), entry);
 }
 
 function conflictError(target, paths) {
-  const named = paths.slice(0, NAMED_PATHS).join(", ");
-  const more = paths.length > NAMED_PATHS ? ` and ${paths.length - NAMED_PATHS} more` : "";
   return httpError(
     409,
     "path_conflict",
     `${paths.length} file(s) on ${target.name} were not written by the bridge and would be ` +
-      `overwritten: ${named}${more}. Remove them, or set ` +
-      `PUBLISH_${target.name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_ADOPT_EXISTING=true.`
+      `overwritten: ${namedPaths(paths)}. Remove them, or set ` +
+      `${prefixOf(target.name)}_ADOPT_EXISTING=true.`
   );
+}
+
+/** The index's assets no upload brought, and what to do about them. */
+export function missingAssetsError(paths, step) {
+  return httpError(
+    409,
+    "assets_missing",
+    `${paths.length} asset(s) were never uploaded; ${step} again: ${namedPaths(paths)}`
+  );
+}
+
+/**
+ * The first few paths and a count of the rest. A refusal is a notice a person
+ * reads, and the list it names grows with the site: a commit of two thousand
+ * pictures the host had lost named every one of them, in one line.
+ */
+export function namedPaths(paths) {
+  const named = paths.slice(0, NAMED_PATHS).join(", ");
+  return paths.length > NAMED_PATHS ? `${named} and ${paths.length - NAMED_PATHS} more` : named;
 }
 
 /**
@@ -819,7 +828,7 @@ export function availableThumbnails(index, manifest, written = new Map()) {
   const available = new Map();
   for (const asset of index.assets) {
     if (asset.thumbnail !== true) continue;
-    const path = thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath);
+    const path = thumbnailPath(asset.sha256, assetName(asset));
     if (!path) continue;
     const entry = written.get(path) ?? manifest.files?.[path];
     if (entry) available.set(path, entry);
@@ -838,7 +847,7 @@ export function availableAssets(index, manifest, written = new Map()) {
   const uploaded = new Map();
   const missing = [];
   for (const asset of index.assets) {
-    const path = assetPath(asset.sha256, asset.name ?? asset.sourcePath);
+    const path = assetPath(asset.sha256, assetName(asset));
     const entry = written.get(path) ?? manifest.files?.[path];
     if (entry) uploaded.set(path, entry);
     else missing.push(asset.sourcePath);
@@ -901,7 +910,8 @@ export async function guardState(remote) {
 }
 
 async function readManifest(remote, target) {
-  return normalizeManifest(await remote.readJson(remote.stateAbsolute(MANIFEST_FILE)), target.name);
+  const raw = await remote.readJson(remote.stateAbsolute(MANIFEST_FILE), { strict: true });
+  return normalizeManifest(raw, target.name);
 }
 
 async function storedSourceHashes(remote) {
@@ -983,13 +993,12 @@ export function isAssetContent(bytes, extension) {
   return hasSignature(bytes, extension);
 }
 
-/** A logged-in connection to the target's host, within the upstream deadline. */
+/**
+ * A logged-in connection to the target's host, within the upstream deadline,
+ * which `connect` keeps: it alone can close a connection it gave up on.
+ */
 export async function openRemote(target, config) {
-  return withDeadline(
-    connect({ ...target, timeoutMs: config.upstreamTimeoutMs }),
-    config.upstreamTimeoutMs,
-    "Connect"
-  );
+  return connect({ ...target, timeoutMs: config.upstreamTimeoutMs });
 }
 
 /**
@@ -1029,6 +1038,7 @@ export async function withRemote(pool, target, timeoutMs, work) {
     });
   } catch (err) {
     if (err.status || err instanceof TimeoutError) throw err;
+    if (err instanceof StateFileError) throw httpError(409, "state_unreadable", err.message);
     // Before the work began, the login itself failed.
     if (!started) throw httpError(502, "sftp_unreachable", clientMessage(err), detailOf(err));
     throw httpError(502, "sftp_error", clientMessage(err), detailOf(err));

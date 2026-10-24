@@ -159,6 +159,18 @@ describe("compileGlossaries", () => {
     expect(hits[0]?.matchedText).toBe("Makler Buero");
   });
 
+  it("keeps the hit after one it overlapped that lost, when it overlaps no hit kept", () => {
+    const g = glossary(
+      [
+        "| a | Alt Bau | deprecated | word | |",
+        "| b | Bau Herr | deprecated | word | |",
+        "| c | Herr Schmidt | deprecated | word | |"
+      ].join("\n")
+    );
+    const hits = compileGlossaries([g]).findHits("Alt Bau Herr Schmidt");
+    expect(hits.map((h) => h.matchedText)).toEqual(["Alt Bau", "Herr Schmidt"]);
+  });
+
   it("reports emptiness for a glossary with nothing checkable", () => {
     const g = glossary("| a | Liegenschaft | admitted | | |");
     expect(compileGlossaries([g]).isEmpty()).toBe(true);

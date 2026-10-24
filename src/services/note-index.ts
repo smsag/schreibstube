@@ -9,7 +9,7 @@
  */
 import type { HeadingIndex } from "../types";
 import { scanHeadings } from "./heading-index";
-import { fenceLanguage, fenceMarker } from "./markdown-fence";
+import { closesFence, fenceLanguage, fenceMarker } from "./markdown-fence";
 
 export const NOTE_INDEX_LANGUAGE = "schreibstube-index";
 
@@ -211,19 +211,14 @@ function indexBlocksIn(lines: readonly string[], from: number, to: number): Foun
     const line = lines[i] ?? "";
     const prefix = CONTAINER_PREFIX.exec(line)?.[0] ?? "";
     const rest = line.slice(prefix.length);
-    const marker = fenceMarker(rest);
     if (open) {
-      const closes =
-        marker !== null &&
-        marker[0] === open.marker[0] &&
-        marker.length >= open.marker.length &&
-        rest.trim() === marker;
-      if (closes) {
+      if (closesFence(rest, open.marker)) {
         if (open.index) found.push({ open: open.line, close: i, prefix });
         open = null;
       }
       continue;
     }
+    const marker = fenceMarker(rest);
     if (marker) {
       open = { line: i, marker, index: fenceLanguage(rest, marker) === NOTE_INDEX_LANGUAGE };
     }

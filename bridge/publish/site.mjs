@@ -12,6 +12,7 @@ import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { homePage, indexPage, notePage, PAGE_DEPTHS, tagPage } from "./render/page.mjs";
 import { DEFAULT_LANGUAGE, isLanguageTag } from "./render/language.mjs";
 import {
+  assetName,
   assetPath,
   extensionOf,
   hasOwnPage,
@@ -426,7 +427,8 @@ function lookups(index, thumbnails = new Set(), up = PAGE_DEPTHS.note) {
 
   const assets = new Map();
   for (const asset of index.assets) {
-    const name = asset.name ?? basename(asset.sourcePath);
+    // Named as the plan and the commit name it.
+    const name = assetName(asset);
     const path = assetPath(asset.sha256, name);
     // The shared reading, which requires letters and digits: `video.mp 4`
     // used to count as an extension here and not in the route that admitted
@@ -437,10 +439,7 @@ function lookups(index, thumbnails = new Set(), up = PAGE_DEPTHS.note) {
       name,
       kind: VIDEO_EXTENSIONS.has(extension) ? "video" : "image"
     };
-    // Named as the plan and the commit name it, from the name the index sent.
-    const thumbnail = asset.thumbnail
-      ? thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath)
-      : null;
+    const thumbnail = asset.thumbnail ? thumbnailPath(asset.sha256, name) : null;
     if (thumbnail && thumbnails.has(thumbnail)) entry.thumbnail = `${up}${thumbnail}`;
     for (const alias of aliases(asset.sourcePath)) assets.set(alias, entry);
   }

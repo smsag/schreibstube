@@ -22,6 +22,7 @@ import {
   pinnedPaths,
   sortSiblings,
   type ExplorerData,
+  type ExplorerEntry,
   type ExplorerNode
 } from "./explorer-state";
 
@@ -197,6 +198,21 @@ describe("a file that disappears", () => {
 
     const gone = markMissing(data, "a.md", T0);
     expect(reattachOrphans(gone, ["other.md"], T0)).toBe(gone);
+  });
+
+  it("follows a large folder moved outside Obsidian in one pass, not one per file", () => {
+    const count = 20_000;
+    const entries: Record<string, ExplorerEntry> = {};
+    for (let i = 0; i < count; i += 1) {
+      entries[`Alt/n${i}.md`] = { icon: "home", updatedAt: T0, orphanedAt: T0, name: `n${i}.md` };
+    }
+    const moved = Array.from({ length: count }, (_, i) => `Neu/n${i}.md`);
+
+    const started = performance.now();
+    const back = reattachOrphans({ version: 2, entries }, moved, T0 + MINUTE);
+    expect(performance.now() - started).toBeLessThan(2_000);
+    expect(iconFor(back, `Neu/n${count - 1}.md`)).toBe("home");
+    expect(Object.keys(back.entries)).toHaveLength(count);
   });
 
   it("revives a file that was written again at the same path", () => {

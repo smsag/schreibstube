@@ -18,6 +18,7 @@
  * most that much to clean.
  */
 import { splitFrontmatter } from "./frontmatter-block";
+import { closesFence, fenceMarker } from "./markdown-fence";
 
 /** How much of one note is read at most. A note longer than this is a book or
  *  an export, and its first two hundred thousand characters already say what
@@ -30,9 +31,6 @@ export const MAX_NOTE_CHARS = 200_000;
  *  data. */
 const MAX_WORD_CHARS = 80;
 
-// Any indentation: a fence inside a list item is indented with it, and one
-// closed four spaces in used to leave the rest of the note inside the block.
-const FENCE = /^\s*(`{3,}|~{3,})(.*)$/;
 // A code span, so what is inside it is not read as markup: `printf("%%d")`
 // opened an Obsidian comment that ran to the end of the note.
 const CODE_SPAN = /`[^`\n]*`/g;
@@ -53,16 +51,10 @@ function withoutFences(text: string): string {
   const out: string[] = [];
   let fence: string | null = null;
   for (const line of text.split("\n")) {
-    const match = FENCE.exec(line);
-    const open = match?.[1];
-    const rest = match?.[2] ?? "";
     if (fence === null) {
-      // A backtick fence's info string cannot hold a backtick (CommonMark):
-      // "```inline``` code" is inline code on a line, not a block that eats
-      // the rest of the note.
-      if (open && !(open[0] === "`" && rest.includes("`"))) fence = open;
-      else out.push(line);
-    } else if (open && open[0] === fence[0] && open.length >= fence.length && !rest.trim()) {
+      fence = fenceMarker(line);
+      if (fence === null) out.push(line);
+    } else if (closesFence(line, fence)) {
       fence = null;
     }
   }

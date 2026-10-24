@@ -9,6 +9,7 @@ import {
 import { assetCandidates, MAX_DIMENSION, splitSize } from "./render/obsidian.mjs";
 import { formatDate, indexPage, notePage } from "./render/page.mjs";
 import { buildSite, checkIndex, orderNotes, sha256 } from "./site.mjs";
+import { planUploads } from "./manifest.mjs";
 
 /**
  * Rendering moved to the bridge to become a pure function of source and index.
@@ -590,6 +591,31 @@ describe("buildSite", () => {
     );
     const page = files.get("erste/index.html").toString();
     expect(page).toMatch(/<img src="\.\.\/assets\/a+-haus\.png" alt="Das Haus" loading="lazy">/);
+  });
+
+  it("links a picture sent without a name where the plan asks for it to be uploaded", async () => {
+    const withImage =
+      "![[Bilder/Haus am See.jpg]]\n\n```schreibstube-slideshow\nlayout: filmstrip\n![](Bilder/Haus am See.jpg)\n![](Bilder/Haus am See.jpg)\n```\n";
+    const asset = {
+      sourcePath: "Blog/Bilder/Haus am See.jpg",
+      sha256: "b".repeat(64),
+      thumbnail: true
+    };
+    const site = {
+      ...index,
+      notes: [{ ...index.notes[0], sha256: sha256(withImage) }],
+      assets: [asset]
+    };
+    const plan = planUploads({ index: site, manifest: { files: {} }, storedSourceHashes: [] });
+    const [upload] = plan.uploadAssets;
+    const [thumbnail] = plan.uploadThumbnails;
+    const files = await buildSite(site, new Map([[sha256(withImage), withImage]]), {
+      thumbnails: new Set([thumbnail.path])
+    });
+    const page = files.get("erste/index.html").toString();
+    expect(upload.path).toBe("assets/bbbbbbbbbbbb-haus-am-see.jpg");
+    expect(page).toContain(`src="../${upload.path}"`);
+    expect(page).toContain(`data-thumbnail="../${thumbnail.path}"`);
   });
 
   it("is deterministic, which is the reason rendering lives here", async () => {

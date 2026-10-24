@@ -22,6 +22,7 @@ import type { FolderImages } from "../services/folder-images";
 import { pressTarget } from "../services/open-target";
 import { refreshLeafHeader } from "../services/workspace-internals";
 import { basename as basenameOf } from "../services/file-name";
+import { pathAfterMove } from "../services/path-follow";
 import { wirePress } from "./explorer-gestures";
 import { applyIcon, installIconFont } from "./icon-font";
 import { pressKeys } from "./pressable";
@@ -116,14 +117,12 @@ export class FolderTilesView extends ItemView {
     this.registerEvent(this.app.vault.on("delete", () => this.requestRender()));
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
-        // The folder itself, or one above it, moved: the grid goes with it.
-        if (
-          this.folder !== null &&
-          (this.folder === oldPath || this.folder.startsWith(`${oldPath}/`))
-        ) {
-          this.folder = file.path + this.folder.slice(oldPath.length);
-        }
-        this.requestRender();
+        // The folder itself, or one above it, moved: the grid goes with it,
+        // and so do the tab's name and what a restart brings back.
+        const moved = this.folder === null ? null : pathAfterMove(this.folder, oldPath, file.path);
+        if (moved === null || moved === this.folder) return this.requestRender();
+        this.folder = moved;
+        this.folderChanged();
       })
     );
 

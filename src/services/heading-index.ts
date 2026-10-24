@@ -1,5 +1,6 @@
 import type { HeadingEntry, HeadingIndex } from "../types";
-import { fenceMarker } from "./markdown-fence";
+import { splitFrontmatter } from "./frontmatter-block";
+import { closesFence, fenceMarker } from "./markdown-fence";
 
 /**
  * A heading as CommonMark reads one, so the note and its published page agree
@@ -47,7 +48,7 @@ export function scanHeadings(content: string, expired: () => boolean): HeadingIn
   const result: HeadingEntry[] = [];
   // A `# comment` in the properties is YAML, and it stood in the stack as
   // the note's first heading.
-  const bodyStart = frontmatterLines(lines);
+  const bodyStart = frontmatterLines(content);
   let fence: string | null = null;
   /** The paragraph being read, which a `===` or `---` line under it turns into a heading. */
   let paragraph: { start: number; lines: string[]; table: boolean } | null = null;
@@ -63,11 +64,11 @@ export function scanHeadings(content: string, expired: () => boolean): HeadingIn
 
     // A `#` inside a code block is a comment, a shell prompt or a CSS colour,
     // and the stack above the note claimed it as the section being read.
-    const marker = fenceMarker(line);
     if (fence) {
-      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      if (closesFence(line, fence)) fence = null;
       continue;
     }
+    const marker = fenceMarker(line);
     if (marker && !/^ {4}/.test(line)) {
       fence = marker;
       paragraph = null;
@@ -132,12 +133,12 @@ export function scanHeadings(content: string, expired: () => boolean): HeadingIn
 }
 
 /**
- * How many lines the frontmatter takes, fences included, or zero. Counted
- * the way Obsidian does: `---` on the first line, closed by the next `---`;
- * one that never closes is not frontmatter.
+ * How many lines the frontmatter takes, fences included, or zero. The block
+ * `splitFrontmatter` finds: a closing `...` or a fence with a trailing space
+ * read as the start of the body here, and the YAML comments above it as the
+ * note's first headings.
  */
-function frontmatterLines(lines: readonly string[]): number {
-  if (lines[0] !== "---") return 0;
-  const close = lines.indexOf("---", 1);
-  return close === -1 ? 0 : close + 1;
+function frontmatterLines(content: string): number {
+  const { block } = splitFrontmatter(content);
+  return block === "" ? 0 : block.replace(/\n$/, "").split("\n").length;
 }

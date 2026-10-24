@@ -111,6 +111,18 @@ describe("describeApiError", () => {
     expect(describeApiError("OpenAI", 400, body)).toContain("bad model");
   });
 
+  it("quotes no more of the provider's message than of a raw body", () => {
+    const body = JSON.stringify({ error: { message: "x".repeat(5000) } });
+    expect(describeApiError("OpenAI", 400, body).length).toBeLessThan(250);
+    expect(
+      describeApiError("OpenAI", 400, JSON.stringify({ error: "y".repeat(5000) }))
+    ).toHaveLength("OpenAI API error 400: ".length + 200);
+  });
+
+  it("quotes nothing for a message that is not text", () => {
+    expect(describeApiError("OpenAI", 400, '{"message":{"a":1}}')).toBe("OpenAI API error 400");
+  });
+
   it("falls back to raw body when not JSON", () => {
     expect(describeApiError("OpenAI", 400, "plain text failure")).toContain("plain text failure");
   });
@@ -221,6 +233,22 @@ describe("parseResponse", () => {
 
   it("returns empty string for a malformed response", () => {
     expect(parseResponse("openai", {})).toBe("");
+  });
+
+  it("reads Anthropic's first text block, past a block that holds none", () => {
+    const json = {
+      content: [
+        { type: "thinking", thinking: "…" },
+        { type: "text", text: "name" }
+      ]
+    };
+    expect(parseResponse("anthropic", json)).toBe("name");
+  });
+
+  it("returns empty string for an answer whose text is not a string", () => {
+    expect(parseResponse("anthropic", { content: [{ text: 42 }] })).toBe("");
+    expect(parseResponse("anthropic", { content: "name" })).toBe("");
+    expect(parseResponse("openai", { choices: [{ message: { content: ["name"] } }] })).toBe("");
   });
 
   it("returns empty string for a body that is null, not an object", () => {

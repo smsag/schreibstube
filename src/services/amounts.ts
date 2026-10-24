@@ -61,7 +61,10 @@ export interface NumberFormat {
  */
 export function numberFormatFor(style: NumberStyle, obsidianLanguage: string): NumberFormat {
   const locale = style === "auto" ? latinLocale(obsidianLanguage) : STYLE_LOCALES[style];
-  const parts = new Intl.NumberFormat(locale).formatToParts(1234567.5);
+  // Asked in Latin digits, which every total is written in: Pashto marks a
+  // decimal with `٫` in its own digits and with `,` in these, and the mark
+  // read off the first was not the one its totals came out with.
+  const parts = new Intl.NumberFormat(locale, { numberingSystem: "latn" }).formatToParts(1234567.5);
   const decimal = parts.find((part) => part.type === "decimal")?.value === "," ? "," : ".";
   const group = parts.find((part) => part.type === "group")?.value ?? ",";
   return { locale, decimal, spaceGroups: /\s/.test(group) };

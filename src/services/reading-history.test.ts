@@ -456,6 +456,21 @@ describe("setFrontmatterValue", () => {
     expect(setFrontmatterValue("Body", "key", "v")).toBe("---\nkey: v\n---\nBody");
   });
 
+  it("ends the line it writes as the note's lines end", () => {
+    expect(setFrontmatterValue("---\r\nkey: old\r\n---\r\nBody", "key", "new")).toBe(
+      "---\r\nkey: new\r\n---\r\nBody"
+    );
+    expect(setFrontmatterValue("---\r\na: 1\r\n---\r\nBody", "key", "new")).toBe(
+      "---\r\na: 1\r\nkey: new\r\n---\r\nBody"
+    );
+  });
+
+  it("does not take a longer key that begins with the same name for it", () => {
+    expect(setFrontmatterValue("---\nkeyring: x\n---\n", "key", "v")).toBe(
+      "---\nkeyring: x\nkey: v\n---\n"
+    );
+  });
+
   it("will not stand one line in for a list, or write into an unclosed block", () => {
     expect(setFrontmatterValue("---\nkey:\n  - a\n---\n", "key", "v")).toBeNull();
     expect(setFrontmatterValue("---\nkey: v\nBody", "key", "w")).toBeNull();

@@ -63,7 +63,15 @@ export function findExecutableCode(text: string): ExecutableRegion[] {
     const end = offset + line.length;
 
     if (open) {
-      if (marker && marker[0] === open.marker[0] && marker.length >= open.marker.length) {
+      // A closing fence is the marker alone. `\`\`\`js` inside a dataviewjs
+      // block is a line of it, and taking it for the end left the code below
+      // it unwatched while Dataview still ran it.
+      if (
+        marker &&
+        line.trim() === marker &&
+        marker[0] === open.marker[0] &&
+        marker.length >= open.marker.length
+      ) {
         if (open.kind) regions.push({ from: open.from, to: end, kind: open.kind });
         open = null;
       }
@@ -79,7 +87,7 @@ export function findExecutableCode(text: string): ExecutableRegion[] {
 
   if (open?.kind) regions.push({ from: open.from, to: text.length, kind: open.kind });
 
-  // Inline constructs only count outside fences: inside one they are the
+  // Dataview's inline span only counts outside fences: inside one it is the
   // fence's text, run or shown by whatever owns the fence.
   for (const span of prose) {
     const slice = text.slice(span.from, span.to);
@@ -92,12 +100,11 @@ export function findExecutableCode(text: string): ExecutableRegion[] {
     }
   }
 
-  // A Templater tag may cross lines, so it is looked for in the whole text and
-  // kept when it does not start inside a fence.
+  // Templater reads the note as text and knows nothing of fences: a tag in a
+  // code sample runs like any other, on a note made from the template or, with
+  // its trigger on, on every note that appears. So it counts wherever it is.
   for (const match of text.matchAll(TEMPLATER_TAG)) {
-    const from = match.index;
-    if (!prose.some((span) => from >= span.from && from < span.to)) continue;
-    regions.push({ from, to: from + match[0].length, kind: "templater" });
+    regions.push({ from: match.index, to: match.index + match[0].length, kind: "templater" });
   }
 
   return regions.sort((a, b) => a.from - b.from);

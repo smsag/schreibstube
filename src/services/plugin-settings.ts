@@ -7,6 +7,7 @@ import type {
 } from "../types";
 import type { LanguagePreference } from "../i18n";
 import type { SyncRecord } from "./sync-document";
+import { checkEtag } from "./sync-request";
 import { UNSAFE_KEYS } from "./sync-merge";
 import { normalizeSourceConsent } from "./semantic/semantic-api";
 import {
@@ -510,7 +511,7 @@ function syncStateOrDefault(value: unknown): Record<string, SyncRecord> {
     if (typeof hash !== "string" || hash.length === 0) continue;
     result[path] = {
       hash,
-      etag: typeof etag === "string" ? etag : "",
+      etag: checkEtag(etag),
       checkedAt: Number.isFinite(checkedAt) ? Number(checkedAt) : 0,
       pendingChanges: Number.isFinite(pendingChanges) ? Number(pendingChanges) : 0,
       ...(typeof remoteHash === "string" && remoteHash.length > 0 ? { remoteHash } : {}),

@@ -58,6 +58,7 @@ import {
   type SyncRecord
 } from "../services/sync-document";
 import { resolveSourceUrl, sourceUrlFromNote, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import { pathAfterMove } from "../services/path-follow";
 import { recordForSource } from "../services/sync-reconcile";
 import { SyncPoller, githubToken } from "./sync-poller";
 import { planSourceCheck } from "../services/sync-interval";
@@ -270,14 +271,21 @@ export class ProofreadController {
       this.sessionPicks.delete(oldPath);
       this.sessionPicks.set(newPath, picks);
     }
+    // The note under review is the same note, moved on its own or with its
+    // folder, bound or not. Left on the old path, the next look at the open
+    // note took it for another one and threw its queue away.
+    if (this.filePath !== null) {
+      const moved = pathAfterMove(this.filePath, oldPath, newPath);
+      if (moved !== this.filePath) {
+        this.filePath = moved;
+        this.emit();
+      }
+    }
     const record = this.syncStore.get(oldPath);
     if (!record) return;
 
     await this.syncStore.set(newPath, record);
     await this.syncStore.forget(oldPath);
-    if (this.filePath === oldPath) {
-      this.filePath = newPath;
-    }
   }
 
   /**

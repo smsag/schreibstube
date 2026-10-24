@@ -226,6 +226,15 @@ describe("validateSearch", () => {
     expect(validateSearch({ exclude: ["x".repeat(999)] })).toMatch(/Every excluded Message-ID/);
   });
 
+  it("bounds every criterion as a header line is bounded", () => {
+    for (const field of ["from", "to", "subject", "text", "references"]) {
+      expect(validateSearch({ criteria: { [field]: "x".repeat(998) } })).toBeNull();
+      expect(validateSearch({ criteria: { [field]: "x".repeat(999) } })).toMatch(
+        new RegExp(`criteria.${field} must be a string of at most 998`)
+      );
+    }
+  });
+
   it("bounds the mailbox name", () => {
     expect(validateSearch({ mailbox: "x".repeat(255) })).toBeNull();
     expect(validateSearch({ mailbox: "x".repeat(256) })).toMatch(/mailbox exceeds the 255/);

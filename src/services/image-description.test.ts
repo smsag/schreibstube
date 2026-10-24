@@ -150,6 +150,15 @@ describe("normalizeImageDescription — the model's answer is untrusted input", 
     expect(long.keywords.every((k) => k.length <= 40)).toBe(true);
   });
 
+  it("cuts a long field between characters, never inside one", () => {
+    const out = normalizeImageDescription(
+      reply({ title: `${"a".repeat(MAX_DESCRIPTION_TITLE - 2)}😀😀😀` })
+    )!;
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    expect(out.title).not.toMatch(loneSurrogate);
+    expect(out.title.endsWith("😀…")).toBe(true);
+  });
+
   it("drops keywords that are not text, empty, or repeated in another case", () => {
     const out = normalizeImageDescription(
       reply({ keywords: ["Küche", "küche", "", 7, null, "Bad"] })
@@ -535,6 +544,15 @@ describe("keepForeignFrontmatter — a person's own properties survive a new des
 
   it("reads Windows line endings", () => {
     expect(keepForeignFrontmatter("---\r\nprojekt: Buch\r\n---\r\nText", fresh)).toContain(
+      "projekt: Buch"
+    );
+  });
+
+  it("reads every block the rest of the plugin reads as frontmatter", () => {
+    expect(keepForeignFrontmatter("---\nprojekt: Buch\n...\nText", fresh)).toContain(
+      "projekt: Buch"
+    );
+    expect(keepForeignFrontmatter("--- \nprojekt: Buch\n--- \nText", fresh)).toContain(
       "projekt: Buch"
     );
   });

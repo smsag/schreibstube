@@ -147,11 +147,6 @@ export function staleRuntimeFiles(names: readonly string[]): string[] {
   );
 }
 
-/** A digest as the hashes above are written. */
-export function toHex(digest: ArrayBuffer): string {
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
 /**
  * Whether these bytes are the ones that were pinned.
  *

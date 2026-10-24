@@ -21,19 +21,26 @@ export interface SettingsContext {
   refresh(): void;
   /** The sections drawn so far, in order, for the index at the top. */
   index: SectionEntry[];
+  /**
+   * Let go of something this drawing holds outside the tab — a listener, a
+   * timer — when the tab is drawn again, closed, or the plugin unloads.
+   */
+  onClose(release: () => void): void;
 }
 
 export function createContext(
   app: App,
   plugin: SchreibstubePlugin,
   containerEl: HTMLElement,
-  refresh: () => void
+  refresh: () => void,
+  onClose: (release: () => void) => void
 ): SettingsContext {
   return {
     app,
     plugin,
     containerEl,
     refresh,
+    onClose,
     index: [],
     async update(patch) {
       plugin.settings = normalizeSettings({ ...plugin.settings, ...patch });

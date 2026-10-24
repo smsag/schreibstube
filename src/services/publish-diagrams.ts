@@ -14,7 +14,7 @@
  * Mermaid is not among these. The site draws it in the reader's browser, where
  * it stays text and follows the page's colours; a picture would be worse.
  */
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 import { linesInComment } from "./markdown-typst";
 
 /** The fences a published page shows as a picture drawn in the vault. */
@@ -93,8 +93,7 @@ export function findDiagramFences(
         end = line - 1;
         break;
       }
-      const closing = fenceMarker(inner.rest);
-      if (closing && closing[0] === marker[0] && closing.length >= marker.length) {
+      if (closesFence(inner.rest, marker)) {
         end = line;
         break;
       }

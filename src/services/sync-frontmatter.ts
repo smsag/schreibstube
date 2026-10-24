@@ -158,6 +158,10 @@ export function planFrontmatterEdit(
   if (close === -1) return UNWRITABLE;
 
   const block = lines.slice(1, close);
+  // A note written with Windows line ends keeps them: the lines written here
+  // used to end in "\n" alone, and the block, compared with itself, never
+  // read as unchanged.
+  const eol = lines[0].endsWith("\r") ? "\r" : "";
   const entries: [string, string | undefined][] = [
     [SYNC_TITLE_KEY, plan.title],
     [SYNC_UPDATED_KEY, plan.updatedAt]
@@ -166,7 +170,7 @@ export function planFrontmatterEdit(
   for (const [key, value] of entries) {
     if (value === undefined) continue;
 
-    const line = `${key}: ${yamlScalar(value)}`;
+    const line = `${key}: ${yamlScalar(value)}${eol}`;
     const at = block.findIndex((entry) => new RegExp(`^${key}\\s*:`).test(entry));
     if (at === -1) {
       block.push(line);
@@ -188,7 +192,7 @@ export function planFrontmatterEdit(
   }
 
   const head = lines.slice(0, close + 1).join("\n");
-  const text = ["---", ...block, "---"].join("\n");
+  const text = [lines[0], ...block, lines[close]].join("\n");
   return text === head ? NOTHING : { kind: "edit", edit: { from: 0, to: head.length, text } };
 }
 

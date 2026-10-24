@@ -272,7 +272,12 @@ export class CsvView extends FileView {
         }
       });
       if (sorted) label.addClass(`is-sorted-${sorted}`);
-      const sort = () => this.update({ sort: nextSort(this.state.sort, column) });
+      const sort = () => {
+        this.update({ sort: nextSort(this.state.sort, column) });
+        // The header is drawn again under the key that pressed it, and the
+        // focus went with the old one: the next Enter sorted nothing.
+        this.scrollEl?.querySelectorAll<HTMLElement>(".schreibstube-csv-sort")[index]?.focus();
+      };
       label.addEventListener("click", sort);
       label.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;

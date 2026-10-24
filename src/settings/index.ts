@@ -27,19 +27,28 @@ import { renderDiagnostics } from "./diagnostics";
  */
 export class SchreibstubeSettingTab extends PluginSettingTab {
   plugin: SchreibstubePlugin;
+  private readonly releases: Array<() => void> = [];
 
   constructor(app: App, plugin: SchreibstubePlugin) {
     super(app, plugin);
     this.plugin = plugin;
+    plugin.register(() => this.release());
   }
 
   override display(): void {
+    this.release();
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("schreibstube-settings");
     const indexEl = containerEl.createDiv({ cls: "schreibstube-settings-index" });
 
-    const ctx = createContext(this.app, this.plugin, containerEl, () => this.display());
+    const ctx = createContext(
+      this.app,
+      this.plugin,
+      containerEl,
+      () => this.display(),
+      (release) => this.releases.push(release)
+    );
     const blocks = t().settings.blocks;
 
     block(ctx, blocks.helpers);
@@ -66,5 +75,14 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     renderDiagnostics(ctx);
 
     renderIndex(indexEl, ctx.index);
+  }
+
+  override hide(): void {
+    this.release();
+    super.hide();
+  }
+
+  private release(): void {
+    for (const release of this.releases.splice(0)) release();
   }
 }

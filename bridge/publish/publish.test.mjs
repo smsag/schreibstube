@@ -380,6 +380,26 @@ describe("a second publish with no changes", () => {
   });
 });
 
+describe("a manifest on the host that does not read", () => {
+  it("stops the publish, says which file, and touches nothing", async () => {
+    const path = join(sftp.root, "state", "manifest.json");
+    const kept = await readFile(path, "utf8");
+    const page = await readFile(siteFile("zweite", "index.html"), "utf8");
+    try {
+      for (const damaged of ["{ not json", JSON.stringify({ version: 1, files: { x: 1 } })]) {
+        await writeFile(path, damaged);
+        const plan = await post("/publish/plan", { target: "blog", index: bothNotes() });
+        expect(plan.status).toBe(409);
+        expect(plan.json.code).toBe("state_unreadable");
+        expect(plan.json.error).toMatch(/manifest\.json/);
+      }
+      expect(await readFile(siteFile("zweite", "index.html"), "utf8")).toBe(page);
+    } finally {
+      await writeFile(path, kept);
+    }
+  });
+});
+
 describe("an edited note", () => {
   const edited = "# Erste\n\nGeänderter Text.\n";
 
@@ -736,6 +756,23 @@ describe("refusals", () => {
     expect(Object.keys((await manifest()).files).some((path) => path.includes("fehlt"))).toBe(
       false
     );
+  });
+
+  it("names the first twenty assets that were never uploaded and counts the rest", async () => {
+    const next = bothNotes();
+    for (let i = 0; i < 25; i += 1) {
+      const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe1, i]);
+      next.assets.push({
+        sourcePath: `Blog/fehlt-${String(i).padStart(2, "0")}.jpg`,
+        sha256: sha256(bytes),
+        name: `fehlt-${i}.jpg`,
+        bytes: bytes.length
+      });
+    }
+    const response = await post("/publish/commit", { target: "blog", index: next });
+    expect(response.json.code).toBe("assets_missing");
+    expect(response.json.error).toContain("Blog/fehlt-19.jpg and 5 more");
+    expect(response.json.error).not.toContain("Blog/fehlt-20.jpg");
   });
 
   it("rejects an index with two notes claiming one address", async () => {

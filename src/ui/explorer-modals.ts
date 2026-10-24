@@ -99,7 +99,9 @@ export class PromptModal extends Modal {
 
     input.addEventListener("input", () => error.hide());
     input.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
+      // Mid-composition, Enter takes the word an input method offers; it
+      // used to submit the name with the word still half made.
+      if (event.key === "Enter" && !event.isComposing) {
         event.preventDefault();
         submit();
       }

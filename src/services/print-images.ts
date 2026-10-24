@@ -46,7 +46,9 @@ const RASTER: Readonly<Record<string, [string, "image/jpeg" | "image/png" | "ima
 export function printImageFormat(extension: string): PrintImageFormat | null {
   const ext = extension.toLowerCase();
   if (ext === "svg") return { kind: "vector" };
-  const known = RASTER[ext];
+  // Own keys only: a file called `scan.constructor` found the object's own
+  // machinery under its extension, and was sent to be decoded as "undefined".
+  const known = Object.prototype.hasOwnProperty.call(RASTER, ext) ? RASTER[ext] : undefined;
   return known ? { kind: "raster", sourceType: known[0], outputType: known[1] } : null;
 }
 

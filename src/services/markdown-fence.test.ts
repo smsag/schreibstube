@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fencedLines, fenceMarker } from "./markdown-fence";
+import { closesFence, fencedLines, fenceMarker } from "./markdown-fence";
 
 describe("fenceMarker", () => {
   it("recognises backtick and tilde fences of three or more", () => {
@@ -42,5 +42,37 @@ describe("fencedLines", () => {
 
   it("keeps an unclosed fence open to the end", () => {
     expect(fencedLines(["```", "x", "y"])).toEqual([true, true, true]);
+  });
+});
+
+describe("an inline code span is no fence", () => {
+  it("refuses a backtick run whose info string holds a backtick", () => {
+    expect(fenceMarker("```inline``` code")).toBeNull();
+    expect(fencedLines(["```a``` b", "# heading"])).toEqual([false, false]);
+  });
+
+  it("still opens a tilde fence whose info string holds one", () => {
+    expect(fenceMarker("~~~ `x`")).toBe("~~~");
+  });
+});
+
+describe("closesFence", () => {
+  it("closes on a bare run of the same character, at least as long", () => {
+    expect(closesFence("```", "```")).toBe(true);
+    expect(closesFence("  ````  ", "```")).toBe(true);
+    expect(closesFence("```\r", "```")).toBe(true);
+    expect(closesFence("``", "```")).toBe(false);
+    expect(closesFence("~~~", "```")).toBe(false);
+  });
+
+  it("does not close on a line that names a language", () => {
+    expect(closesFence("```js", "```")).toBe(false);
+    expect(fencedLines(["```md", "```js", "# inside", "```", "after"])).toEqual([
+      true,
+      true,
+      true,
+      true,
+      false
+    ]);
   });
 });

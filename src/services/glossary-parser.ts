@@ -14,6 +14,7 @@
  */
 
 import { t } from "../i18n";
+import { splitFrontmatter } from "./frontmatter-block";
 import { fencedLines } from "./markdown-fence";
 import { rowCells } from "./markdown-table";
 
@@ -88,8 +89,7 @@ export const DEFAULT_GLOSSARY_SEVERITY: Severity = "warning";
 /** True when a note declares itself a glossary in its frontmatter. Used to
  *  populate the picker without imposing a folder convention. */
 export function isGlossaryNote(text: string): boolean {
-  const frontmatter = readFrontmatter(text);
-  const value = frontmatter.get(GLOSSARY_MARKER);
+  const value = readFrontmatter(text).get(GLOSSARY_MARKER)?.toLowerCase();
   return value === "true" || value === "yes";
 }
 
@@ -206,16 +206,13 @@ function emptyGlossary(path: string, language: string, defaultSeverity: Severity
 
 /** Minimal frontmatter reader: flat `key: value` pairs only, which is all the
  *  glossary header needs. Avoids pulling in a YAML parser. Keys are kept
- *  verbatim, since the plugin's own keys are camelCase. */
+ *  verbatim, since the plugin's own keys are camelCase. The block is the one
+ *  `splitFrontmatter` finds: one that never closed made the whole note its
+ *  properties, and one closed with `...` read on into the body. */
 function readFrontmatter(text: string): Map<string, string> {
   const result = new Map<string, string>();
-  const lines = text.split("\n");
-  if (lines[0]?.trim() !== "---") {
-    return result;
-  }
 
-  for (const line of lines.slice(1)) {
-    if (line.trim() === "---") break;
+  for (const line of splitFrontmatter(text).block.split("\n").slice(1, -1)) {
     const separator = line.indexOf(":");
     if (separator === -1) continue;
     const key = line.slice(0, separator).trim();

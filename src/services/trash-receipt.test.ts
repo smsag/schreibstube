@@ -28,6 +28,14 @@ describe("arrivedReceipt", () => {
   it("has no receipt when nothing arrived", () => {
     expect(arrivedReceipt("a.md", [".trash/a.md"], [".trash/a.md"])).toBeNull();
   });
+
+  it("finds the arrival in a trash of tens of thousands without comparing every pair", () => {
+    const before = Array.from({ length: 40_000 }, (_, n) => `.trash/old ${n}.md`);
+    const after = [...before.slice(0, 20_000), ".trash/a.md", ...before.slice(20_000)];
+    const started = performance.now();
+    expect(arrivedReceipt("a.md", before, after)).toBe(".trash/a.md");
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
 });
 
 describe("isTrashedEntry", () => {

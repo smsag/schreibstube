@@ -335,9 +335,12 @@ export function validateSearch(body) {
     return "criteria must be an object.";
   }
 
+  // Bounded as a header line is: each one goes to the server inside a SEARCH,
+  // and a megabyte of one went as readily as a word.
   for (const field of ["from", "to", "subject", "text", "references"]) {
-    if (body.criteria[field] !== undefined && typeof body.criteria[field] !== "string") {
-      return `criteria.${field} must be a string.`;
+    const value = body.criteria[field];
+    if (value !== undefined && (typeof value !== "string" || value.length > MAX_HEADER_CHARS)) {
+      return `criteria.${field} must be a string of at most ${MAX_HEADER_CHARS} characters.`;
     }
   }
   if (body.criteria.since !== undefined) {

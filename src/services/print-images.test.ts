@@ -2,6 +2,12 @@ import { describe, expect, it } from "vitest";
 import { printAssetName, printImageFormat } from "./print-images";
 
 describe("printImageFormat", () => {
+  it("knows no picture by a name every object carries", () => {
+    expect(printImageFormat("constructor")).toBeNull();
+    expect(printImageFormat("__proto__")).toBeNull();
+    expect(printImageFormat("toString")).toBeNull();
+  });
+
   it("prints what the browser can decode, drawn again as a format Typst reads", () => {
     expect(printImageFormat("jpg")).toEqual({
       kind: "raster",

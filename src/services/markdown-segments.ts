@@ -65,6 +65,10 @@ const HAS_LETTER = /\p{L}/u;
  *  two patterns overlap, so code spans beat the URL pattern inside them. */
 const MASK_PATTERNS: RegExp[] = [
   /<!--[\s\S]*?-->/g,
+  // A note to oneself is neither prose to correct nor text for the provider,
+  // and went to it as both. One left open runs to the end of the block, which
+  // is where the comment itself goes on.
+  /%%[\s\S]*?(?:%%|$)/g,
   /`[^`\n]+`/g,
   /!?\[\[[^\]\n]*\]\]/g,
   // A closing `$` followed by a digit is a second price, not the end of a
