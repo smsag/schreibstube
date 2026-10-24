@@ -225,6 +225,18 @@ describe("delete", () => {
     expect(result.content).toBe(note("## Archive", "", "- [x] old", ""));
   });
 
+  it("reads a note with Windows line endings, and writes it back with them", () => {
+    const crlf = (...lines: string[]): string => lines.join("\r\n");
+    const archived = clearDoneTasks(
+      crlf("- [x] a", "- [ ] b", "", "## Archive", "", "- [x] old", ""),
+      "archive"
+    );
+    expect(archived.content).toBe(
+      crlf("- [ ] b", "", "## Archive", "", "- [x] old", "- [x] a", "")
+    );
+    expect(clearDoneTasks(crlf("- - -", "- [x] a"), "delete").content).toBe("- - -");
+  });
+
   it("clears tasks after the archive and keeps the note's end", () => {
     const result = run(
       "delete",
