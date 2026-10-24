@@ -217,7 +217,7 @@ function parseMessage(raw: unknown): MailMessage {
   const date = str(record.date);
 
   return {
-    uid: typeof record.uid === "number" ? record.uid : 0,
+    uid: isUid(record.uid) ? record.uid : 0,
     messageId: messageIdOrNull(record.messageId),
     inReplyTo: messageIdOrNull(record.inReplyTo),
     references,
@@ -233,6 +233,16 @@ function parseMessage(raw: unknown): MailMessage {
 /** RFC 5322's shape of a Message-ID, as the bridge returns and a note stores one. */
 export function isMessageId(value: string): boolean {
   return MESSAGE_ID.test(value);
+}
+
+/**
+ * An IMAP UID: a whole number from one to 2³²−1. Anything else is read as no
+ * UID at all; a fraction, a negative or a number past that range made a merge
+ * key the next fetch could not ask the bridge to step past, and an attachment
+ * request the bridge refused.
+ */
+function isUid(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) > 0 && (value as number) <= 0xffff_ffff;
 }
 
 function messageIdOrNull(value: unknown): string | null {
