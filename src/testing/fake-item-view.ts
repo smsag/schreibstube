@@ -44,10 +44,11 @@ export function fakeViewApp(activeFile: unknown = null): FakeViewApp {
   return app;
 }
 
-/** Runs a frame's callback at once, so a test sees the redraw it asked for. */
+/** Runs a frame's callback as soon as the test awaits anything, so a test
+ *  sees the redraw it asked for without waiting on a real frame. */
 function immediateWindow(): Window {
   return Object.assign(Object.create(window) as Window, {
-    requestAnimationFrame: (run: FrameRequestCallback) => (run(0), 1),
+    requestAnimationFrame: (run: FrameRequestCallback) => (queueMicrotask(() => run(0)), 1),
     cancelAnimationFrame: () => undefined
   });
 }
