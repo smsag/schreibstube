@@ -1686,11 +1686,15 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerEvent(
       this.app.vault.on("rename", (file, oldPath) => {
         const proofread = this.proofread;
-        if (proofread && file instanceof TFile) {
+        // A folder too: the note under review may be inside it, and a move
+        // reports the folder alone.
+        if (proofread) {
           this.track(
             proofread.handleNoteRenamed(oldPath, file.path),
             `Moving the sync record of ${oldPath}`
           );
+        }
+        if (proofread && file instanceof TFile) {
           // A term note that moves takes its rules with it; the metadata
           // cache does not report a move as a change.
           void proofread.termNoteChanged(oldPath);
