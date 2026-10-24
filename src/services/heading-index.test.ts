@@ -28,6 +28,13 @@ describe("buildHeadingIndex", () => {
     ]);
   });
 
+  it("passes over every frontmatter the rest of the plugin reads as one", () => {
+    const top = [{ level: 1, text: "Top", lineNumber: 3 }];
+    expect(buildHeadingIndex("---\n# comment\n...\n# Top")).toEqual(top);
+    expect(buildHeadingIndex("--- \n# comment\n---\t\n# Top")).toEqual(top);
+    expect(buildHeadingIndex("---\r\n# comment\r\n---\r\n# Top")).toEqual(top);
+  });
+
   it("reads an unclosed frontmatter as text, as the editor does", () => {
     expect(buildHeadingIndex("---\n# Top")).toEqual([{ level: 1, text: "Top", lineNumber: 1 }]);
   });

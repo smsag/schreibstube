@@ -38,6 +38,16 @@ describe("isGlossaryNote", () => {
   it("is case sensitive about the marker", () => {
     expect(isGlossaryNote("---\nschreibstubeglossary: true\n---\n")).toBe(false);
   });
+
+  it("reads the marker only from a frontmatter that closes, as Obsidian does", () => {
+    expect(isGlossaryNote("---\nschreibstubeGlossary: true\n\n| Concept | Term |")).toBe(false);
+    expect(isGlossaryNote("---\nschreibstubeGlossary: True\n...\n")).toBe(true);
+  });
+
+  it("reads no setting from the body below a block closed with `...`", () => {
+    const note = "---\nschreibstubeGlossary: true\n...\nschreibstubeDefaultSeverity: error\n";
+    expect(parseGlossary("G.md", note).glossary.defaultSeverity).toBe("warning");
+  });
 });
 
 describe("parseGlossary", () => {
