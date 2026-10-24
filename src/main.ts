@@ -112,6 +112,7 @@ import type { ExplorerFileStore } from "./services/explorer-store";
 import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { createSemanticApi } from "./controllers/semantic/semantic-api";
 import { folderOf } from "./services/path-follow";
+import { isOpenableAddress } from "./services/open-address";
 import {
   DEFAULT_EMBEDDING_MODEL_ID,
   DEFAULT_SIMILARITY_PRESET,
@@ -486,9 +487,10 @@ export default class SchreibstubePlugin extends Plugin {
       createIconShortcodeExtension(iconShortcodes, (link, event, view) => {
         // An address goes to the browser, a note opens as a click on the
         // link's words would open it: in a new tab with a modifier or the
-        // middle button, and through whatever side-pane mode is on.
+        // middle button, and through whatever side-pane mode is on. The
+        // address is the note's word, and a note is anybody's to write.
         if (link.kind === "url") {
-          window.open(link.href, "_blank");
+          if (isOpenableAddress(link.href)) window.open(link.href, "_blank");
           return;
         }
         const source = view.state.field(editorInfoField, false)?.file?.path ?? "";
