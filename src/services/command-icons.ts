@@ -41,6 +41,7 @@ export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "summarize-selection": "sparkles",
   "table-from-selection": "table",
   "ai-table-from-selection": "wand-sparkles",
+  "chart-from-table": "chart-pie",
   "insert-today": "calendar-plus",
   "add-property-set": "list-plus",
   "suggest-tags": "tags",

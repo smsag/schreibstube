@@ -412,6 +412,18 @@ Amounts in a note add up without leaving it.
 
 The same lines give the same results, to the character, in a native quick-note app that writes into the same vault (which does not convert currencies). The rule both follow is [`contracts/CALCULATOR.md`](contracts/CALCULATOR.md), and the examples both test against are [`contracts/calculator-cases.json`](contracts/calculator-cases.json): a change to either is a change to both apps.
 
+### Charts from a table
+
+Select a table with a column of amounts, and the editor's menu offers **Chart this table** (palette: **Insert: chart from the table**). A dialog draws the one or two charts that suit the table; **Insert** puts the chosen one above the table as a ` ```mermaid ` block, which Obsidian, a print, a mail and a published page all draw.
+
+- A column of dates gives bars **over time**, per day, month or year as the dates span; a month without entries is on the axis with nothing in it.
+- A column to group by gives the **shares** as a pie, up to eight groups, or the **largest first** as bars with the rest added up as **Other**. A column named like a category (`Kategorie`, `Type`, …) is preferred.
+- Two columns to group by, and no dates, also give a **nested** treemap: the groups and what each is made of.
+
+Amounts are read like the sums read them, in the same number format, so `1.234,50 €` and `-45,90 €` work. A statement that writes every expense as negative is drawn as positive amounts. A totals row — a row with `=sum` in it, as the CSV view copies one — is left out, and a running balance (`Saldo`, `Balance`) is not charted. Amounts in more than one currency, or a table of more than 5 000 rows, are refused with a notice saying why.
+
+The chart is drawn from the table as it is when it is made; it does not follow later changes. After editing the table, run it again: the chart Schreibstube made, marked by the `%% schreibstube chart` line it starts with, is replaced, and a Mermaid block you wrote yourself is left alone. One undo removes the chart.
+
 ### Slideshow
 
 Two or more images in one block, shown the way the passage needs them:
