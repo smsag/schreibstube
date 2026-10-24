@@ -52,6 +52,9 @@ export function createGlossaryUnderlineExtension(options: GlossaryUnderlineOptio
           this.decorations = Decoration.none;
           return;
         }
+        // Until the rescan the underlines move with the text, or for that
+        // moment they sat on whatever the edit pushed under them.
+        this.decorations = this.decorations.map(update.changes);
         this.schedule();
       }
 
@@ -60,17 +63,18 @@ export function createGlossaryUnderlineExtension(options: GlossaryUnderlineOptio
         window.removeEventListener(GLOSSARY_CHANGED_EVENT, this.handleGlossaryChanged);
       }
 
+      /** The settings fire this on every key typed into a glossary field,
+       *  and every open editor heard it, so it waits like an edit does. */
       private handleGlossaryChanged = (): void => {
-        this.rebuild();
-        // A rebuild outside a transaction needs an explicit nudge for the new
-        // decorations to reach the DOM.
-        this.view.dispatch({});
+        this.schedule();
       };
 
       private schedule(): void {
         window.clearTimeout(this.timer);
         this.timer = window.setTimeout(() => {
           this.rebuild();
+          // A rebuild outside a transaction needs an explicit nudge for the
+          // new decorations to reach the DOM.
           this.view.dispatch({});
         }, RESCAN_DELAY_MS);
       }
