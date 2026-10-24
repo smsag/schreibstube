@@ -307,7 +307,7 @@ export const de: Messages = {
       `die Bridge nennt ${url} als Adresse der Website; das ist keine Webadresse, darum wurde sie nicht geöffnet.`,
 
     connectionOk: (target: string, entries: number) =>
-      `Verbindung zu ${target} steht (${entries} Einträge).`,
+      `Verbindung zu ${target} steht (${entries === 1 ? "1 Eintrag" : `${entries} Einträge`}).`,
     connectionFailed: (reason: string) => reason,
     bridgeOutdated: (bridge: number, plugin: number) =>
       `die Bridge spricht Protokoll ${bridge}, das Plugin erwartet ${plugin} — Bridge neu ausrollen.`,
@@ -1035,10 +1035,11 @@ export const de: Messages = {
     appliedWithSkipped: (applied: number, skipped: number) =>
       `${applied} übernommen, ${skipped} nicht mehr zuordenbar.`,
     noSuggestions: "Keine Vorschläge.",
-    suggestions: (count: number) => `${count} Vorschläge.`,
+    suggestions: (count: number) => (count === 1 ? "1 Vorschlag." : `${count} Vorschläge.`),
     blocksRejected: (count: number) =>
-      `${count} Abschnitt(e) verworfen (geschützter Inhalt verändert).`,
-    chunksFailed: (count: number) => `${count} Anfrage(n) fehlgeschlagen.`,
+      `${count === 1 ? "1 Abschnitt" : `${count} Abschnitte`} verworfen (geschützter Inhalt verändert).`,
+    chunksFailed: (count: number) =>
+      count === 1 ? "1 Anfrage fehlgeschlagen." : `${count} Anfragen fehlgeschlagen.`,
     allChunksFailed: (detail: string) =>
       `Korrekturlesen ist bei jeder Anfrage gescheitert: ${detail}`,
     hitSubstitution: (term: string) => `„${term}“ ist nicht mehr die bevorzugte Benennung.`,
@@ -2029,7 +2030,8 @@ export const de: Messages = {
     ratesOf: (date: string) => `Kurse vom ${date}.`,
     noRates: "Noch keine Kurse geholt.",
     updateRates: "Jetzt aktualisieren",
-    statusBar: (total: string, count: number) => `∑ ${total} · ${count} Beträge`,
+    statusBar: (total: string, count: number) =>
+      `∑ ${total} · ${count === 1 ? "1 Betrag" : `${count} Beträge`}`,
     statusBarTitle: "Summe der Auswahl. Klicken zum Kopieren.",
     total: (total: string, count: number) =>
       count === 1 ? `${total} (1 Betrag)` : `${total} (${count} Beträge)`,
