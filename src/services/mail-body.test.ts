@@ -149,6 +149,15 @@ describe("markdownToPlainText, code", () => {
     expect(markdownToPlainText(note)).toBe("Beispiel:\n~~~\ncode\n~~~\nDanach");
     expect(markdownToPlainText("````\n```\ninner\n```\n````")).toBe("```\ninner\n```");
   });
+
+  it("does not end a block at a line that names a language", () => {
+    const note = "```md\nSo:\n```js\nlet **x** = 1;\n```\nDanach **fett**";
+    expect(markdownToPlainText(note)).toBe("So:\n```js\nlet **x** = 1;\nDanach fett");
+  });
+
+  it("reads three backticks with a code span on one line as text, not a fence", () => {
+    expect(markdownToPlainText("```a``` und **b**\n\nWeiter")).toBe("a und b\n\nWeiter");
+  });
 });
 
 describe("markdownToPlainText, footnotes", () => {
