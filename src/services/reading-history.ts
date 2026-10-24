@@ -348,17 +348,22 @@ export function setFrontmatterValue(text: string, key: string, value: string): s
   const close = lines.findIndex((line, index) => index > 0 && line.replace(/\r$/, "") === "---");
   if (close === -1) return null;
 
+  // The line written ends as the note's lines do. Ended with a "\n" alone, it
+  // left a note of Windows line ends with two kinds of line, one of them
+  // written by nobody who opened the note.
+  const entry = `${key}: ${value}${lines[0].endsWith("\r") ? "\r" : ""}`;
   const at = lines.findIndex(
-    (line, index) => index > 0 && index < close && new RegExp(`^${key}\\s*:`).test(line)
+    (line, index) =>
+      index > 0 && index < close && line.startsWith(key) && /^\s*:/.test(line.slice(key.length))
   );
   if (at === -1) {
-    lines.splice(close, 0, `${key}: ${value}`);
+    lines.splice(close, 0, entry);
     return lines.join("\n");
   }
 
   const next = lines[at + 1];
   if (at + 1 < close && next !== undefined && /^\s/.test(next)) return null;
-  lines[at] = `${key}: ${value}`;
+  lines[at] = entry;
   return lines.join("\n");
 }
 
