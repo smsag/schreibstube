@@ -1,3 +1,4 @@
+import { FOCUS_SETTINGS_CHANGED } from "../services/focus-settings-event";
 import type { EditorState } from "@codemirror/state";
 import {
   type App,
@@ -27,8 +28,6 @@ export const DONE_TASKS_MANAGED = "managed";
 
 /** The dim strength, on the body so Reading view and every editor read the one value. */
 export const DONE_TASK_OPACITY_VAR = "--schreibstube-done-task-dim-opacity";
-
-const FOCUS_SETTINGS_CHANGED = "schreibstube-focus-settings-changed";
 
 /**
  * Finished tasks dimmed or hidden, in Live Preview and Reading view.

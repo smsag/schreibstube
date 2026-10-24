@@ -114,6 +114,7 @@ import { SemanticEngine } from "./controllers/semantic/semantic-engine";
 import { createSemanticApi } from "./controllers/semantic/semantic-api";
 import { folderOf } from "./services/path-follow";
 import { isOpenableAddress } from "./services/open-address";
+import { FOCUS_SETTINGS_CHANGED } from "./services/focus-settings-event";
 import {
   DEFAULT_EMBEDDING_MODEL_ID,
   DEFAULT_SIMILARITY_PRESET,
@@ -2378,7 +2379,7 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private notifyFocusSettingsChanged(): void {
-    window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
+    window.dispatchEvent(new Event(FOCUS_SETTINGS_CHANGED));
   }
 
   private queueRefreshForActiveView(edgeLines?: readonly [number, number]): void {

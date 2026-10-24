@@ -1,3 +1,4 @@
+import { FOCUS_SETTINGS_CHANGED } from "../services/focus-settings-event";
 import {
   type DecorationSet,
   EditorView,
@@ -19,8 +20,6 @@ export interface EditorViewportUpdate {
   /** The editor that scrolled: every open editor reports, and only the active note's counts. */
   editorDom: HTMLElement;
 }
-
-const FOCUS_SETTINGS_CHANGED = "schreibstube-focus-settings-changed";
 
 /** Each open editor's way to measure again, by its element. */
 const remeasureByEditor = new Map<HTMLElement, () => void>();
