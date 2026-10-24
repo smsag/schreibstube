@@ -83,9 +83,30 @@ describe("readPublishFields", () => {
     ).toBe("Hallo");
   });
 
-  it("reads a date that Obsidian parsed into a Date", () => {
-    const frontmatter = { [DEFAULT_PUBLISH_KEYS.date]: new Date(2026, 8, 12) };
+  it("reads a date that YAML parsed into a Date as the day it names", () => {
+    const frontmatter = { [DEFAULT_PUBLISH_KEYS.date]: new Date(Date.UTC(2026, 8, 12)) };
     expect(readPublishFields(frontmatter, DEFAULT_PUBLISH_KEYS).date).toBe("2026-09-12");
+  });
+
+  it("dates a page by the day written, west of Greenwich too", () => {
+    const zone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      const frontmatter = { [DEFAULT_PUBLISH_KEYS.date]: new Date("2026-09-12T00:00:00Z") };
+      expect(readPublishFields(frontmatter, DEFAULT_PUBLISH_KEYS).date).toBe("2026-09-12");
+    } finally {
+      if (zone === undefined) delete process.env.TZ;
+      else process.env.TZ = zone;
+    }
+  });
+
+  it("reads a date that is none, or a number that is none, as nothing", () => {
+    const fields = readPublishFields(
+      { [DEFAULT_PUBLISH_KEYS.date]: new Date("kein Datum"), [DEFAULT_PUBLISH_KEYS.title]: NaN },
+      DEFAULT_PUBLISH_KEYS
+    );
+    expect(fields.date).toBe("");
+    expect(fields.title).toBe("");
   });
 });
 
@@ -211,6 +232,17 @@ describe("firstHeading", () => {
 
   it("returns nothing when the note has no heading", () => {
     expect(firstHeading("Nur Text")).toBe("");
+  });
+
+  it("passes over a comment in a code block above the first heading", () => {
+    expect(firstHeading("```sh\n# install the tools\nnpm ci\n```\n\n# Einrichtung\n")).toBe(
+      "Einrichtung"
+    );
+    expect(firstHeading("~~~\n# nur Code\n~~~")).toBe("");
+  });
+
+  it("reads a heading in a note with Windows line ends", () => {
+    expect(firstHeading("Text\r\n## Titel ##\r\nmehr")).toBe("Titel");
   });
 
   it("keeps a hash that is part of the text and drops one set off as a closer", () => {

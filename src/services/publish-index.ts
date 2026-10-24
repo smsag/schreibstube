@@ -15,6 +15,8 @@ import {
   type SlideshowLayout
 } from "./slideshow";
 import { splitFrontmatter } from "./frontmatter-block";
+import { fencedLines } from "./markdown-fence";
+import { printableText } from "./typst-value";
 import { checkTag, tagIncludes } from "./tag-pins";
 
 /**
@@ -140,11 +142,14 @@ function isTrue(value: unknown): boolean {
   return value === 1;
 }
 
+/**
+ * A field as text. A date is the day YAML wrote, which it reads as midnight
+ * UTC: read back in local time, as it was, a page west of Greenwich went out
+ * dated the day before, and a date that is none went out as "NaN-NaN-NaN".
+ */
 function text(value: unknown): string {
   if (typeof value === "string") return value.trim();
-  if (value instanceof Date) return isoDate(value.getTime());
-  if (typeof value === "number") return String(value);
-  return "";
+  return value instanceof Date || typeof value === "number" ? (printableText(value) ?? "") : "";
 }
 
 /**
@@ -173,12 +178,21 @@ export function slugify(value: string): string {
   return slug || "datei";
 }
 
-/** The first heading of a note, which is what a reader would call it. */
+/**
+ * The first heading of a note, which is what a reader would call it. Not a
+ * `# comment` in a code block above it: a note opening with a shell sample was
+ * published under the name of its first command.
+ */
 export function firstHeading(content: string): string {
-  // A closing run of hashes is set off by a space; one glued to the text, as
-  // in `# C#`, is the text.
-  const match = /^#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/m.exec(stripFrontmatter(content));
-  return match?.[1]?.trim() ?? "";
+  const lines = stripFrontmatter(content).split(/\r?\n/);
+  const fenced = fencedLines(lines);
+  for (const [at, line] of lines.entries()) {
+    // A closing run of hashes is set off by a space; one glued to the text, as
+    // in `# C#`, is the text.
+    const match = fenced[at] ? null : /^#{1,6}[ \t]+(.+?)(?:[ \t]+#+)?[ \t]*$/.exec(line);
+    if (match?.[1]) return match[1].trim();
+  }
+  return "";
 }
 
 export function stripFrontmatter(content: string): string {
