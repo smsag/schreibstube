@@ -1,11 +1,18 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeAll, describe, expect, it } from "vitest";
-import { EditorState, StateField } from "@codemirror/state";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+import { EditorState, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, EditorView } from "@codemirror/view";
+import { resolveFocusRange } from "../services/focus-range";
 import { DEFAULT_SETTINGS } from "../services/plugin-settings";
 import { installObsidianDom } from "../testing/obsidian-dom";
 import type { SchreibstubeSettings } from "../types";
 import { createEditorExtension } from "./editor-extension";
+
+/** The range is the decision; counted here, to see how often the editor asks for it. */
+vi.mock("../services/focus-range", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../services/focus-range")>();
+  return { ...actual, resolveFocusRange: vi.fn(actual.resolveFocusRange) };
+});
 
 beforeAll(() => installObsidianDom());
 
@@ -61,5 +68,45 @@ describe("focus mode on a line CodeMirror shows in two parts", () => {
     ]);
     expect(view.visibleRanges.length).toBeGreaterThan(1);
     expect(view.dom.querySelectorAll(".schreibstube-focus-sentence").length).toBeGreaterThan(0);
+  });
+});
+
+describe("focus mode on a transaction that changes nothing it draws", () => {
+  it("does not read the note again", () => {
+    const view = editor("Ein Absatz.\n\nNoch einer.", 3, { focusMode: "paragraph" });
+    const asked = vi.mocked(resolveFocusRange);
+    asked.mockClear();
+
+    // An effect of some other extension's: no edit, no cursor move, no focus change.
+    view.dispatch({ effects: StateEffect.define<null>().of(null) });
+    expect(asked).not.toHaveBeenCalled();
+
+    view.dispatch({ selection: { anchor: 15 } });
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(view.dom.querySelectorAll(".schreibstube-focus-active")).toHaveLength(1);
+  });
+
+  it("follows a change of the settings, which arrives without one", () => {
+    let opacity = 0.3;
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "Ein Absatz.",
+        extensions: createEditorExtension({
+          onViewportUpdate: () => undefined,
+          getSettings: () => ({
+            ...DEFAULT_SETTINGS,
+            focusMode: "paragraph",
+            focusDimOpacity: opacity
+          })
+        })
+      }),
+      parent: document.body.createDiv()
+    });
+    view.focus();
+    view.dispatch({});
+    opacity = 0.6;
+    window.dispatchEvent(new Event("schreibstube-focus-settings-changed"));
+    expect(view.dom.style.getPropertyValue("--schreibstube-focus-dim-opacity")).toBe("0.6");
+    view.destroy();
   });
 });

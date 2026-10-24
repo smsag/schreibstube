@@ -114,6 +114,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
       private measurePending = false;
       private lastEdgeLines = "";
       private lastFocusSignature = "";
+      private settingsChanged = false;
       /** Whether the editor wears the mode's classes and variable right now. */
       private dressed = false;
       private onViewportUpdate: (update: EditorViewportUpdate) => void;
@@ -135,7 +136,15 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
         // The decorations cover only the visible range, so a scroll has to
         // decorate the lines it revealed, and an edit moves every position
         // under them, whether or not the focused range read the same.
-        this.syncFocus(this.getSettings(), update.docChanged || update.viewportChanged);
+        const moved = update.docChanged || update.viewportChanged;
+        // Working out the range reads the note from its top, for the fences
+        // above the cursor; a transaction that moved neither the text, the
+        // cursor nor the focus — an effect another extension sent — cannot
+        // have changed it.
+        if (moved || update.selectionSet || update.focusChanged || this.settingsChanged) {
+          this.settingsChanged = false;
+          this.syncFocus(this.getSettings(), moved);
+        }
 
         // Turning Live Preview on or off puts the heading overlay up or takes
         // it down, and moves no line of the note.
@@ -161,6 +170,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
       };
 
       private handleFocusSettingsChanged = (): void => {
+        this.settingsChanged = true;
         this.view.dispatch({ annotations: [] });
       };
 
