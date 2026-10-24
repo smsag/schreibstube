@@ -29,6 +29,7 @@ export const de: Messages = {
     summarize: "Einfügen: KI-Zusammenfassung der Auswahl",
     table: "Einfügen: Tabelle aus der Auswahl",
     tableAi: "Einfügen: KI-Tabelle aus der Auswahl",
+    chartTable: "Einfügen: Diagramm aus der Tabelle",
     insertToday: "Einfügen: heutiges Datum",
     addPropertySet: "Einfügen: Frontmatter-Eigenschaften-Set",
     suggestTags: "Einfügen: vorgeschlagene Tags",
@@ -480,6 +481,38 @@ export const de: Messages = {
     de: "Deutsch",
     en: "English",
     changed: "Sprache geändert — Einstellungen neu öffnen, damit sie überall greift."
+  },
+
+  chart: {
+    menu: "Tabelle als Diagramm",
+    title: "Diagramm aus der Tabelle",
+    intro:
+      "Ein Diagramm wählen. Es kommt als Mermaid-Block über die Tabelle und zeigt sie so, wie sie jetzt ist; nach einer Änderung an der Tabelle neu erstellen.",
+    replaces: "Es ersetzt das Diagramm über der Tabelle.",
+    insert: "Einfügen",
+    other: "Sonstige",
+    byGroup: (value: string, group: string) => `${value} nach ${group}`,
+    byGroups: (value: string, outer: string, inner: string) =>
+      `${value} nach ${outer} und ${inner}`,
+    perDay: (value: string) => `${value} pro Tag`,
+    perMonth: (value: string) => `${value} pro Monat`,
+    perYear: (value: string) => `${value} pro Jahr`,
+    kinds: {
+      time: "Zeitverlauf",
+      pie: "Anteile",
+      bars: "Größte zuerst",
+      treemap: "Verschachtelt"
+    },
+    refused: {
+      noTable: "Eine Tabelle markieren, um sie als Diagramm zu zeigen.",
+      tooLong: (rows: number) =>
+        `Die Tabelle hat mehr als ${rows.toLocaleString("de-DE")} Zeilen. Einen gefilterten Auszug davon als Diagramm zeigen.`,
+      noAmounts: "Die Tabelle hat keine Spalte mit Beträgen.",
+      noGroups:
+        "Die Tabelle hat Beträge, aber keine Spalte mit Daten oder Gruppen, nach der sie sich zeichnen ließen.",
+      mixedCurrencies:
+        "Die Beträge haben mehr als eine Währung, und ein Diagramm würde sie zusammenzählen, als wären sie eine."
+    }
   },
 
   passages: {

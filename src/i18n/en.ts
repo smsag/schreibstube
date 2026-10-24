@@ -31,6 +31,7 @@ export const en = {
     summarize: "Insert: AI summary of the selection",
     table: "Insert: table from the selection",
     tableAi: "Insert: AI table from the selection",
+    chartTable: "Insert: chart from the table",
     insertToday: "Insert: today's date",
     addPropertySet: "Insert: frontmatter property set",
     suggestTags: "Insert: suggested tags",

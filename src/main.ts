@@ -84,6 +84,7 @@ import {
   localTable,
   selectedLineRange
 } from "./controllers/table-insert";
+import { chartSelectedTable, selectionChartOffer } from "./controllers/table-chart";
 import { ProofreadController } from "./controllers/proofread-controller";
 import { ReadingHistoryController } from "./controllers/reading-history-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
@@ -587,6 +588,24 @@ export default class SchreibstubePlugin extends Plugin {
                 void this.print?.printActiveSelection();
               })
           );
+        }
+        // A table with amounts can be drawn. Offered only when it can, like
+        // the conversion below: the menu is built for this very selection.
+        if (editor.somethingSelected()) {
+          const style = this.settings.sumsNumberStyle;
+          const offer = selectionChartOffer(editor, style);
+          if (offer.ok) {
+            menu.addItem((item) =>
+              item
+                .setTitle(t().chart.menu)
+                .setIcon("chart-pie")
+                .setSection("selection")
+                .onClick(() => {
+                  const path = this.app.workspace.getActiveFile()?.path ?? "";
+                  chartSelectedTable(this.app, editor, path, style, offer);
+                })
+            );
+          }
         }
         const range = selectedLineRange(editor);
         if (!range) return;
@@ -2054,6 +2073,12 @@ export default class SchreibstubePlugin extends Plugin {
     this.addGatedCommand("table-from-selection", t().commands.table, "table", () => {
       const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
       if (editor) convertSelectionToTable(editor);
+    });
+
+    this.addGatedCommand("chart-from-table", t().commands.chartTable, "chart", () => {
+      const editor = this.app.workspace.getActiveViewOfType(MarkdownView)?.editor;
+      const path = this.app.workspace.getActiveFile()?.path ?? "";
+      if (editor) chartSelectedTable(this.app, editor, path, this.settings.sumsNumberStyle);
     });
 
     this.addGatedCommand("ai-table-from-selection", t().commands.tableAi, "table-ai", () => {

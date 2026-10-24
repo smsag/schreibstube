@@ -5,6 +5,36 @@
  * catalogue, and German has to satisfy the merged shape.
  */
 export const enExtra = {
+  chart: {
+    menu: "Chart this table",
+    title: "Chart from the table",
+    intro:
+      "Pick a chart. It goes above the table as a Mermaid block, drawn from the table as it is now; after a change to the table, make it again.",
+    replaces: "It replaces the chart above the table.",
+    insert: "Insert",
+    other: "Other",
+    byGroup: (value: string, group: string) => `${value} by ${group}`,
+    byGroups: (value: string, outer: string, inner: string) => `${value} by ${outer} and ${inner}`,
+    perDay: (value: string) => `${value} per day`,
+    perMonth: (value: string) => `${value} per month`,
+    perYear: (value: string) => `${value} per year`,
+    kinds: {
+      time: "Over time",
+      pie: "Shares",
+      bars: "Largest first",
+      treemap: "Nested"
+    },
+    refused: {
+      noTable: "Select a table to chart it.",
+      tooLong: (rows: number) =>
+        `The table has more than ${rows.toLocaleString("en-GB")} rows. Chart a filtered extract of it.`,
+      noAmounts: "The table has no column of amounts to chart.",
+      noGroups: "The table has amounts, but no column of dates or groups to chart them by.",
+      mixedCurrencies:
+        "The amounts are in more than one currency, and a chart would add them up as if they were one."
+    }
+  },
+
   passages: {
     viewName: "Callouts & highlights",
     calloutTypes: "Callout types",

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+A table with a column of amounts can be charted. Select it and pick **Chart
+this table**: a dialog draws the one or two charts that suit it — bars over
+time for a column of dates, a pie or bars for a column to group by, a treemap
+for two — and **Insert** puts the chosen one above the table as a Mermaid
+block. After a change to the table, chart it again; the chart made before is
+replaced.
+
 A website can have a front page. One note in the publish folder says which
 kind of site it is — `schreibstubeHome: list` for a blog with an introduction
 above the list, `schreibstubeHome: marketing` for a page of a product or a
@@ -18,7 +25,10 @@ the start page, a note and a tag page; the footer should be under each, with
 working links. Then type `Deutsch` into **Sprache der Seiten** and leave the
 field; it should be refused with a notice. And type a phrase into the
 Explorer search on a phone with the desktop's index synced: rows found by
-meaning should appear under the word matches within a second.
+meaning should appear under the word matches within a second. And select a
+table of amounts on a phone and pick **Chart this table** from the editor's
+menu: the dialog should draw its charts, and **Insert** should put one above
+the table.
 
 The bridge moves from 3.4.0 to 3.5.0 and the protocol from 9 to 10. A site
 that uses a start page, a footer or a language is not published through an

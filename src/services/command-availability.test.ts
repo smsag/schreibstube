@@ -25,6 +25,7 @@ function offered(context: CommandContext): GatedCommand[] {
     "rename",
     "summarize",
     "table",
+    "chart",
     "insert-today",
     "property-set",
     "check-source",
@@ -98,6 +99,12 @@ describe("what the palette offers", () => {
   it("offers a table only when there is something selected", () => {
     expect(offered(screen({ selection: true }))).toContain("table");
     expect(offered(screen({ selection: false }))).not.toContain("table");
+  });
+
+  it("offers a chart for a selection in a note, with or without a key", () => {
+    expect(offered(screen({ selection: true, ai: false }))).toContain("chart");
+    expect(offered(screen({ selection: false }))).not.toContain("chart");
+    expect(offered(screen({ selection: true, markdown: false }))).not.toContain("chart");
   });
 
   it("offers the rename to a note and to a picture, and nothing else to a picture", () => {
