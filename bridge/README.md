@@ -546,9 +546,10 @@ RSA. List them all:
 ssh-keyscan your-host | ssh-keygen -lf -
 ```
 
-and take the line ending in `(ED25519)`; if there is none, `(ECDSA)`; `(RSA)`
-only when it is the only one. A fingerprint of another type never matches, and
-the bridge refuses with a message naming the type it was shown.
+and take the `SHA256:…` field of the line ending in `(ED25519)`; if there is
+none, `(ECDSA)`; `(RSA)` only when it is the only one. A fingerprint of another
+type never matches, and the bridge refuses with a message naming the type it
+was shown; the whole line, or an MD5 fingerprint, is refused at startup.
 
 To offer mail, set `MAIL_TOKEN`,
 `IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
@@ -558,8 +559,11 @@ values fail at startup with a precise message rather than on the first
 request. So does a variable that is set and unreadable: a `MAIL_FROM` with no
 address in it, a numeric one that is not a positive integer written in
 decimal digits, a port above 65535, a `PUBLISH_<TARGET>_KEY` that does not
-decode to a PEM, OpenSSH or PuTTY private key, or a flag spelled as neither true nor
-false. Leave a variable out to take its default; do not leave it half-written.
+decode to a PEM, OpenSSH or PuTTY private key, a `PUBLISH_<TARGET>_ALLOWED_EXT`
+that names anything but the pictures and videos whose bytes the bridge checks
+(`png`, `jpg`, `jpeg`, `gif`, `webp`, `avif`, `svg`, `mp4`, `webm`, `ogv`,
+`mov`, `m4v`), or a flag spelled as neither true nor false. Leave a variable
+out to take its default; do not leave it half-written.
 
 **Who a mail may be from.** `MAIL_FROM_ALLOWED` lists, separated by commas,
 the further addresses a note may send as — the aliases of the mailbox — and
