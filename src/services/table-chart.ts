@@ -9,16 +9,22 @@
  * made before, which is what the marker on its first line is for.
  *
  * Amounts are read the way the sums read them, so a table that adds up in the
- * status bar charts with the same numbers.
+ * status bar charts with the same numbers. A row the chart cannot show is
+ * left out and counted in its title, so the picture never claims more of
+ * the table than it holds.
  */
-import { CURRENCY_CODES, FORMULA_TEXT, readCell, type NumberFormat } from "./amounts";
+import { CURRENCY_CODES, readCell, type Amount, type NumberFormat } from "./amounts";
+import { closesFence, fenceLanguage, fenceMarker, fencedLines } from "./markdown-fence";
 import { isTableDelimiter, rowCells } from "./markdown-table";
+import { parseFormula } from "./table-formulas";
 
 /** The first line of every chart this makes, so making it again finds it. */
 export const CHART_MARKER = "%% schreibstube chart";
 
 /** Past this, a table is a dataset rather than a note's table, and is not read. */
 export const MAX_CHART_ROWS = 5_000;
+/** Rows the menu reads to decide whether to offer a chart at all. */
+export const MENU_SAMPLE_ROWS = 200;
 /** More slices than this and a pie is unreadable: the rest become one. */
 export const MAX_PIE_SLICES = 8;
 /** Bars for categories; the rest are added up into one. */
@@ -55,6 +61,8 @@ export interface ChartLabels {
   perDay: (value: string) => string;
   perMonth: (value: string) => string;
   perYear: (value: string) => string;
+  /** A title for a chart that leaves rows of its table out. */
+  without: (title: string, rows: number) => string;
 }
 
 export type ChartKind = "time" | "pie" | "bars" | "treemap";
@@ -71,43 +79,55 @@ export type ChartRefusal =
   "no-table" | "too-long" | "no-amounts" | "no-groups" | "mixed-currencies";
 
 export type ChartOffer =
-  | { ok: true; table: TableLines; suggestions: ChartSuggestion[]; replaces: TableLines | null }
+  | {
+      ok: true;
+      table: TableLines;
+      /** The table's lines as they were read, so the chart goes only above that table. */
+      tableText: string[];
+      suggestions: ChartSuggestion[];
+      replaces: TableLines | null;
+    }
   | { ok: false; reason: ChartRefusal };
 
 /**
  * The table a selection is in: the first selected line that is a table row,
  * widened to the whole table. A table needs its header, the delimiter under
- * it and at least one row.
+ * it and at least one row; a line in a code block is never one.
  */
 export function tableAt(lines: readonly string[], first: number, last: number): TableLines | null {
-  for (let line = Math.max(0, first); line <= Math.min(last, lines.length - 1); line++) {
-    if (!isRow(lines[line])) continue;
+  const fenced = fencedLines(lines);
+  const isRow = (line: number): boolean => {
+    const text = lines[line];
+    return text !== undefined && !fenced[line] && text.includes("|") && text.trim() !== "";
+  };
+  const end = Math.min(last, lines.length - 1);
+  for (let line = Math.max(0, first); line <= end; line++) {
+    if (!isRow(line)) continue;
     let from = line;
-    while (from > 0 && isRow(lines[from - 1])) from--;
+    while (from > 0 && isRow(from - 1)) from--;
     let to = line;
-    while (to + 1 < lines.length && isRow(lines[to + 1])) to++;
+    while (to + 1 < lines.length && isRow(to + 1)) to++;
     const delimiter = lines[from + 1];
-    if (delimiter === undefined || !isTableDelimiter(delimiter) || to < from + 2) return null;
-    return { from, to };
+    if (delimiter !== undefined && isTableDelimiter(delimiter) && to >= from + 2) {
+      return { from, to };
+    }
+    // Lines with pipes that make no table; the selection may reach a table further down.
+    line = to;
   }
   return null;
 }
 
-function isRow(line: string | undefined): boolean {
-  return line !== undefined && line.includes("|") && line.trim() !== "";
-}
-
 /**
  * The table's cells as plain text, every row as wide as the header. A row
- * with a formula is the table's total, and charting it would count the table
- * twice; an empty row says nothing.
+ * with a formula cell is the table's total, and charting it would count the
+ * table twice; an empty row says nothing.
  */
 export function readTable(lines: readonly string[], at: TableLines): PlainTable {
   const header = rowCells(lines[at.from] ?? "").map(plainText);
   const rows: string[][] = [];
   for (let line = at.from + 2; line <= at.to; line++) {
     const cells = rowCells(lines[line] ?? "");
-    if (cells.some((cell) => cell.search(FORMULA_TEXT) !== -1)) continue;
+    if (cells.some((cell) => parseFormula(cell) !== null)) continue;
     const row = header.map((_, index) => plainText(cells[index] ?? ""));
     if (row.every((cell) => cell === "")) continue;
     rows.push(row);
@@ -142,29 +162,54 @@ interface Day {
 
 type Column =
   | { kind: "amount"; index: number; name: string; currency: string | null; mixed: boolean }
-  | { kind: "date"; index: number; name: string; yearsOnly: boolean }
+  | { kind: "date"; index: number; name: string; dayFirst: boolean; yearsOnly: boolean }
   | { kind: "text"; index: number; name: string; groups: number; average: number }
   | { kind: "empty"; index: number; name: string };
 
+type AmountColumn = Extract<Column, { kind: "amount" }>;
+type DateColumn = Extract<Column, { kind: "date" }>;
+type TextColumn = Extract<Column, { kind: "text" }>;
+
+/** A day, with a time after it or not, or a month: `2026-03-15T10:00`, `2026-03`. */
+const ISO_DATE =
+  /^(\d{4})-(\d\d?)(?:-(\d\d?)(?:[T ]\d\d?:\d\d(?::\d\d(?:[.,]\d+)?)?(?:\s?(?:Z|[+-]\d\d:?\d\d))?)?)?$/;
+const DOTTED_DATE = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/;
+const SLASHED_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/;
+
 /**
  * A date as a table writes one: `2026-03-15`, `15.03.2026`, `15.03.26`,
- * `2026-03` for a month, and `03/15/2026` or `15/03/2026` — which of the two
- * the slashes mean is settled by a part above twelve, and otherwise by the
- * number format: a comma for decimals writes the day first.
+ * `2026-03` for a month, and `15/03/2026` or `03/15/2026` — which of those
+ * two the slashes mean is the column's to say, not the cell's.
  */
 export function readDate(text: string, dayFirst: boolean): Day | null {
-  const iso = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?(?:[T ].*)?$/.exec(text);
+  const iso = ISO_DATE.exec(text);
   if (iso) return day(Number(iso[1]), Number(iso[2]), iso[3] ? Number(iso[3]) : 1);
-  const dotted = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/.exec(text);
+  const dotted = DOTTED_DATE.exec(text);
   if (dotted) return day(fullYear(dotted[3]!), Number(dotted[2]), Number(dotted[1]));
-  const slashed = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(text);
-  if (slashed) {
-    const a = Number(slashed[1]);
-    const b = Number(slashed[2]);
-    const first = a > 12 ? true : b > 12 ? false : dayFirst;
-    return first ? day(fullYear(slashed[3]!), b, a) : day(fullYear(slashed[3]!), a, b);
+  const slashed = SLASHED_DATE.exec(text);
+  if (!slashed) return null;
+  const [a, b] = [Number(slashed[1]), Number(slashed[2])];
+  return dayFirst ? day(fullYear(slashed[3]!), b, a) : day(fullYear(slashed[3]!), a, b);
+}
+
+/**
+ * Which way a column writes its slashed dates. A column is written one way,
+ * so one cell with a day above twelve settles it for every cell; without
+ * one, the number format does — a comma for decimals writes the day first.
+ * A column written both ways is null: no column of dates at all. Read cell
+ * by cell, `03/04` and `15/04` would be two months apart in the same table.
+ */
+export function slashOrder(cells: readonly string[], fallback: boolean): boolean | null {
+  let dayFirst = false;
+  let monthFirst = false;
+  for (const cell of cells) {
+    const slashed = SLASHED_DATE.exec(cell);
+    if (!slashed) continue;
+    if (Number(slashed[1]) > 12) dayFirst = true;
+    if (Number(slashed[2]) > 12) monthFirst = true;
   }
-  return null;
+  if (dayFirst && monthFirst) return null;
+  return dayFirst ? true : monthFirst ? false : fallback;
 }
 
 function fullYear(written: string): number {
@@ -180,86 +225,127 @@ function day(year: number, month: number, date: number): Day | null {
 /**
  * A cell that is a figure and nothing else: digits, separators, a sign and a
  * currency. `Shop 12` holds a number but is a name, and a column of names
- * read as amounts would chart the shop numbers.
+ * read as amounts would chart the shop numbers. Parentheses are not a sign
+ * here: an accountant's `(12.50)` is a loss, and read as a gain it would be
+ * charted the wrong way up.
  */
 export function isFigure(cell: string): boolean {
   const rest = cell
     .replace(CURRENCY_WORDS, "")
     .replace(/R\$|\p{Sc}|zł|Kč/gu, "")
-    .replace(/[\d\s.,'’+\-−()]/g, "");
+    .replace(/[\d\s.,'’+\-−]/g, "");
   return /\d/.test(cell) && rest === "";
 }
 
 const CURRENCY_WORDS = new RegExp(`\\b(?:${CURRENCY_CODES.join("|")})\\b`, "g");
 
-/** A column of whole numbers between these, with no currency, counts years. */
+/** A column of whole numbers between these, with no currency and a name like it, counts years. */
 const FIRST_YEAR = 1900;
 const LAST_YEAR = 2100;
 
+function isYear(amount: Amount): boolean {
+  return (
+    amount.currency === null &&
+    amount.decimals === 0 &&
+    amount.value >= FIRST_YEAR &&
+    amount.value <= LAST_YEAR
+  );
+}
+
+/**
+ * The words below end the column's name, in the singular or the plural, but
+ * may start it anywhere: `Kaufpreis` and `Nebenkosten` are amounts,
+ * `Wertpapier` and `Consumer` are not.
+ */
+const ENDING = String.raw`(?:e|n|en|s|es)?\b`;
+/** A column named like what is spent, earned or counted. */
+const AMOUNT_WORDS = new RegExp(
+  `(?:betr[aä]g|summe|preis|kosten|ausgabe|einnahme|ums[aä]tz|wert|amount|sum|price|cost|expense|spend(?:ing)?|income|revenue|value|total)${ENDING}`,
+  "i"
+);
+/** A running balance adds up to nothing meaningful. */
+const BALANCE_WORDS = new RegExp(`(?:saldo|kontostand|bestand|balance)${ENDING}`, "i");
+/** A column named like the groups a table falls into. */
+const GROUP_WORDS = new RegExp(
+  `(?:kategorie|art|typ|gruppe|bereich|category|categories|kind|type|group|class)${ENDING}`,
+  "i"
+);
+/** A column named like years: `Jahr`, `Baujahr`, `Fiscal year`, `FY` — not `Jahresbeitrag`. */
+const YEAR_WORDS = /(?:jahr|year)\b|\bfy\b/i;
+/**
+ * A column that names or numbers its rows rather than measuring them: a row
+ * number, an ID, a postcode. Its figures add up to nothing anyone means.
+ */
+const IDENTIFIER_WORDS =
+  /(?:^#|\b(?:nr|no|id|pos|plz|zip|tel)\.?|nummer|number|index|rang|rank|postleitzahl|postcode|telefon|phone)$/i;
+
+const SAYS = /[\p{L}\p{N}]/u;
+
 function profile(table: PlainTable, format: NumberFormat): Column[] {
-  const dayFirst = format.decimal === ",";
-  return table.header.map((name, index) => {
-    const cells = table.rows.map((row) => row[index] ?? "").filter((cell) => cell !== "");
+  return table.header.map((name, index): Column => {
+    // A dash fills a cell to say there is nothing in it.
+    const cells = table.rows.map((row) => row[index] ?? "").filter((cell) => SAYS.test(cell));
     if (cells.length === 0) return { kind: "empty", index, name };
-    const dates = cells.filter((cell) => readDate(cell, dayFirst) !== null).length;
-    if (dates >= cells.length * DATE_SHARE) return { kind: "date", index, name, yearsOnly: false };
+    const dayFirst = slashOrder(cells, format.decimal === ",");
+    if (dayFirst !== null) {
+      const dates = cells.filter((cell) => readDate(cell, dayFirst) !== null).length;
+      if (dates >= cells.length * DATE_SHARE) {
+        return { kind: "date", index, name, dayFirst, yearsOnly: false };
+      }
+    }
 
     const amounts = cells.flatMap((cell) => {
       const reading = isFigure(cell) ? readCell(cell, format) : null;
       return reading?.kind === "amount" ? [reading.amount] : [];
     });
-    if (amounts.length >= cells.length * AMOUNT_SHARE) {
-      const years = amounts.every(
-        (amount) =>
-          amount.currency === null &&
-          amount.decimals === 0 &&
-          amount.value >= FIRST_YEAR &&
-          amount.value <= LAST_YEAR
-      );
-      if (years && amounts.length === cells.length) {
-        return { kind: "date", index, name, yearsOnly: true };
-      }
-      const currencies = new Set(
-        amounts.flatMap((amount) => (amount.currency ? [amount.currency] : []))
-      );
-      return {
-        kind: "amount",
-        index,
-        name,
-        currency: currencies.size === 1 ? [...currencies][0]! : null,
-        mixed: currencies.size > 1
-      };
+    if (amounts.length < cells.length * AMOUNT_SHARE) {
+      const average = cells.reduce((sum, cell) => sum + cell.length, 0) / cells.length;
+      return { kind: "text", index, name, groups: new Set(cells).size, average };
     }
-    const average = cells.reduce((sum, cell) => sum + cell.length, 0) / cells.length;
-    return { kind: "text", index, name, groups: new Set(cells).size, average };
+    // Only its name makes a column of years: a count of 1950 is a count.
+    if (YEAR_WORDS.test(name) && amounts.length === cells.length && amounts.every(isYear)) {
+      return { kind: "date", index, name, dayFirst: false, yearsOnly: true };
+    }
+    const currencies = new Set(
+      amounts.flatMap((amount) => (amount.currency ? [amount.currency] : []))
+    );
+    return {
+      kind: "amount",
+      index,
+      name,
+      currency: currencies.size === 1 ? [...currencies][0]! : null,
+      mixed: currencies.size > 1
+    };
   });
 }
 
-/** A column named like what is spent, earned or counted. */
-const AMOUNT_WORDS =
-  /betrag|summe|preis|kosten|ausgabe|einnahme|umsatz|wert|amount|sum|price|cost|expense|spend|income|revenue|value|total/i;
-/** A running balance adds up to nothing meaningful. */
-const BALANCE_WORDS = /saldo|kontostand|bestand|balance/i;
-/** A column named like the groups a table falls into. */
-const GROUP_WORDS = /kategorie|art|typ|gruppe|bereich|category|kind|type|group|class/i;
+/** The rows numbered 1, 2, 3 … in order: a numbering, whatever its column is called. */
+function numbersRows(table: PlainTable, index: number): boolean {
+  return table.rows.length >= 3 && table.rows.every((row, at) => row[index] === String(at + 1));
+}
 
-function valueColumn(columns: Column[]): Extract<Column, { kind: "amount" }> | "mixed" | null {
+function valueColumn(table: PlainTable, columns: Column[]): AmountColumn | "mixed" | null {
   const amounts = columns.filter(
-    (column): column is Extract<Column, { kind: "amount" }> =>
-      column.kind === "amount" && !BALANCE_WORDS.test(column.name)
+    (column): column is AmountColumn =>
+      column.kind === "amount" &&
+      !BALANCE_WORDS.test(column.name) &&
+      !IDENTIFIER_WORDS.test(column.name) &&
+      !numbersRows(table, column.index)
   );
   if (amounts.length === 0) return null;
   const usable = amounts.filter((column) => !column.mixed);
   if (usable.length === 0) return "mixed";
-  const score = (column: Extract<Column, { kind: "amount" }>): number =>
+  const score = (column: AmountColumn): number =>
     (AMOUNT_WORDS.test(column.name) ? 2 : 0) + (column.currency ? 1 : 0);
-  return usable.reduce((best, column) => (score(column) > score(best) ? column : best));
+  // A tie goes to the column further right: a table names its rows first and
+  // puts what they cost last, so a quantity stands before the price.
+  return usable.reduce((best, column) => (score(column) >= score(best) ? column : best));
 }
 
 /** The text columns worth grouping by, the likeliest first. */
-function groupColumns(columns: Column[]): Extract<Column, { kind: "text" }>[] {
+function groupColumns(columns: Column[]): TextColumn[] {
   const texts = columns.filter(
-    (column): column is Extract<Column, { kind: "text" }> =>
+    (column): column is TextColumn =>
       column.kind === "text" &&
       column.groups >= 2 &&
       column.groups <= MAX_GROUPS &&
@@ -278,6 +364,16 @@ interface Entry {
   row: string[];
 }
 
+/** What a chart is drawn from: the rows it shows, and how many it leaves out. */
+interface Drawn {
+  entries: Entry[];
+  leftOut: number;
+  /** The value column's name, short enough to stand in a title. */
+  name: string;
+  /** The same with its currency, for the value axis. */
+  axisName: string;
+}
+
 /**
  * The one or two charts that suit a table, the likeliest first: over time when
  * it has dates, by group when it has a column to group by, and a treemap when
@@ -290,57 +386,79 @@ export function suggestCharts(
 ): { ok: true; suggestions: ChartSuggestion[] } | { ok: false; reason: ChartRefusal } {
   if (table.rows.length > MAX_CHART_ROWS) return { ok: false, reason: "too-long" };
   const columns = profile(table, format);
-  const value = valueColumn(columns);
+  const value = valueColumn(table, columns);
   if (value === "mixed") return { ok: false, reason: "mixed-currencies" };
   if (!value) return { ok: false, reason: "no-amounts" };
 
-  const read = table.rows.flatMap((row): Entry[] => {
-    const reading = readCell(row[value.index] ?? "", format);
-    return reading.kind === "amount" ? [{ value: reading.amount.value, row }] : [];
-  });
-  if (read.length === 0 || read.every((entry) => entry.value === 0)) {
-    return { ok: false, reason: "no-amounts" };
+  // Only a figure is charted. `ca. 40 €` reads as some number, but maybe not
+  // the one meant, and a chart that adds it in is wrong without saying so.
+  let unread = 0;
+  const read: Entry[] = [];
+  for (const row of table.rows) {
+    const cell = row[value.index] ?? "";
+    const reading = readCell(cell, format);
+    // Nothing, a dash, or an amount quoted to be left out, as the sums leave it out.
+    if (reading.kind === "empty" || reading.kind === "quoted") continue;
+    if (reading.kind === "unreadable" || !isFigure(cell)) unread++;
+    else if (reading.amount.value !== 0) read.push({ value: reading.amount.value, row });
   }
-  // A statement writes what went out as negative. Drawn as it stands, every
-  // bar would hang below the axis and no pie could be cut at all.
-  const spending = read.every((entry) => entry.value <= 0);
-  const entries = spending ? read.map((entry) => ({ ...entry, value: -entry.value })) : read;
-  const valueName = value.currency ? `${value.name} (${value.currency})` : value.name;
+  if (read.length === 0) return { ok: false, reason: "no-amounts" };
+
+  // A chart shows one sign. Mermaid draws a bar from the bottom of its axis,
+  // not from zero, so a negative bar grows from below every other one, and a
+  // pie has no slice for less than nothing. It shows the sign most rows have
+  // — what went out, on a statement that writes it as negative, drawn as
+  // positive — and the title says how many rows of the other it leaves out.
+  const negative = read.filter((entry) => entry.value < 0);
+  const positive = read.filter((entry) => entry.value > 0);
+  const weight = (list: Entry[]): number => list.reduce((sum, e) => sum + Math.abs(e.value), 0);
+  const spending =
+    negative.length > positive.length ||
+    (negative.length === positive.length && weight(negative) > weight(positive));
+  const name = shorten(clean(value.name));
+  const drawn: Drawn = {
+    entries: spending ? negative.map((entry) => ({ ...entry, value: -entry.value })) : positive,
+    leftOut: unread + (spending ? positive.length : negative.length),
+    name,
+    axisName: shorten(clean(value.currency ? `${value.name} (${value.currency})` : value.name))
+  };
 
   const suggestions: ChartSuggestion[] = [];
-  const date = columns.find(
-    (column): column is Extract<Column, { kind: "date" }> => column.kind === "date"
-  );
+  const date = columns.find((column): column is DateColumn => column.kind === "date");
   if (date) {
-    const time = timeChart(entries, date, value.name, valueName, format, labels);
+    const time = timeChart(drawn, date, format, labels);
     if (time) suggestions.push(time);
   }
-  const groups = groupColumns(columns);
-  const [outer, inner] = groups;
-  if (outer) suggestions.push(groupChart(entries, outer, value.name, valueName, labels));
-  if (!date && outer && inner && entries.every((entry) => entry.value > 0)) {
+  const [outer, inner] = groupColumns(columns);
+  if (outer) suggestions.push(groupChart(drawn, outer, labels));
+  if (!date && outer && inner) {
     // The column with fewer values is the outer one, whatever their order.
     const [big, small] = outer.groups <= inner.groups ? [outer, inner] : [inner, outer];
-    suggestions.push(treemapChart(entries, big, small, value.name, labels));
+    suggestions.push(treemapChart(drawn, big, small, labels));
   }
   if (suggestions.length === 0) return { ok: false, reason: "no-groups" };
   return { ok: true, suggestions: suggestions.slice(0, 2) };
 }
 
+function titled(title: string, leftOut: number, labels: ChartLabels): string {
+  return leftOut > 0 ? labels.without(title, leftOut) : title;
+}
+
+function dateOf(cell: string, column: DateColumn, format: NumberFormat): Day | null {
+  if (!column.yearsOnly) return readDate(cell, column.dayFirst);
+  const reading = readCell(cell, format);
+  if (reading.kind !== "amount" || !isYear(reading.amount)) return null;
+  return { year: reading.amount.value, month: 1, day: 1 };
+}
+
 function timeChart(
-  entries: Entry[],
-  column: Extract<Column, { kind: "date" }>,
-  name: string,
-  axisName: string,
+  drawn: Drawn,
+  column: DateColumn,
   format: NumberFormat,
   labels: ChartLabels
 ): ChartSuggestion | null {
-  const dayFirst = format.decimal === ",";
-  const dated = entries.flatMap((entry) => {
-    const cell = entry.row[column.index] ?? "";
-    const when = column.yearsOnly
-      ? { year: Number(cell), month: 1, day: 1 }
-      : readDate(cell, dayFirst);
+  const dated = drawn.entries.flatMap((entry) => {
+    const when = dateOf(entry.row[column.index] ?? "", column, format);
     return when ? [{ when, value: entry.value }] : [];
   });
   if (dated.length === 0) return null;
@@ -372,16 +490,10 @@ function timeChart(
   const sums = new Map(keys.map((key) => [key, 0]));
   for (const { when, value } of dated) sums.set(keyOf(when), (sums.get(keyOf(when)) ?? 0) + value);
 
-  const dayLabel = new Intl.DateTimeFormat(format.locale, {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "UTC"
-  });
-  const monthLabel = new Intl.DateTimeFormat(format.locale, {
-    month: "short",
-    year: "2-digit",
-    timeZone: "UTC"
-  });
+  const dates = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(format.locale, { ...options, timeZone: "UTC" });
+  const dayLabel = dates({ day: "2-digit", month: "2-digit" });
+  const monthLabel = dates({ month: "short", year: "2-digit" });
   const label = (key: number): string =>
     period === "day"
       ? dayLabel.format(new Date(key * 86_400_000))
@@ -389,12 +501,14 @@ function timeChart(
         ? monthLabel.format(new Date(Date.UTC(Math.floor(key / 12), key % 12, 1)))
         : String(key);
 
-  const title =
-    period === "day"
-      ? labels.perDay(name)
-      : period === "month"
-        ? labels.perMonth(name)
-        : labels.perYear(name);
+  const per =
+    period === "day" ? labels.perDay : period === "month" ? labels.perMonth : labels.perYear;
+  // A row without a date has no place on the axis: one more left out.
+  const title = titled(
+    per(drawn.name),
+    drawn.leftOut + drawn.entries.length - dated.length,
+    labels
+  );
   return {
     kind: "time",
     title,
@@ -402,8 +516,8 @@ function timeChart(
       CHART_MARKER,
       "xychart-beta",
       `    title ${quote(title)}`,
-      `    x-axis [${keys.map((key) => quote(label(key))).join(", ")}]`,
-      `    y-axis ${quote(axisName)} ${axisRange(keys.map((key) => sums.get(key) ?? 0))}`,
+      `    x-axis [${keys.map((key) => quote(clean(label(key)))).join(", ")}]`,
+      `    y-axis ${quote(drawn.axisName)} ${axisRange(keys.map((key) => sums.get(key) ?? 0))}`,
       `    bar [${keys.map((key) => figure(sums.get(key) ?? 0)).join(", ")}]`
     ].join("\n")
   };
@@ -427,16 +541,15 @@ function grouped(entries: Entry[], index: number, keep: number, other: string): 
   return [...sorted.slice(0, keep - 1), [other, rest]];
 }
 
-function groupChart(
-  entries: Entry[],
-  column: Extract<Column, { kind: "text" }>,
-  name: string,
-  axisName: string,
-  labels: ChartLabels
-): ChartSuggestion {
-  const title = labels.byGroup(name, column.name);
-  const pie = grouped(entries, column.index, MAX_PIE_SLICES, labels.other);
-  if (column.groups <= MAX_PIE_SLICES && pie.every(([, value]) => value > 0)) {
+function groupChart(drawn: Drawn, column: TextColumn, labels: ChartLabels): ChartSuggestion {
+  const title = titled(
+    labels.byGroup(drawn.name, shorten(clean(column.name))),
+    drawn.leftOut,
+    labels
+  );
+  const pie = sumsBy(drawn.entries, column.index);
+  if (pie.length <= MAX_PIE_SLICES) {
+    const names = uniqueLabels(pie.map(([group]) => group));
     return {
       kind: "pie",
       title,
@@ -444,12 +557,13 @@ function groupChart(
       source: [
         CHART_MARKER,
         "pie showData",
-        `    title ${title.replace(/[\r\n]/g, " ")}`,
-        ...pie.map(([group, value]) => `    ${quote(group)} : ${figure(value)}`)
+        `    title ${clean(title)}`,
+        ...pie.map(([, value], at) => `    ${quote(names[at]!)} : ${figure(value)}`)
       ].join("\n")
     };
   }
-  const bars = grouped(entries, column.index, MAX_BARS, labels.other);
+  const bars = grouped(drawn.entries, column.index, MAX_BARS, labels.other);
+  const names = uniqueLabels(bars.map(([group]) => group));
   return {
     kind: "bars",
     title,
@@ -457,59 +571,87 @@ function groupChart(
       CHART_MARKER,
       "xychart-beta horizontal",
       `    title ${quote(title)}`,
-      `    x-axis [${bars.map(([group]) => quote(group)).join(", ")}]`,
-      `    y-axis ${quote(axisName)} ${axisRange(bars.map(([, value]) => value))}`,
+      `    x-axis [${names.map(quote).join(", ")}]`,
+      `    y-axis ${quote(drawn.axisName)} ${axisRange(bars.map(([, value]) => value))}`,
       `    bar [${bars.map(([, value]) => figure(value)).join(", ")}]`
     ].join("\n")
   };
 }
 
 function treemapChart(
-  entries: Entry[],
-  outer: Extract<Column, { kind: "text" }>,
-  inner: Extract<Column, { kind: "text" }>,
-  name: string,
+  drawn: Drawn,
+  outer: TextColumn,
+  inner: TextColumn,
   labels: ChartLabels
 ): ChartSuggestion {
-  const title = labels.byGroups(name, outer.name, inner.name);
+  const title = titled(
+    labels.byGroups(drawn.name, shorten(clean(outer.name)), shorten(clean(inner.name))),
+    drawn.leftOut,
+    labels
+  );
   const lines = [CHART_MARKER, "treemap-beta", quote(title)];
-  const sorted = sumsBy(entries, outer.index);
+  const sorted = sumsBy(drawn.entries, outer.index);
   const named = sorted.length <= MAX_BARS ? sorted : sorted.slice(0, MAX_BARS - 1);
   const shown = new Set(named.map(([group]) => group));
   const tiles: [string, Entry[]][] = named.map(([group]) => [
     group,
-    entries.filter((entry) => (entry.row[outer.index] || "–") === group)
+    drawn.entries.filter((entry) => (entry.row[outer.index] || "–") === group)
   ]);
-  const rest = entries.filter((entry) => !shown.has(entry.row[outer.index] || "–"));
+  const rest = drawn.entries.filter((entry) => !shown.has(entry.row[outer.index] || "–"));
   if (rest.length > 0) tiles.push([labels.other, rest]);
-  for (const [group, members] of tiles) {
-    lines.push(`    ${quote(group)}`);
-    for (const [member, value] of grouped(members, inner.index, MAX_BARS, labels.other)) {
-      lines.push(`        ${quote(member)}: ${figure(value)}`);
-    }
-  }
+  const names = uniqueLabels(tiles.map(([group]) => group));
+  tiles.forEach(([, members], at) => {
+    lines.push(`    ${quote(names[at]!)}`);
+    const parts = grouped(members, inner.index, MAX_BARS, labels.other);
+    const partNames = uniqueLabels(parts.map(([member]) => member));
+    parts.forEach(([, value], part) => {
+      lines.push(`        ${quote(partNames[part]!)}: ${figure(value)}`);
+    });
+  });
   return { kind: "treemap", title, source: lines.join("\n") };
 }
 
-/** A label as Mermaid reads one: in quotes, with none inside, and not too long to draw. */
+/** Text as Mermaid reads it inside quotes: on one line, with none inside. */
+function clean(text: string): string {
+  return text.replace(/"/g, "'").replace(/\s+/g, " ").trim();
+}
+
+function shorten(text: string, chars = MAX_LABEL_CHARS): string {
+  return text.length > chars ? `${text.slice(0, chars - 1)}…` : text;
+}
+
 function quote(text: string): string {
-  const flat = text.replace(/"/g, "'").replace(/\s+/g, " ").trim();
-  const short = flat.length > MAX_LABEL_CHARS ? `${flat.slice(0, MAX_LABEL_CHARS - 1)}…` : flat;
-  return `"${short}"`;
+  return `"${text}"`;
 }
 
 /**
- * The value axis from zero, or from below it when a bar is negative, to a
- * round number past the largest. Mermaid starts the axis at the smallest bar
- * otherwise, and a bar of 1058 next to one of 1069 then looks like nothing
- * next to something.
+ * Labels short enough to draw, and no two alike. Mermaid keys a slice and a
+ * tile by its label: shortened to the same words, two groups would be drawn
+ * as one, and a group that is itself called `Other` would swallow the rest.
+ * The later one is numbered instead.
+ */
+export function uniqueLabels(names: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return names.map((name) => {
+    const flat = clean(name);
+    let label = shorten(flat);
+    for (let count = 2; seen.has(label); count++) {
+      const suffix = ` (${count})`;
+      label = `${shorten(flat, MAX_LABEL_CHARS - suffix.length)}${suffix}`;
+    }
+    seen.add(label);
+    return label;
+  });
+}
+
+/**
+ * The value axis from zero to a round number past the largest bar. Mermaid
+ * starts the axis at the smallest bar otherwise, and a bar of 1058 next to
+ * one of 1069 then looks like nothing next to something.
  */
 export function axisRange(values: readonly number[]): string {
-  const low = Math.min(0, ...values);
   const high = Math.max(0, ...values);
-  const top = high > 0 ? roundUp(high) : 0;
-  const bottom = low < 0 ? -roundUp(-low) : 0;
-  return `${figure(bottom)} --> ${figure(top === bottom ? 1 : top)}`;
+  return `0 --> ${figure(high > 0 ? roundUp(high) : 1)}`;
 }
 
 /** Round steps within a power of ten: fine enough that the top bar fills most of the axis. */
@@ -532,26 +674,45 @@ function figure(value: number): string {
 /**
  * Everything the command needs from a note and a selection: the table, the
  * charts it offers, and a chart this made before, right above the table, that
- * the new one replaces.
+ * the new one replaces. The charts are drawn from the first `rows` rows.
  */
 export function chartOffer(
   lines: readonly string[],
   first: number,
   last: number,
   format: NumberFormat,
-  labels: ChartLabels
+  labels: ChartLabels,
+  rows = MAX_CHART_ROWS
 ): ChartOffer {
   const table = tableAt(lines, first, last);
   if (!table) return { ok: false, reason: "no-table" };
   if (table.to - table.from - 1 > MAX_CHART_ROWS) return { ok: false, reason: "too-long" };
-  const result = suggestCharts(readTable(lines, table), format, labels);
+  const read = { from: table.from, to: Math.min(table.to, table.from + 1 + rows) };
+  const result = suggestCharts(readTable(lines, read), format, labels);
   if (!result.ok) return result;
   return {
     ok: true,
     table,
+    tableText: lines.slice(table.from, table.to + 1),
     suggestions: result.suggestions,
     replaces: chartAbove(lines, table.from)
   };
+}
+
+/**
+ * Whether to offer a chart for a selection, judged from the table's first
+ * rows. The menu is built on every right-click; a table of thousands of rows
+ * is read in full only once the chart is asked for, and if its later rows
+ * change the answer, the command says so then.
+ */
+export function mayChart(
+  lines: readonly string[],
+  first: number,
+  last: number,
+  format: NumberFormat,
+  labels: ChartLabels
+): boolean {
+  return chartOffer(lines, first, last, format, labels, MENU_SAMPLE_ROWS).ok;
 }
 
 /**
@@ -562,12 +723,23 @@ export function chartOffer(
 export function chartAbove(lines: readonly string[], tableFrom: number): TableLines | null {
   let close = tableFrom - 1;
   while (close >= 0 && lines[close]!.trim() === "") close--;
-  if (close < 2 || !/^(`{3,}|~{3,})\s*$/.test(lines[close]!.trim())) return null;
-  for (let open = close - 1; open >= 0; open--) {
-    const line = lines[open]!.trim();
-    if (!/^(`{3,}|~{3,})/.test(line)) continue;
-    if (!/^(`{3,}|~{3,})mermaid\s*$/.test(line)) return null;
-    return lines[open + 1]?.trim() === CHART_MARKER ? { from: open, to: close } : null;
+  // Fences pair from the top of the note, the way they are drawn: walked
+  // backwards, a fence quoted inside a block would pass for its opening.
+  let open: { line: number; marker: string } | null = null;
+  for (let line = 0; line <= close; line++) {
+    const marker = fenceMarker(lines[line]!);
+    if (!marker) continue;
+    if (!open) {
+      open = { line, marker };
+    } else if (closesFence(lines[line]!, open.marker)) {
+      if (line === close) {
+        const chart =
+          fenceLanguage(lines[open.line]!, open.marker) === "mermaid" &&
+          lines[open.line + 1]?.trim() === CHART_MARKER;
+        return chart ? { from: open.line, to: close } : null;
+      }
+      open = null;
+    }
   }
   return null;
 }
@@ -581,15 +753,26 @@ export function chartBlock(suggestion: ChartSuggestion): string {
  * The edit that puts a chart above its table: the lines it replaces, or the
  * line it goes in front of, and the text. A blank line separates the chart
  * from the table and from whatever stands above it, so both still render.
+ *
+ * The note is read again for it: the dialog stays open as long as the person
+ * likes, and a sync or another pane can change the note under it. A chart of
+ * a table that is no longer where it was, line for line, could go in the
+ * wrong place or show numbers the table no longer has — null, for the
+ * command to say so.
  */
 export function placeChart(
   lines: readonly string[],
   offer: Extract<ChartOffer, { ok: true }>,
   suggestion: ChartSuggestion
-): { from: number; to: number | null; text: string } {
+): { from: number; to: number | null; text: string } | null {
+  const { from, to } = offer.table;
+  const found = tableAt(lines, from, from);
+  const same = offer.tableText.every((line, at) => lines[from + at] === line);
+  if (!same || found?.from !== from || found.to !== to) return null;
   const block = chartBlock(suggestion);
-  if (offer.replaces) return { from: offer.replaces.from, to: offer.replaces.to, text: block };
-  const above = offer.table.from > 0 ? lines[offer.table.from - 1] : undefined;
+  const replaces = chartAbove(lines, from);
+  if (replaces) return { from: replaces.from, to: replaces.to, text: block };
+  const above = from > 0 ? lines[from - 1] : undefined;
   const before = above !== undefined && above.trim() !== "" ? "\n" : "";
-  return { from: offer.table.from, to: null, text: `${before}${block}\n\n` };
+  return { from, to: null, text: `${before}${block}\n\n` };
 }

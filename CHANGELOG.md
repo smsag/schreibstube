@@ -8,8 +8,11 @@ A table with a column of amounts can be charted. Select it and pick **Chart
 this table**: a dialog draws the one or two charts that suit it — bars over
 time for a column of dates, a pie or bars for a column to group by, a treemap
 for two — and **Insert** puts the chosen one above the table as a Mermaid
-block. After a change to the table, chart it again; the chart made before is
-replaced.
+block. A chart shows the sign most rows have, spending drawn as positive, and
+its title counts the rows it leaves out: a refund among the expenses, an
+amount that is not a plain figure, a row without a date. After a change to
+the table, chart it again; the chart made before is replaced, and a table
+that changed while the dialog was open gets no chart, but a notice.
 
 A website can have a front page. One note in the publish folder says which
 kind of site it is — `schreibstubeHome: list` for a blog with an introduction

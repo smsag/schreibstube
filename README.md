@@ -420,9 +420,11 @@ Select a table with a column of amounts, and the editor's menu offers **Chart th
 - A column to group by gives the **shares** as a pie, up to eight groups, or the **largest first** as bars with the rest added up as **Other**. A column named like a category (`Kategorie`, `Type`, …) is preferred.
 - Two columns to group by, and no dates, also give a **nested** treemap: the groups and what each is made of.
 
-Amounts are read like the sums read them, in the same number format, so `1.234,50 €` and `-45,90 €` work. A statement that writes every expense as negative is drawn as positive amounts. A totals row — a row with `=sum` in it, as the CSV view copies one — is left out, and a running balance (`Saldo`, `Balance`) is not charted. Amounts in more than one currency, or a table of more than 5 000 rows, are refused with a notice saying why.
+Amounts are read like the sums read them, in the same number format, so `1.234,50 €` and `-45,90 €` work. Only a plain figure is charted: `ca. 40 €`, or an accountant's `(12,50)`, is not. A totals row — a row with a formula cell such as `=sum`, as the CSV view copies one — is left out, and a running balance (`Saldo`, `Balance`), row numbers, IDs and postcodes are not charted. A column of years counts as time only when its name says so (`Jahr`, `Year`, `Baujahr`), and slashed dates are read the one way their column writes them. Amounts in more than one currency, or a table of more than 5 000 rows, are refused with a notice saying why.
 
-The chart is drawn from the table as it is when it is made; it does not follow later changes. After editing the table, run it again: the chart Schreibstube made, marked by the `%% schreibstube chart` line it starts with, is replaced, and a Mermaid block you wrote yourself is left alone. One undo removes the chart.
+A chart shows one sign, the one most rows have: a statement that writes its expenses as negative is drawn as positive amounts, and a refund among them is left out. Whatever a chart leaves out — a row of the other sign, an amount that is not a plain figure, a row without a date on a time axis — its title counts, as in `Betrag per month (without 2 rows)`.
+
+The chart is drawn from the table as it is when it is made; it does not follow later changes. After editing the table, run it again: the chart Schreibstube made, marked by the `%% schreibstube chart` line it starts with, is replaced, and a Mermaid block you wrote yourself is left alone. If the table changes while the dialog is open, nothing is inserted and a notice says to chart it again. One undo removes the chart.
 
 ### Slideshow
 

@@ -497,6 +497,10 @@ export const de: Messages = {
     perDay: (value: string) => `${value} pro Tag`,
     perMonth: (value: string) => `${value} pro Monat`,
     perYear: (value: string) => `${value} pro Jahr`,
+    without: (title: string, rows: number) =>
+      `${title} (ohne ${rows.toLocaleString("de-DE")} ${rows === 1 ? "Zeile" : "Zeilen"})`,
+    changed:
+      "Die Tabelle hat sich geändert, während der Dialog offen war. Das Diagramm bitte neu erstellen.",
     kinds: {
       time: "Zeitverlauf",
       pie: "Anteile",
