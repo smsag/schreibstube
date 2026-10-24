@@ -10,6 +10,7 @@ import { editorLivePreviewField } from "obsidian";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
 import { topEdgeLine } from "../services/editor-top-edge";
 import { isCommentLine } from "../services/comment-line";
+import { visibleLineRuns } from "../services/visible-lines";
 import type { SchreibstubeSettings } from "../types";
 
 export interface EditorViewportUpdate {
@@ -46,6 +47,9 @@ export function createEditorExtension(options: EditorExtensionOptions): Extensio
 }
 
 const COMMENT_LINE = Decoration.line({ class: "schreibstube-comment-line" });
+
+const onScreen = (view: EditorView) =>
+  visibleLineRuns(view.visibleRanges, (position) => view.state.doc.lineAt(position).number);
 
 /**
  * Lines that open with `//` are the writer's asides, and fade by the focus
@@ -87,9 +91,8 @@ function createCommentDimExtension(getSettings: () => SchreibstubeSettings): Ext
       private build(): DecorationSet {
         const builder = new RangeSetBuilder<Decoration>();
         const doc = this.view.state.doc;
-        for (const range of this.view.visibleRanges) {
-          const lastLine = doc.lineAt(range.to).number;
-          for (let n = doc.lineAt(range.from).number; n <= lastLine; n += 1) {
+        for (const run of onScreen(this.view)) {
+          for (let n = run.first; n <= run.last; n += 1) {
             const line = doc.line(n);
             if (isCommentLine(line.text)) builder.add(line.from, line.from, COMMENT_LINE);
           }
@@ -240,11 +243,8 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
           focusRange.startCh !== undefined &&
           focusRange.endCh !== undefined;
 
-        for (const range of this.view.visibleRanges) {
-          const firstLine = doc.lineAt(range.from).number;
-          const lastLine = doc.lineAt(range.to).number;
-
-          for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+        for (const run of onScreen(this.view)) {
+          for (let lineNumber = run.first; lineNumber <= run.last; lineNumber += 1) {
             const line = doc.line(lineNumber);
             const inFocusRange = sentence
               ? false
