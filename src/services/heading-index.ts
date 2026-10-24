@@ -1,6 +1,6 @@
 import type { HeadingEntry, HeadingIndex } from "../types";
 import { splitFrontmatter } from "./frontmatter-block";
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 
 /**
  * A heading as CommonMark reads one, so the note and its published page agree
@@ -64,11 +64,11 @@ export function scanHeadings(content: string, expired: () => boolean): HeadingIn
 
     // A `#` inside a code block is a comment, a shell prompt or a CSS colour,
     // and the stack above the note claimed it as the section being read.
-    const marker = fenceMarker(line);
     if (fence) {
-      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      if (closesFence(line, fence)) fence = null;
       continue;
     }
+    const marker = fenceMarker(line);
     if (marker && !/^ {4}/.test(line)) {
       fence = marker;
       paragraph = null;

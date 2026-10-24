@@ -71,6 +71,11 @@ describe("what counts as finished", () => {
     expect(clearDoneTasks(content, "delete")).toEqual({ content, count: 0 });
   });
 
+  it("keeps a fence open past a line that names a language", () => {
+    const content = note("```", "```js", "- [x] still code", "```");
+    expect(clearDoneTasks(content, "delete")).toEqual({ content, count: 0 });
+  });
+
   it("reads a rule as a rule, not as a list", () => {
     const content = note("- [x] done", "- - -", "- [ ] open");
     expect(clearDoneTasks(content, "back")).toEqual({ content, count: 0 });

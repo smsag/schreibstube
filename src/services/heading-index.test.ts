@@ -101,6 +101,12 @@ describe("headings and code fences", () => {
     expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["Danach"]);
   });
 
+  it("keeps a fence open past a line that names a language", () => {
+    const note = ["```", "```js", "# im Block", "```", "# Danach"].join("\n");
+
+    expect(buildHeadingIndex(note).map((entry) => entry.text)).toEqual(["Danach"]);
+  });
+
   it("takes a tilde fence as a fence too", () => {
     const note = ["~~~", "# im Block", "~~~", "# draußen"].join("\n");
 

@@ -17,7 +17,7 @@
  * The `## Archive` section, wherever it is, is never read for finished tasks.
  * What is in it has already been cleared once.
  */
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 import { isOpenTask, taskState } from "./task-state";
 
 export const DONE_TASK_MODES = ["back", "archive", "delete"] as const;
@@ -103,10 +103,11 @@ class Reader {
     }
     let open: { line: number; fence: string } | null = null;
     for (; at < lines.length; at += 1) {
-      const marker = fenceMarker(lines[at] ?? "");
+      const line = lines[at] ?? "";
       if (!open) {
+        const marker = fenceMarker(line);
         if (marker) open = { line: at, fence: marker };
-      } else if (marker && marker[0] === open.fence[0] && marker.length >= open.fence.length) {
+      } else if (closesFence(line, open.fence)) {
         this.close(open.line, at);
         open = null;
       }
