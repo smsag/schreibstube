@@ -299,6 +299,18 @@ describe("POST /publish/share/revoke", () => {
     });
   });
 
+  it("does not bring a revoked link back when a stale list asks to rewrite it", async () => {
+    const { host, share, revoke, record } = setup({ fail: (path) => path.endsWith("theme.css") });
+    const answer = await share(note);
+    await revoke(answer.code);
+    await expect(share({ ...note, code: answer.code })).rejects.toMatchObject({
+      status: 404,
+      code: "unknown_share"
+    });
+    expect(record().shares[0]).toMatchObject({ code: answer.code, revoked: true });
+    expect(host.files.has(`/site/s/${answer.code}/index.html`)).toBe(false);
+  });
+
   it("lists a link the host kept a file of as gone, and the sweep tries it again later, not every minute", async () => {
     const { share, revoke, list, shares, clock, logged } = setup({
       fail: (path) => path.endsWith("theme.css")

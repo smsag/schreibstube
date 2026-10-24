@@ -4,7 +4,7 @@
  */
 import { createHash, randomBytes } from "node:crypto";
 import Client from "ssh2-sftp-client";
-import { withDeadline } from "../timeout.mjs";
+import { TimeoutError, withDeadline } from "../timeout.mjs";
 import { joinRemote } from "./path.mjs";
 
 /**
@@ -80,13 +80,22 @@ export function fingerprintsMatch(presented, configured) {
   return normalise(presented) === normalise(configured);
 }
 
-export async function connect(target) {
-  const client = new Client();
+/**
+ * A logged-in connection with its SFTP channel open, within `timeoutMs`.
+ *
+ * `readyTimeout` ends at the login; the channel is asked for after it, and a
+ * host that never grants one held the connect open for good. Whatever goes
+ * wrong, the SSH connection is closed here: the library ends only one whose
+ * channel opened, so a login refused its channel, or still waiting for it
+ * when the deadline ran out, stayed up — kept alive by its own keepalive
+ * pings, for the life of the process, once per attempt.
+ */
+export async function connect(target, { client = new Client() } = {}) {
   let presented = null;
   let presentedType = null;
 
   try {
-    await client.connect({
+    const opening = client.connect({
       host: target.host,
       port: target.port,
       username: target.user,
@@ -101,7 +110,14 @@ export async function connect(target) {
         return fingerprintsMatch(presented, target.fingerprint);
       }
     });
+    await withDeadline(opening, target.timeoutMs, "Connect");
   } catch (err) {
+    try {
+      client.client?.destroy?.();
+    } catch {
+      // Already closed.
+    }
+    if (err instanceof TimeoutError) throw err;
     if (presented && !fingerprintsMatch(presented, target.fingerprint)) {
       throw new HostKeyMismatchError(
         `Host key mismatch for ${target.host}. Configured ${target.fingerprint}, ` +
@@ -353,12 +369,15 @@ export class Remote {
 
     const temporary = `${path}.schreibstube-${randomBytes(6).toString("hex")}`;
     const bytes = Buffer.from(content);
-    await this.bounded(
-      "put",
-      () => this.client.put(bytes, temporary),
-      this.transferAllowanceMs(bytes.length)
-    );
+    // A put that fails part way — a dropped line, its deadline — leaves what
+    // it sent under the temporary name, beside the page in the served tree,
+    // where no manifest names it and no publish would ever remove it.
     try {
+      await this.bounded(
+        "put",
+        () => this.client.put(bytes, temporary),
+        this.transferAllowanceMs(bytes.length)
+      );
       await this.rename(temporary, path);
     } catch (err) {
       await this.unlink(temporary).catch(() => {});
@@ -402,15 +421,28 @@ export class Remote {
     return info.size;
   }
 
-  async readFile(path) {
-    // A read's size is unknown until it arrives; a page or a manifest is small,
-    // and the largest thing read back is a source at its own upload limit.
+  /**
+   * A file's bytes, `maxBytes` at the most. A read's size is unknown until it
+   * arrives; a page or a manifest is small, and the largest thing read back is
+   * a source at its own upload limit. The bound is on the read itself: the
+   * host's files are anyone's who can log in there, and a manifest grown to a
+   * gigabyte was read whole into memory before anything looked at it. One
+   * byte more than the bound is asked for, so a file that ends at it is told
+   * apart from one that goes on.
+   */
+  async readFile(path, { maxBytes = MAX_READ_BYTES } = {}) {
     const buffer = await this.bounded(
       "get",
-      () => this.client.get(path),
-      this.transferAllowanceMs(MAX_READ_BYTES)
+      () => this.client.get(path, undefined, { readStreamOptions: { start: 0, end: maxBytes } }),
+      this.transferAllowanceMs(maxBytes)
     );
-    return Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+    const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+    if (bytes.length > maxBytes) {
+      throw new SftpError(`${path} is larger than the ${maxBytes} bytes the bridge reads`, {
+        client: "A file on the host is larger than the bridge reads."
+      });
+    }
+    return bytes;
   }
 
   /**

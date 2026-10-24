@@ -4,7 +4,7 @@
  */
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
-import { capabilityNames, PROTOCOL_VERSION, loadConfig } from "./config.mjs";
+import { capabilityNames, PROTOCOL_VERSION, loadConfig, prefixOf } from "./config.mjs";
 import {
   clientAddress,
   hasForwardedFor,
@@ -102,7 +102,7 @@ server.listen(config.port, () => {
         "warn",
         `publish target ${target.name}: raw HTML from notes is published as written; ` +
           `a vault with more than one author should set ` +
-          `PUBLISH_${target.name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_ALLOW_HTML=false.`
+          `${prefixOf(target.name)}_ALLOW_HTML=false.`
       );
     }
   }
@@ -115,7 +115,7 @@ server.listen(config.port, () => {
         `publish target ${target.name}: state directory lies inside the web root; ` +
           `the bridge writes a deny .htaccess there, and any server that ignores one ` +
           `needs a rule denying ${target.stateRoot.slice(target.root.length) || "/"} — ` +
-          `or set PUBLISH_${target.name.toUpperCase().replace(/[^A-Z0-9]/g, "_")}_STATE_ROOT outside it.`
+          `or set ${prefixOf(target.name)}_STATE_ROOT outside it.`
       );
     }
   }

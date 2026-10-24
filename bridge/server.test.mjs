@@ -663,7 +663,7 @@ describe("startup", () => {
       [`${prefix}_HOST`]: "127.0.0.1",
       [`${prefix}_USER`]: "web",
       [`${prefix}_PASSWORD`]: "geheim",
-      [`${prefix}_HOST_FINGERPRINT`]: "SHA256:abc",
+      [`${prefix}_HOST_FINGERPRINT`]: "SHA256:VDfYNFvVSs2pdvTE1z5PdY1712sQO96zYfgeQLbmAyk",
       [`${prefix}_ROOT`]: "/var/www/site",
       [`${prefix}_STATE_ROOT`]: "/var/state/site",
       [`${prefix}_BASE_URL`]: "https://site.example.com",

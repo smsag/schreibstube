@@ -49,6 +49,17 @@ const PUBLISH_KEYS = ["PUBLISH_TOKEN", "PUBLISH_TARGETS"];
  *  anything else on a published site is written by the bridge itself. */
 const DEFAULT_ASSET_EXTENSIONS = "png,jpg,jpeg,gif,webp,avif,svg,mp4,webm,ogv,mov,m4v";
 
+/**
+ * The most `ALLOWED_EXT` may name: the kinds whose bytes the bridge checks
+ * before it writes them. Anything else was taken on its name, so a target
+ * told to allow `php` or `html` would serve whatever a token sent under it
+ * from the site's own domain — a page, or a program on a host that runs one.
+ */
+export const ASSET_EXTENSIONS = new Set(DEFAULT_ASSET_EXTENSIONS.split(","));
+
+/** An OpenSSH SHA-256 fingerprint: 32 bytes of base64, its padding optional. */
+const FINGERPRINT = /^(?:SHA256:)?[A-Za-z0-9+/]{43}=?$/i;
+
 export function loadConfig(env = process.env) {
   const mail = MAIL_KEYS.some((key) => present(env[key])) ? loadMail(env) : null;
   const publish = PUBLISH_KEYS.some((key) => present(env[key])) ? loadPublish(env) : null;
@@ -239,7 +250,7 @@ function loadTarget(env, name) {
     key: key ? privateKey(key, `${prefix}_KEY`) : undefined,
     keyPassphrase: read("KEY_PASSPHRASE") || undefined,
     password: password || undefined,
-    fingerprint: required("HOST_FINGERPRINT"),
+    fingerprint: fingerprint(required("HOST_FINGERPRINT"), `${prefix}_HOST_FINGERPRINT`),
     root: root.replace(/\/+$/, ""),
     stateRoot,
     stateInsideRoot,
@@ -256,13 +267,40 @@ function loadTarget(env, name) {
     siteTitle: read("SITE_TITLE") || name,
     allowHtml: boolean(read("ALLOW_HTML"), true, `${prefix}_ALLOW_HTML`),
     allowDiagrams: boolean(read("ALLOW_DIAGRAMS"), true, `${prefix}_ALLOW_DIAGRAMS`),
-    assetExtensions: new Set(
-      (read("ALLOWED_EXT") || DEFAULT_ASSET_EXTENSIONS)
-        .split(",")
-        .map((value) => value.trim().toLowerCase())
-        .filter(Boolean)
-    )
+    assetExtensions: assetExtensions(read("ALLOWED_EXT"), `${prefix}_ALLOWED_EXT`)
   };
+}
+
+/** `ALLOWED_EXT`, refused at startup when it names a kind no upload is checked as. */
+function assetExtensions(value, name) {
+  const extensions = (value || DEFAULT_ASSET_EXTENSIONS)
+    .split(",")
+    .map((entry) => entry.trim().toLowerCase())
+    .filter(Boolean);
+  const unchecked = extensions.filter((extension) => !ASSET_EXTENSIONS.has(extension));
+  if (unchecked.length > 0) {
+    throw new Error(
+      `${name} names ${unchecked.join(", ")}, which the bridge cannot check an upload as. ` +
+        `It takes pictures and videos only: ${[...ASSET_EXTENSIONS].join(", ")}.`
+    );
+  }
+  return new Set(extensions);
+}
+
+/**
+ * The host key's fingerprint, refused at startup unless it reads as one.
+ * The line `ssh-keygen -lf` prints is longer than the fingerprint in it, and
+ * pasted whole — or an MD5 one from an older tool — it failed every connect
+ * as a host key mismatch, as if the server were someone else's.
+ */
+function fingerprint(value, name) {
+  if (!FINGERPRINT.test(value)) {
+    throw new Error(
+      `${name} must be the SHA256 fingerprint alone, as in "SHA256:" followed by 43 ` +
+        `characters; see the second field of: ssh-keyscan your-host | ssh-keygen -lf -`
+    );
+  }
+  return value;
 }
 
 function loadMail(env) {

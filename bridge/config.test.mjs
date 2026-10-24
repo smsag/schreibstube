@@ -133,7 +133,7 @@ describe("loadConfig, required values", () => {
       PUBLISH_BLOG_HOST: "sftp.example.com",
       PUBLISH_BLOG_USER: "web",
       PUBLISH_BLOG_PASSWORD: "geheim",
-      PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+      PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:VDfYNFvVSs2pdvTE1z5PdY1712sQO96zYfgeQLbmAyk",
       PUBLISH_BLOG_ROOT: "/var/www/blog",
       PUBLISH_BLOG_STATE_ROOT: "/var/schreibstube/blog",
       PUBLISH_BLOG_BASE_URL: "https://blog.example.com"
@@ -322,7 +322,7 @@ describe("loadConfig, the publish state directory", () => {
     PUBLISH_BLOG_HOST: "sftp.example.com",
     PUBLISH_BLOG_USER: "web",
     PUBLISH_BLOG_PASSWORD: "geheim",
-    PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+    PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:VDfYNFvVSs2pdvTE1z5PdY1712sQO96zYfgeQLbmAyk",
     PUBLISH_BLOG_ROOT: "/var/www/blog/",
     PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
     ...overrides
@@ -383,7 +383,7 @@ describe("loadConfig, the publish target's own values", () => {
     PUBLISH_BLOG_HOST: "sftp.example.com",
     PUBLISH_BLOG_USER: "web",
     PUBLISH_BLOG_PASSWORD: "geheim",
-    PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:abc",
+    PUBLISH_BLOG_HOST_FINGERPRINT: "SHA256:VDfYNFvVSs2pdvTE1z5PdY1712sQO96zYfgeQLbmAyk",
     PUBLISH_BLOG_ROOT: "/var/www/blog/",
     PUBLISH_BLOG_STATE_ROOT: "/var/schreibstube/blog",
     PUBLISH_BLOG_BASE_URL: "https://blog.example.com",
@@ -425,6 +425,36 @@ describe("loadConfig, the publish target's own values", () => {
     );
   });
 
+  it("takes the fingerprint alone, with its prefix or without, and refuses the whole line", () => {
+    const alone = "VDfYNFvVSs2pdvTE1z5PdY1712sQO96zYfgeQLbmAyk";
+    for (const accepted of [`SHA256:${alone}`, alone, `SHA256:${alone}=`]) {
+      expect(
+        loadConfig(publishEnv({ PUBLISH_BLOG_HOST_FINGERPRINT: accepted })).publish.targets.blog
+          .fingerprint
+      ).toBe(accepted);
+    }
+    for (const pasted of [
+      `256 SHA256:${alone} sftp.example.com (ED25519)`,
+      "MD5:16:27:ac:a5:76:28:2d:36:63:1b:56:4d:eb:df:a6:48",
+      "SHA256:..."
+    ]) {
+      expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_HOST_FINGERPRINT: pasted }))).toThrow(
+        /PUBLISH_BLOG_HOST_FINGERPRINT must be the SHA256 fingerprint alone/
+      );
+    }
+  });
+
+  it("allows pictures and videos as uploads, and nothing whose bytes it cannot check", () => {
+    expect([...loadConfig(publishEnv()).publish.targets.blog.assetExtensions]).toContain("mp4");
+    const narrow = loadConfig(publishEnv({ PUBLISH_BLOG_ALLOWED_EXT: " PNG, jpg " }));
+    expect([...narrow.publish.targets.blog.assetExtensions]).toEqual(["png", "jpg"]);
+    for (const unchecked of ["png,php", "html", "png,js,css"]) {
+      expect(() => loadConfig(publishEnv({ PUBLISH_BLOG_ALLOWED_EXT: unchecked }))).toThrow(
+        /PUBLISH_BLOG_ALLOWED_EXT names .*which the bridge cannot check/
+      );
+    }
+  });
+
   it("refuses files it never wrote unless the target may take them over", () => {
     expect(loadConfig(publishEnv()).publish.targets.blog.adoptExisting).toBe(false);
     expect(
@@ -455,7 +485,7 @@ describe("loadConfig, publish tokens", () => {
         [`PUBLISH_${name}_HOST`, "sftp.example.com"],
         [`PUBLISH_${name}_USER`, "web"],
         [`PUBLISH_${name}_PASSWORD`, "geheim"],
-        [`PUBLISH_${name}_HOST_FINGERPRINT`, "SHA256:abc"],
+        [`PUBLISH_${name}_HOST_FINGERPRINT`, "SHA256:VDfYNFvVSs2pdvTE1z5PdY1712sQO96zYfgeQLbmAyk"],
         [`PUBLISH_${name}_ROOT`, `/var/www/${name.toLowerCase()}`],
         [`PUBLISH_${name}_STATE_ROOT`, `/var/state/${name.toLowerCase()}`],
         [`PUBLISH_${name}_BASE_URL`, "https://example.com"]

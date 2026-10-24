@@ -13,6 +13,7 @@ import { TimeoutError, withDeadline } from "./timeout.mjs";
 import { parseSender, recipientAddresses, senderDomain } from "./mail-address.mjs";
 import { chooseSentMailbox, FALLBACK_SENT_MAILBOX } from "./sent-mailbox.mjs";
 import { chooseImportAttachments, MAX_IMPORT_MESSAGE_BYTES } from "./mail-import.mjs";
+import { htmlToText } from "./mail-text.mjs";
 import {
   addressText,
   matchableWithoutServer,
@@ -51,10 +52,14 @@ export function createSmtpTransport(config, timeoutMs) {
  * Prove the mailbox is reachable with the configured credentials, each
  * protocol on its own: SMTP working while IMAP does not is a real and common
  * state, and the distinction is the whole value of the answer.
+ *
+ * Both at once: one after the other, two servers that say nothing took two
+ * upstream deadlines, which is longer than the request's own, and the answer
+ * that names the silent protocol arrived as a 504 that names neither.
  */
 export async function diagnose(config, transport) {
-  return {
-    imap: await attempt(config.upstreamTimeoutMs, "IMAP", async () => {
+  const [imap, smtp] = await Promise.all([
+    attempt(config.upstreamTimeoutMs, "IMAP", async () => {
       const client = newClient(config);
       try {
         await client.connect();
@@ -65,11 +70,12 @@ export async function diagnose(config, transport) {
         await safeLogout(client);
       }
     }),
-    smtp: await attempt(config.upstreamTimeoutMs, "SMTP", async () => {
+    attempt(config.upstreamTimeoutMs, "SMTP", async () => {
       await transport.verify();
       return {};
     })
-  };
+  ]);
+  return { imap, smtp };
 }
 
 /**
@@ -405,12 +411,19 @@ export async function fetchAttachments(config, request) {
         throw new MessageTooLargeError(head.size, MAX_IMPORT_MESSAGE_BYTES);
       }
 
+      // The size is the server's claim, and one that gave none, or too small
+      // a one, had the whole message downloaded whatever it weighed. One byte
+      // past the limit is asked for, so a message beyond it is told apart
+      // from one that ends there.
       const full = await client.fetchOne(
         String(request.uid),
-        { uid: true, source: true },
+        { uid: true, source: { maxLength: MAX_IMPORT_MESSAGE_BYTES + 1 } },
         { uid: true }
       );
       if (!full?.source) throw new MessageGoneError(request.uid, mailbox);
+      if (full.source.length > MAX_IMPORT_MESSAGE_BYTES) {
+        throw new MessageTooLargeError(full.source.length, MAX_IMPORT_MESSAGE_BYTES);
+      }
       const parsed = await simpleParser(full.source);
       const { kept, skipped } = chooseImportAttachments(parsed.attachments);
 
@@ -616,31 +629,6 @@ async function toMessage(msg, maxTextChars) {
 function normalizeReferences(references) {
   if (!references) return [];
   return Array.isArray(references) ? references : [references];
-}
-
-/** How much HTML is worth reading for `maxTextChars` of text: tags and
- *  entities take room, a message is mostly them, and beyond a few times the
- *  limit nothing kept can come from it. */
-export const HTML_TEXT_RATIO = 4;
-
-/** Last-resort plain text for HTML-only mail. Deliberately crude: block-level
- *  tags become line breaks, everything else is dropped. Good enough to read in
- *  a note; anything richer belongs in a proper converter. */
-export function htmlToText(html, maxTextChars) {
-  return html
-    .slice(0, HTML_TEXT_RATIO * maxTextChars)
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, "")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
 }
 
 /** How much of a server's own reason an error carries along. */

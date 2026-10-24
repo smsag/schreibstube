@@ -64,6 +64,20 @@ describe("diagnose", () => {
     expect(result.smtp).toEqual({ ok: false, error: "SMTP timed out after 0s" });
   });
 
+  it("asks both protocols at once, so two silent servers cost one deadline, not two", async () => {
+    imap.hang = true;
+    let asked = false;
+    const answer = diagnose(config, {
+      verify: async () => {
+        asked = true;
+      }
+    });
+    // IMAP has not answered and will not before its deadline.
+    await new Promise((done) => setImmediate(done));
+    expect(asked).toBe(true);
+    expect((await answer).smtp).toEqual({ ok: true });
+  });
+
   it("reports each protocol on its own", async () => {
     imap.hang = false;
     const result = await diagnose(config, { verify: async () => {} });

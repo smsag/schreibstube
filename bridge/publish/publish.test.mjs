@@ -738,6 +738,23 @@ describe("refusals", () => {
     );
   });
 
+  it("names the first twenty assets that were never uploaded and counts the rest", async () => {
+    const next = bothNotes();
+    for (let i = 0; i < 25; i += 1) {
+      const bytes = Buffer.from([0xff, 0xd8, 0xff, 0xe1, i]);
+      next.assets.push({
+        sourcePath: `Blog/fehlt-${String(i).padStart(2, "0")}.jpg`,
+        sha256: sha256(bytes),
+        name: `fehlt-${i}.jpg`,
+        bytes: bytes.length
+      });
+    }
+    const response = await post("/publish/commit", { target: "blog", index: next });
+    expect(response.json.code).toBe("assets_missing");
+    expect(response.json.error).toContain("Blog/fehlt-19.jpg and 5 more");
+    expect(response.json.error).not.toContain("Blog/fehlt-20.jpg");
+  });
+
   it("rejects an index with two notes claiming one address", async () => {
     const collision = bothNotes();
     collision.notes[1].slug = collision.notes[0].slug;
