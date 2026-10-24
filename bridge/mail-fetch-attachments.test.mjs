@@ -11,6 +11,7 @@ const imap = vi.hoisted(() => ({
   messages: new Map(),
   fetched: [],
   failConnect: null,
+  sizeless: false,
   released: 0,
   loggedOut: 0
 }));
@@ -35,7 +36,7 @@ vi.mock("imapflow", () => ({
       if (!source) return false;
       return query.source
         ? { uid: Number(uid), source }
-        : { uid: Number(uid), size: source.length };
+        : { uid: Number(uid), ...(imap.sizeless ? {} : { size: source.length }) };
     }
 
     async logout() {
@@ -89,6 +90,7 @@ beforeEach(() => {
   imap.messages = new Map();
   imap.fetched = [];
   imap.failConnect = null;
+  imap.sizeless = false;
   imap.released = 0;
   imap.loggedOut = 0;
 });
@@ -156,6 +158,18 @@ describe("POST /attachments", () => {
     });
     expect(imap.fetched.map((entry) => Object.keys(entry.query))).toEqual([["uid", "size"]]);
     expect(imap.fetched[0].options).toEqual({ uid: true });
+  });
+
+  it("bounds the download itself, for a server that names no size", async () => {
+    imap.sizeless = true;
+    imap.messages.set(10, { length: MAX_IMPORT_MESSAGE_BYTES + 1 });
+    const { call } = attachmentsRoute();
+
+    await expect(call({ uid: 10 })).rejects.toMatchObject({
+      status: 413,
+      code: "message_too_large"
+    });
+    expect(imap.fetched[1].query.source).toEqual({ maxLength: MAX_IMPORT_MESSAGE_BYTES + 1 });
   });
 
   it("says a message that has moved since the search is gone", async () => {

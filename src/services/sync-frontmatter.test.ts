@@ -134,6 +134,17 @@ describe("properties written into an open note", () => {
     );
   });
 
+  it("keep a note's Windows line ends, and write nothing when nothing changes", () => {
+    const note = "---\r\ntitle: Meiner\r\nupdatedAt: 2001-01-01T00:00:00\r\n---\r\nText\r\n";
+    expect(planFrontmatterEdit(note, { title: "Pythia" })).toEqual({ kind: "nothing" });
+    expect(edit(note, { updatedAt: "2026-09-17T09:55:06" })).toBe(
+      "---\r\ntitle: Meiner\r\nupdatedAt: 2026-09-17T09:55:06\r\n---\r\nText\r\n"
+    );
+    expect(edit("---\r\na: 1\r\n---\r\n", { title: "Pythia" })).toBe(
+      "---\r\na: 1\r\ntitle: Pythia\r\n---\r\n"
+    );
+  });
+
   it("replace the date that is there", () => {
     const note = "---\nupdatedAt: 2001-01-01T00:00:00\ntags: [a]\n---\nText\n";
 

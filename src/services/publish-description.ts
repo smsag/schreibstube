@@ -14,6 +14,7 @@
  */
 
 import type { PublishKeyMap } from "./publish-index";
+import { stripComments } from "./publish-source";
 
 /** A description is a sentence or two; this leaves room for the language. */
 export const DESCRIPTION_MAX_TOKENS = 200;
@@ -64,9 +65,16 @@ export function leavesDescriptionToModel(frontmatter: unknown, keys: PublishKeyM
   return false;
 }
 
-/** What is sent as the note: its title, then the beginning of its text. */
+/**
+ * What is sent as the note: its title, then the beginning of its text.
+ *
+ * Without its `%%comments%%`, which the page never shows and the upload never
+ * carries: they are the one part of a note written for nobody else, and the
+ * provider was sent them. Removed before the cut, since a comment cut in half
+ * has lost the `%%` that marks it as one.
+ */
 export function descriptionUserMessage(title: string, body: string): string {
-  const text = body.trim().slice(0, DESCRIPTION_MAX_INPUT_CHARS);
+  const text = stripComments(body).trim().slice(0, DESCRIPTION_MAX_INPUT_CHARS);
   return title ? `Title: ${title}\n\n${text}` : text;
 }
 

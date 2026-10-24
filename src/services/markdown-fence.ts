@@ -14,10 +14,34 @@
  */
 const FENCE_PATTERN = /^\s*([`~])\1{2,}/;
 
-/** The run of backticks or tildes opening or closing a fence, if this is one. */
+/**
+ * The run of backticks or tildes opening or closing a fence, if this is one.
+ *
+ * A backtick fence's info string cannot hold a backtick (CommonMark):
+ * "```inline``` code" is inline code on a line, not a block that eats the
+ * rest of the note.
+ */
 export function fenceMarker(line: string): string | null {
   const match = FENCE_PATTERN.exec(line);
-  return match ? match[0].trimStart() : null;
+  if (!match) return null;
+  const marker = match[0].trimStart();
+  return marker[0] === "`" && line.includes("`", match[0].length) ? null : marker;
+}
+
+/**
+ * Whether a line closes the fence `open` began: the same character, at least
+ * as many of it, and nothing after it. "```js" inside a block is a line of the
+ * sample rather than its end, and ending there let the code below it be read
+ * as Markdown.
+ */
+export function closesFence(line: string, open: string): boolean {
+  const marker = fenceMarker(line);
+  return (
+    marker !== null &&
+    marker[0] === open[0] &&
+    marker.length >= open.length &&
+    line.trim() === marker
+  );
 }
 
 /**
@@ -46,7 +70,7 @@ export function fencedLines(lines: readonly string[]): boolean[] {
 
     if (fence) {
       inside.push(true);
-      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      if (closesFence(line, fence)) fence = null;
       continue;
     }
 

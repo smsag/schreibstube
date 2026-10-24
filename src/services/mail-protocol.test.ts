@@ -81,6 +81,16 @@ describe("parseSearchResult", () => {
     expect(result.messages[0]).toMatchObject({ uid: 0, messageId: null, references: [] });
   });
 
+  it("reads a UID that IMAP could not have given as none", () => {
+    const uids = [1.5, -3, 0, 2 ** 32, 1e21, "12"].map(
+      (uid) => parseSearchResult({ messages: [{ uid }] }).messages[0]?.uid
+    );
+    expect(uids).toEqual([0, 0, 0, 0, 0, 0]);
+    expect(parseSearchResult({ messages: [{ uid: 2 ** 32 - 1 }] }).messages[0]?.uid).toBe(
+      2 ** 32 - 1
+    );
+  });
+
   it("treats a missing messages array as no results", () => {
     expect(parseSearchResult({}).messages).toEqual([]);
     expect(parseSearchResult(null).messages).toEqual([]);

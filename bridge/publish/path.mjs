@@ -106,6 +106,17 @@ export function assetPath(sha256, name) {
 }
 
 /**
+ * The name an index's asset is published under: the one the index gives it,
+ * or else its file's own. Read here and nowhere else, because the page that
+ * shows a picture and the plan that asks for it have to name one file: the
+ * pages took the file's name and the plan its whole vault path, so a picture
+ * sent without a name was uploaded where no page looked for it.
+ */
+export function assetName(asset) {
+  return asset.name ?? String(asset.sourcePath).split("/").pop();
+}
+
+/**
  * The thumbnail's format by its picture's: a PNG keeps its transparency and
  * stays a PNG; a photograph becomes a JPEG. Anything else — a drawing, an
  * animation, a format a phone may not decode — has no thumbnail.

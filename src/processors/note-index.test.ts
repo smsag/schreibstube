@@ -185,6 +185,34 @@ describe("the index block, kept current", () => {
     expect(metadataCache.refs.size).toBe(0);
     expect(entries()).toHaveLength(1);
   });
+
+  it("draws nothing from a read that lands after it was unloaded", async () => {
+    const { children, entries } = mount({ file: "## Lage" });
+    children[0]!.unload();
+    await settle();
+    expect(entries()).toHaveLength(0);
+  });
+
+  it("is not drawn back to the note as it was by a slower, earlier read", async () => {
+    const views: ReturnType<typeof fakeView>[] = [];
+    const { metadataCache, workspace, vault, entries } = mount({ file: "## Alt", views });
+    await settle();
+
+    let land: (content: string) => void = () => undefined;
+    vault.cachedRead = () => new Promise<string>((resolve) => (land = resolve));
+    metadataCache.trigger("changed", new TFile("Note.md"));
+    await settle();
+
+    const view = fakeView("Note.md", "source", "## Neu");
+    views.push(view);
+    workspace.trigger("editor-change", view.editor, { file: view.file });
+    await settle();
+    expect(entries().map((a) => a.textContent)).toEqual(["Neu"]);
+
+    land("## Alt");
+    await settle();
+    expect(entries().map((a) => a.textContent)).toEqual(["Neu"]);
+  });
 });
 
 describe("folding the index", () => {

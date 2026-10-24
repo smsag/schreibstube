@@ -53,3 +53,29 @@ describe("the task ribbon", () => {
     expect(en.tasks.ribbon(20, 21, 0, 0)).toBe("20 of 21 open");
   });
 });
+
+describe("counts that can be one", () => {
+  // A proof-read that finds one thing, a selection with one amount, a target
+  // holding one entry: each is common, and "1 suggestions" read as a slip.
+  it("say one thing in the singular in both languages", () => {
+    expect(en.proofread.suggestions(1)).toBe("1 suggestion.");
+    expect(de.proofread.suggestions(1)).toBe("1 Vorschlag.");
+    expect(en.proofread.blocksRejected(1)).toMatch(/^1 section discarded/);
+    expect(de.proofread.blocksRejected(1)).toMatch(/^1 Abschnitt verworfen/);
+    expect(en.proofread.chunksFailed(1)).toBe("1 request failed.");
+    expect(de.proofread.chunksFailed(1)).toBe("1 Anfrage fehlgeschlagen.");
+    expect(en.sums.statusBar("5,00 €", 1)).toBe("∑ 5,00 € · 1 amount");
+    expect(de.sums.statusBar("5,00 €", 1)).toBe("∑ 5,00 € · 1 Betrag");
+    expect(en.publish.connectionOk("site", 1)).toBe("connection to site works (1 entry).");
+    expect(de.publish.connectionOk("site", 1)).toBe("Verbindung zu site steht (1 Eintrag).");
+  });
+
+  it("and more than one in the plural", () => {
+    expect(en.proofread.suggestions(3)).toBe("3 suggestions.");
+    expect(de.proofread.suggestions(3)).toBe("3 Vorschläge.");
+    expect(en.proofread.chunksFailed(2)).toBe("2 requests failed.");
+    expect(de.proofread.blocksRejected(2)).toMatch(/^2 Abschnitte verworfen/);
+    expect(en.sums.statusBar("5,00 €", 2)).toBe("∑ 5,00 € · 2 amounts");
+    expect(de.publish.connectionOk("site", 0)).toBe("Verbindung zu site steht (0 Einträge).");
+  });
+});

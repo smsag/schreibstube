@@ -347,6 +347,8 @@ export class ReviewPanelView extends ItemView {
         text: candidate.name
       });
       chip.setAttr("title", candidate.path);
+      // On or off is otherwise only a colour, which a screen reader never says.
+      chip.setAttr("aria-pressed", String(active));
       if (locked) {
         chip.setAttr("disabled", "true");
         chip.addClass("is-locked");

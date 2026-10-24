@@ -1,4 +1,4 @@
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 
 type FocusMode = "off" | "sentence" | "paragraph";
 
@@ -110,7 +110,7 @@ function resolveFenceRange(doc: LineDoc, cursorLine: number): FocusRange | null 
       continue;
     }
 
-    if (marker && marker.charAt(0) === open.marker && marker.length >= open.length) {
+    if (closesFence(text, open.marker.repeat(open.length))) {
       if (cursorLine >= open.startLine && cursorLine <= lineNumber) {
         return { startLine: open.startLine, endLine: lineNumber };
       }

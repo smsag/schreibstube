@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { TimeoutError } from "../timeout.mjs";
 import {
+  connect,
   fingerprintOf,
   fingerprintsMatch,
   HostKeyMismatchError,
@@ -94,6 +96,63 @@ describe("Remote, deadlines", () => {
     await expect(remote.listNames("/site")).rejects.toThrow("SFTP list timed out");
     const stuck = new Remote(fakeClient({ put: never }), target);
     await expect(stuck.writeFile("a/index.html", "x")).rejects.toThrow("SFTP put timed out");
+  });
+});
+
+describe("Remote, writing", () => {
+  it("removes what a put that failed part way left under the temporary name", async () => {
+    const client = fakeClient({ put: () => Promise.reject(new Error("Connection lost")) });
+    const remote = new Remote(client, target);
+    await expect(remote.writeFile("a/index.html", "x")).rejects.toThrow("Connection lost");
+    const [, temporary] = client.calls.find(([name]) => name === "put").slice(1);
+    expect(temporary).toMatch(/^\/site\/a\/index\.html\.schreibstube-[0-9a-f]{12}$/);
+    expect(client.calls).toContainEqual(["delete", temporary, true]);
+  });
+});
+
+describe("Remote, reading", () => {
+  it("asks for one byte past its bound and refuses a file that goes on", async () => {
+    const client = fakeClient({ get: Buffer.alloc(11) });
+    const remote = new Remote(client, target);
+    await expect(remote.readFile("/state/manifest.json", { maxBytes: 10 })).rejects.toMatchObject({
+      clientMessage: "A file on the host is larger than the bridge reads."
+    });
+    expect(client.calls[0]).toEqual([
+      "get",
+      "/state/manifest.json",
+      undefined,
+      { readStreamOptions: { start: 0, end: 10 } }
+    ]);
+  });
+
+  it("hands over a file that ends at its bound", async () => {
+    const remote = new Remote(fakeClient({ get: Buffer.alloc(10, 1) }), target);
+    expect(await remote.readFile("/state/x", { maxBytes: 10 })).toEqual(Buffer.alloc(10, 1));
+  });
+});
+
+describe("connect", () => {
+  /** The library's client, as far as connecting goes: the SSH client inside it records a close. */
+  function connectingClient(connecting) {
+    const ssh = { destroyed: 0, destroy: () => (ssh.destroyed += 1) };
+    return { client: ssh, connect: connecting };
+  }
+  const host = { host: "sftp.example.com", port: 22, user: "web", fingerprint: "x" };
+
+  it("closes the SSH connection when the SFTP channel is refused after the login", async () => {
+    const client = connectingClient(() => Promise.reject(new Error("Unable to start subsystem")));
+    await expect(connect({ ...host, timeoutMs: 1_000 }, { client })).rejects.toMatchObject({
+      clientMessage: "Cannot reach the SFTP host."
+    });
+    expect(client.client.destroyed).toBe(1);
+  });
+
+  it("closes a connection still opening when its deadline runs out", async () => {
+    const client = connectingClient(never);
+    await expect(connect({ ...host, timeoutMs: 20 }, { client })).rejects.toBeInstanceOf(
+      TimeoutError
+    );
+    expect(client.client.destroyed).toBe(1);
   });
 });
 

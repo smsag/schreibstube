@@ -17,7 +17,6 @@ import {
   fontFaceOf,
   FONT_SETS,
   staleRuntimeFiles,
-  toHex,
   WASM_ASSET
 } from "./typst-runtime";
 
@@ -97,12 +96,6 @@ describe("checkDownloadSize", () => {
     for (const asset of DEVICE_ASSETS) {
       expect(MAX_ASSET_BYTES[asset.label], asset.name).toBeGreaterThan(0);
     }
-  });
-});
-
-describe("toHex", () => {
-  it("writes a digest the way the pinned hashes are written", () => {
-    expect(toHex(new Uint8Array([0, 15, 16, 255]).buffer)).toBe("000f10ff");
   });
 });
 

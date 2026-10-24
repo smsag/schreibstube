@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { EXECUTING_FENCE_LANGUAGES, findExecutableCode } from "./executable-code";
 import type { MailMessage } from "./mail-protocol";
 import { fenceMarker } from "./markdown-fence";
@@ -50,11 +50,20 @@ describe("selectUnmerged", () => {
 });
 
 describe("formatMessage", () => {
-  it("renders subject, metadata and a quoted body", () => {
+  const zone = process.env.TZ;
+  beforeEach(() => {
+    process.env.TZ = "Europe/Berlin";
+  });
+  afterEach(() => {
+    if (zone === undefined) delete process.env.TZ;
+    else process.env.TZ = zone;
+  });
+
+  it("renders subject, metadata and a quoted body, dated by the reader's clock", () => {
     const rendered = formatMessage(message());
     expect(rendered).toContain("### Re: Angebot");
     expect(rendered).toContain("**From:** Kunde <k@example.com>");
-    expect(rendered).toContain("**Date:** 2026-09-07 10:12");
+    expect(rendered).toContain("**Date:** 2026-09-07 12:12");
     expect(rendered).toContain("> Passt so.");
   });
 

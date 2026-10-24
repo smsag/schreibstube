@@ -450,6 +450,17 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ syncLastPollAt: "nope" as never }).syncLastPollAt).toBe(0);
   });
 
+  it("keeps no validator from the data file that a request could not carry", () => {
+    const state = normalizeSettings({
+      syncState: {
+        "a.md": { hash: "abcd1234", etag: '"ok"' },
+        "b.md": { hash: "abcd1234", etag: '"zeile\nzwei"' }
+      } as never
+    }).syncState;
+    expect(state["a.md"]?.etag).toBe('"ok"');
+    expect(state["b.md"]?.etag).toBe("");
+  });
+
   it("drops a sync record with no hash", () => {
     expect(normalizeSettings({ syncState: { "a.md": { etag: "x" } as never } }).syncState).toEqual(
       {}

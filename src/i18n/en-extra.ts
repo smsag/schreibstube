@@ -578,10 +578,11 @@ export const enExtra = {
     appliedWithSkipped: (applied: number, skipped: number) =>
       `${applied} applied, ${skipped} no longer placeable.`,
     noSuggestions: "No suggestions.",
-    suggestions: (count: number) => `${count} suggestions.`,
+    suggestions: (count: number) => (count === 1 ? "1 suggestion." : `${count} suggestions.`),
     blocksRejected: (count: number) =>
-      `${count} section(s) discarded (protected content was altered).`,
-    chunksFailed: (count: number) => `${count} request(s) failed.`,
+      `${count === 1 ? "1 section" : `${count} sections`} discarded (protected content was altered).`,
+    chunksFailed: (count: number) =>
+      count === 1 ? "1 request failed." : `${count} requests failed.`,
     allChunksFailed: (detail: string) => `Proofreading failed for every request: ${detail}`,
     /** What a glossary card says when the glossary entry itself says nothing. */
     hitSubstitution: (term: string) => `"${term}" is no longer the preferred term.`,
@@ -1533,7 +1534,8 @@ export const enExtra = {
     ratesOf: (date: string) => `Rates of ${date}.`,
     noRates: "No rates fetched yet.",
     updateRates: "Update now",
-    statusBar: (total: string, count: number) => `∑ ${total} · ${count} amounts`,
+    statusBar: (total: string, count: number) =>
+      `∑ ${total} · ${count === 1 ? "1 amount" : `${count} amounts`}`,
     statusBarTitle: "Total of the selection. Click to copy it.",
     total: (total: string, count: number) =>
       count === 1 ? `${total} (1 amount)` : `${total} (${count} amounts)`,

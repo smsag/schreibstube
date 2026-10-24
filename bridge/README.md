@@ -235,6 +235,16 @@ is the same file and goes ahead. `PUBLISH_<TARGET>_ADOPT_EXISTING=true` lets a
 target take such files over — for a site that was published before by other
 means, or whose manifest was lost.
 
+**A record that does not read stops the work.** `<state>/manifest.json` says
+which files are the bridge's, and `<state>/shares.json` which links it made.
+One that is there but does not read — not JSON, another version, a path the
+bridge would never write, an entry without its hash and size, a link whose
+files lie outside its own directory — is refused with `409 state_unreadable`
+naming the file and what is wrong, and nothing is written or removed. Read as
+empty or trimmed, the bridge forgot what it had written, and those files stayed
+on the host for good. Correct the file, or remove it to start over; without
+one, every file already on the host counts as someone else's.
+
 **Uploads have a budget.** Uploads arrive outside the publish lock, before
 the commit that names them. Between two commits a target takes at most
 `PUBLISH_MAX_UPLOADS` uploads (4000) and `PUBLISH_MAX_PUBLISH_BYTES` (500 MB)
@@ -546,9 +556,10 @@ RSA. List them all:
 ssh-keyscan your-host | ssh-keygen -lf -
 ```
 
-and take the line ending in `(ED25519)`; if there is none, `(ECDSA)`; `(RSA)`
-only when it is the only one. A fingerprint of another type never matches, and
-the bridge refuses with a message naming the type it was shown.
+and take the `SHA256:…` field of the line ending in `(ED25519)`; if there is
+none, `(ECDSA)`; `(RSA)` only when it is the only one. A fingerprint of another
+type never matches, and the bridge refuses with a message naming the type it
+was shown; the whole line, or an MD5 fingerprint, is refused at startup.
 
 To offer mail, set `MAIL_TOKEN`,
 `IMAP_HOST`, `SMTP_HOST`, `MAIL_USER`, `MAIL_PASSWORD` and `MAIL_FROM`;
@@ -558,8 +569,11 @@ values fail at startup with a precise message rather than on the first
 request. So does a variable that is set and unreadable: a `MAIL_FROM` with no
 address in it, a numeric one that is not a positive integer written in
 decimal digits, a port above 65535, a `PUBLISH_<TARGET>_KEY` that does not
-decode to a PEM, OpenSSH or PuTTY private key, or a flag spelled as neither true nor
-false. Leave a variable out to take its default; do not leave it half-written.
+decode to a PEM, OpenSSH or PuTTY private key, a `PUBLISH_<TARGET>_ALLOWED_EXT`
+that names anything but the pictures and videos whose bytes the bridge checks
+(`png`, `jpg`, `jpeg`, `gif`, `webp`, `avif`, `svg`, `mp4`, `webm`, `ogv`,
+`mov`, `m4v`), or a flag spelled as neither true nor false. Leave a variable
+out to take its default; do not leave it half-written.
 
 **Who a mail may be from.** `MAIL_FROM_ALLOWED` lists, separated by commas,
 the further addresses a note may send as — the aliases of the mailbox — and

@@ -14,6 +14,7 @@
 import { readBlockPositions } from "../services/print-breaks";
 import { readSlideFits } from "../services/print-slides";
 import { toArrayBuffer } from "../utils/array-buffer";
+import { sha256 } from "../utils/sha256";
 import { withTimeout } from "../utils/with-timeout";
 import { requestUrl, type App } from "obsidian";
 import { t } from "../i18n";
@@ -33,7 +34,6 @@ import {
   runtimeAssetUrl,
   runtimeCachePath,
   staleRuntimeFiles,
-  toHex,
   WASM_ASSET,
   type CompileOutcome,
   type RuntimeAsset
@@ -404,10 +404,6 @@ function readWorkerReply(data: unknown): (WorkerReply & { id: number }) | null {
   if (diagnostics !== undefined) reply.diagnostics = diagnostics;
   if (error !== undefined) reply.error = error;
   return reply;
-}
-
-async function sha256(bytes: Uint8Array): Promise<string> {
-  return toHex(await crypto.subtle.digest("SHA-256", toArrayBuffer(bytes)));
 }
 
 function megabytesOf(asset: RuntimeAsset): number {

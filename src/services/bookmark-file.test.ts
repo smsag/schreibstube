@@ -307,6 +307,14 @@ describe("the budget", () => {
     expect(tree.loose.every((b) => b.url === "https://example.com/0")).toBe(true);
   });
 
+  it("reads nothing past the ceiling when no line ends before it", () => {
+    const text = `${"x".repeat(MAX_BOOKMARK_FILE_CHARS + 10)}\n${item(1)}\n`;
+    const tree = parseBookmarkFile(text);
+
+    expect(tree.truncated).toBe(true);
+    expect(tree.loose).toEqual([]);
+  });
+
   it("reads a file within every ceiling whole", () => {
     expect(parseBookmarkFile(item(1)).truncated).toBe(false);
   });

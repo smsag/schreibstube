@@ -23,6 +23,7 @@ import { decodedLength, isBase64 } from "../base64.mjs";
 import { hasSignature } from "./signatures.mjs";
 import { SHARE_WORDS } from "./share-words.mjs";
 import { isSafeSvg } from "./svg-guard.mjs";
+import { StateFileError } from "./state-file.mjs";
 
 const derive = promisify(pbkdf2);
 
@@ -250,33 +251,61 @@ function checkExpiry(value, now) {
   return new Date(at).toISOString();
 }
 
+/** Records the file may hold: open links, and closed ones whose files the host kept. */
+export const MAX_SHARE_RECORDS = MAX_SHARES * 4;
+/** Files one link may have: its page and its pictures, with room to spare. */
+export const MAX_SHARE_FILES = (MAX_SHARE_ASSETS + 1) * 4;
+
 /**
- * The record of a target's shares, as `shares.json` holds it. A record that
- * does not read is dropped rather than trusted: its files are then nobody's,
- * and nothing is ever deleted on the strength of a field that did not check.
+ * The record of a target's shares, as `shares.json` holds it; none at all is
+ * no shares yet. A record that does not read refuses the whole file
+ * (`StateFileError`): dropped, its files were nobody's and stayed on the host
+ * for good, and the link it named could not be taken down.
  */
 export function normalizeShares(raw) {
   const shares = new Map();
-  const list = Array.isArray(raw?.shares) ? raw.shares : [];
-  for (const entry of list) {
-    if (!isShareCode(entry?.code) || shares.has(entry.code)) continue;
+  if (raw === null || raw === undefined) return shares;
+  const bad = (reason) => new StateFileError("shares.json", reason);
+  if (typeof raw !== "object" || !Array.isArray(raw.shares)) throw bad("it lists no shares");
+  if (raw.shares.length > MAX_SHARE_RECORDS) {
+    throw bad(`it lists more than ${MAX_SHARE_RECORDS} links`);
+  }
+  for (const [at, entry] of raw.shares.entries()) {
+    const where = `link ${at + 1}`;
+    if (!entry || typeof entry !== "object") throw bad(`${where} is not a record`);
+    if (!isShareCode(entry.code)) throw bad(`${where} has no share code`);
+    if (shares.has(entry.code)) throw bad(`${entry.code} is listed twice`);
     const prefix = `${shareDirectory(entry.code)}/`;
-    const files = Array.isArray(entry.files)
-      ? entry.files.filter(
-          (path) => typeof path === "string" && path.startsWith(prefix) && !path.includes("..")
-        )
-      : [];
-    const expiresAt =
-      typeof entry.expiresAt === "string" && Number.isFinite(Date.parse(entry.expiresAt))
-        ? entry.expiresAt
-        : null;
+    const files = entry.files ?? [];
+    if (
+      !Array.isArray(files) ||
+      files.length > MAX_SHARE_FILES ||
+      files.some(
+        (path) => typeof path !== "string" || !path.startsWith(prefix) || path.includes("..")
+      )
+    ) {
+      throw bad(`the files of ${entry.code} are not all its own`);
+    }
+    for (const field of ["title", "sourcePath", "createdAt", "updatedAt"]) {
+      if (entry[field] != null && typeof entry[field] !== "string") {
+        throw bad(`the ${field} of ${entry.code} is not text`);
+      }
+    }
+    if (entry.expiresAt != null && !Number.isFinite(Date.parse(String(entry.expiresAt)))) {
+      throw bad(`the closing time of ${entry.code} is not a date`);
+    }
+    for (const field of ["protected", "revoked"]) {
+      if (entry[field] != null && typeof entry[field] !== "boolean") {
+        throw bad(`${field} of ${entry.code} is not true or false`);
+      }
+    }
     shares.set(entry.code, {
       code: entry.code,
-      title: typeof entry.title === "string" ? entry.title : "",
-      sourcePath: typeof entry.sourcePath === "string" ? entry.sourcePath : "",
-      createdAt: typeof entry.createdAt === "string" ? entry.createdAt : "",
-      updatedAt: typeof entry.updatedAt === "string" ? entry.updatedAt : "",
-      expiresAt,
+      title: entry.title ?? "",
+      sourcePath: entry.sourcePath ?? "",
+      createdAt: entry.createdAt ?? "",
+      updatedAt: entry.updatedAt ?? "",
+      expiresAt: entry.expiresAt ?? null,
       protected: entry.protected === true,
       // Taken down, with files the host would not yet let go of.
       ...(entry.revoked === true ? { revoked: true } : {}),

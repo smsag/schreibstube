@@ -270,6 +270,20 @@ describe("GET /publish/shares", () => {
   });
 });
 
+describe("a shares file that does not read", () => {
+  it("stops the request with the file named, and removes nothing", async () => {
+    const { host, share, list } = setup();
+    const kept = await share({ ...note, title: "Bleibt" });
+    host.files.set(
+      "/state/shares.json",
+      Buffer.from(JSON.stringify({ shares: [{ code: "../x" }] }))
+    );
+    await expect(list()).rejects.toMatchObject({ status: 409, code: "state_unreadable" });
+    await expect(list()).rejects.toThrow(/shares\.json/);
+    expect(host.files.has(`/site/s/${kept.code}/index.html`)).toBe(true);
+  });
+});
+
 describe("POST /publish/share/revoke", () => {
   it("removes the link's files and its record, and nothing else", async () => {
     const { host, share, revoke, list } = setup();
@@ -297,6 +311,18 @@ describe("POST /publish/share/revoke", () => {
       revoked: true,
       expiresAt: null
     });
+  });
+
+  it("does not bring a revoked link back when a stale list asks to rewrite it", async () => {
+    const { host, share, revoke, record } = setup({ fail: (path) => path.endsWith("theme.css") });
+    const answer = await share(note);
+    await revoke(answer.code);
+    await expect(share({ ...note, code: answer.code })).rejects.toMatchObject({
+      status: 404,
+      code: "unknown_share"
+    });
+    expect(record().shares[0]).toMatchObject({ code: answer.code, revoked: true });
+    expect(host.files.has(`/site/s/${answer.code}/index.html`)).toBe(false);
   });
 
   it("lists a link the host kept a file of as gone, and the sweep tries it again later, not every minute", async () => {

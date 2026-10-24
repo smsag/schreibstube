@@ -17,7 +17,7 @@
  * The `## Archive` section, wherever it is, is never read for finished tasks.
  * What is in it has already been cleared once.
  */
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 import { isOpenTask, taskState } from "./task-state";
 
 export const DONE_TASK_MODES = ["back", "archive", "delete"] as const;
@@ -103,10 +103,11 @@ class Reader {
     }
     let open: { line: number; fence: string } | null = null;
     for (; at < lines.length; at += 1) {
-      const marker = fenceMarker(lines[at] ?? "");
+      const line = lines[at] ?? "";
       if (!open) {
+        const marker = fenceMarker(line);
         if (marker) open = { line: at, fence: marker };
-      } else if (marker && marker[0] === open.fence[0] && marker.length >= open.fence.length) {
+      } else if (closesFence(line, open.fence)) {
         this.close(open.line, at);
         open = null;
       }
@@ -401,6 +402,15 @@ function fileInArchive(
  * back unchanged, with a count of nought, when there is nothing to clear.
  */
 export function clearDoneTasks(content: string, mode: DoneTaskMode): DoneTasksResult {
+  // Read with `\n` and written back as it came: the `\r` a Windows line keeps
+  // hid the archive heading and the rules from every pattern below, and each
+  // run filed its tasks under another new archive.
+  if (content.includes("\r\n")) {
+    const result = clearDoneTasks(content.replace(/\r\n/g, "\n"), mode);
+    return result.count === 0
+      ? { content, count: 0 }
+      : { content: result.content.replace(/\n/g, "\r\n"), count: result.count };
+  }
   const lines = content.split("\n");
   const reader = new Reader(lines);
   const archive = reader.archiveSection();

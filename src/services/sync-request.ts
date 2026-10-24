@@ -17,6 +17,21 @@ export const MAX_SOURCE_BYTES = 1_000_000;
 
 export const REQUEST_TIMEOUT_MS = 20_000;
 
+/** A validator is a few dozen characters; one far past that is not kept for every note. */
+export const MAX_ETAG_CHARS = 512;
+
+/**
+ * A validator as it can go back in `If-None-Match`, or "" for none: visible
+ * characters only, within bounds. The source chose it and the data file keeps
+ * it, so it is read as untrusted at both doors; a value the platform refuses
+ * to send as a header failed every later check of the note, naming nothing.
+ */
+export function checkEtag(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const etag = value.trim();
+  return etag.length <= MAX_ETAG_CHARS && /^[\x21-\x7e]+$/.test(etag) ? etag : "";
+}
+
 const MARKDOWN_CONTENT_TYPES = [
   "text/markdown",
   "text/plain",
@@ -172,7 +187,7 @@ export function interpretSourceResponse(
     return { status: "error", message: messages.notText };
   }
 
-  return { status: "updated", body, etag: header(response.headers, "etag") ?? "" };
+  return { status: "updated", body, etag: checkEtag(header(response.headers, "etag")) };
 }
 
 /** Header names arrive in whatever case the server used. */

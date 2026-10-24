@@ -5,7 +5,7 @@
 import { t } from "../i18n";
 import { taskState } from "./task-state";
 import { parseImageAlt } from "./image-alt";
-import { fencedLines, fenceMarker } from "./markdown-fence";
+import { closesFence, fencedLines, fenceMarker } from "./markdown-fence";
 import { isTableDelimiter, rowCells } from "./markdown-table";
 import { typstArray, typstString } from "./typst-value";
 import { BLOCK_REPORT_LABEL } from "./print-breaks";
@@ -588,9 +588,8 @@ class Converter {
     const content: string[] = [];
     while (this.at < this.lines.length) {
       const line = this.lines[this.at] ?? "";
-      const closing = fenceMarker(line);
       this.at += 1;
-      if (closing && closing[0] === marker[0] && closing.length >= marker.length) break;
+      if (closesFence(line, marker)) break;
       content.push(line);
     }
 

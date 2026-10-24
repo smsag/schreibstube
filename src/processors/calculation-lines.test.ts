@@ -61,6 +61,26 @@ describe("in the editor, beside the line (Source mode)", () => {
     expect(view.state.doc.toString()).toBe("Miete 1.240 € - 15% =\nnichts");
   });
 
+  it("names the result in the language the interface is in now", () => {
+    let title = "Accept";
+    const view = new EditorView({
+      state: EditorState.create({
+        doc: "2 + 2 =\nweiter",
+        extensions: createCalculationExtension(
+          () => CTX,
+          () => title,
+          () => false
+        )
+      }),
+      parent: document.body.createDiv()
+    });
+    title = "Übernehmen";
+    view.dispatch({ changes: { from: view.state.doc.length, insert: "!" } });
+    expect(view.dom.querySelector(".schreibstube-calc-result")?.getAttribute("title")).toBe(
+      "Übernehmen"
+    );
+  });
+
   it("writes the result in with Tab at the end of the line", () => {
     const view = editor("2 + 2 =  \nweiter", 9);
 

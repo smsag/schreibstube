@@ -67,9 +67,10 @@ export class MailSearchModal extends Modal {
         .onClick(() => this.submit())
     );
 
-    // Enter submits from any field, which is what a search form should do.
+    // Enter submits from any field, which is what a search form should do —
+    // except the Enter that takes a word from an input method.
     contentEl.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
+      if (event.key === "Enter" && !event.isComposing) {
         event.preventDefault();
         this.submit();
       }

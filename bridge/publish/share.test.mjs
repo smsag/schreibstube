@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { StateFileError } from "./state-file.mjs";
 import {
   apacheTime,
   checkShareRequest,
@@ -201,7 +202,7 @@ describe("checkShareRequest", () => {
 });
 
 describe("normalizeShares", () => {
-  it("drops records that do not read, and files outside their own directory", () => {
+  it("reads the records as written, and none at all as no links yet", () => {
     const shares = normalizeShares({
       shares: [
         {
@@ -209,22 +210,34 @@ describe("normalizeShares", () => {
           title: "Angebot",
           expiresAt: "2026-10-20T00:00:00.000Z",
           protected: true,
-          files: ["s/ABCDEFGHJK/index.html", "index.html", "s/ABCDEFGHJK/../x.html", 4]
+          files: ["s/ABCDEFGHJK/index.html"]
         },
-        { code: "ABCDEFGHJK", title: "twice" },
-        { code: "../x" },
-        null,
-        { code: "BCDEFGHJKL", expiresAt: "bald", files: "all" }
+        { code: "BCDEFGHJKL" }
       ]
     });
     expect([...shares.keys()]).toEqual(["ABCDEFGHJK", "BCDEFGHJKL"]);
-    expect(shares.get("ABCDEFGHJK")).toMatchObject({
-      title: "Angebot",
-      protected: true,
-      files: ["s/ABCDEFGHJK/index.html"]
-    });
+    expect(shares.get("ABCDEFGHJK")).toMatchObject({ title: "Angebot", protected: true });
     expect(shares.get("BCDEFGHJKL")).toMatchObject({ expiresAt: null, files: [], title: "" });
     expect(normalizeShares(null).size).toBe(0);
+  });
+
+  it("refuses a file with a record that does not read, rather than losing that link's files", () => {
+    const one = { code: "ABCDEFGHJK", files: ["s/ABCDEFGHJK/index.html"] };
+    for (const raw of [
+      "text",
+      { shares: "all" },
+      { shares: [null] },
+      { shares: [{ code: "../x" }] },
+      { shares: [one, one] },
+      { shares: [{ ...one, files: ["index.html"] }] },
+      { shares: [{ ...one, files: ["s/ABCDEFGHJK/../x.html"] }] },
+      { shares: [{ ...one, files: "all" }] },
+      { shares: [{ ...one, expiresAt: "bald" }] },
+      { shares: [{ ...one, title: 4 }] },
+      { shares: [{ ...one, revoked: "yes" }] }
+    ]) {
+      expect(() => normalizeShares(raw), JSON.stringify(raw)).toThrow(StateFileError);
+    }
   });
 });
 

@@ -71,6 +71,11 @@ describe("what counts as finished", () => {
     expect(clearDoneTasks(content, "delete")).toEqual({ content, count: 0 });
   });
 
+  it("keeps a fence open past a line that names a language", () => {
+    const content = note("```", "```js", "- [x] still code", "```");
+    expect(clearDoneTasks(content, "delete")).toEqual({ content, count: 0 });
+  });
+
   it("reads a rule as a rule, not as a list", () => {
     const content = note("- [x] done", "- - -", "- [ ] open");
     expect(clearDoneTasks(content, "back")).toEqual({ content, count: 0 });
@@ -223,6 +228,18 @@ describe("delete", () => {
   it("does not touch the archive", () => {
     const result = run("delete", "- [x] a", "", "## Archive", "", "- [x] old", "");
     expect(result.content).toBe(note("## Archive", "", "- [x] old", ""));
+  });
+
+  it("reads a note with Windows line endings, and writes it back with them", () => {
+    const crlf = (...lines: string[]): string => lines.join("\r\n");
+    const archived = clearDoneTasks(
+      crlf("- [x] a", "- [ ] b", "", "## Archive", "", "- [x] old", ""),
+      "archive"
+    );
+    expect(archived.content).toBe(
+      crlf("- [ ] b", "", "## Archive", "", "- [x] old", "- [x] a", "")
+    );
+    expect(clearDoneTasks(crlf("- - -", "- [x] a"), "delete").content).toBe("- - -");
   });
 
   it("clears tasks after the archive and keeps the note's end", () => {

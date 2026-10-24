@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { StateFileError } from "./state-file.mjs";
 import {
   MANIFEST_VERSION,
   buildManifest,
@@ -32,13 +33,28 @@ describe("normalizeManifest", () => {
     expect(normalizeManifest(null, "blog").files).toEqual({});
   });
 
-  it("treats a manifest from another version as a first publish", () => {
-    expect(normalizeManifest({ version: 99, files: { "a.html": {} } }, "blog").files).toEqual({});
+  it("keeps a manifest of the current version, entry by entry", () => {
+    const files = { "a/index.html": { sha256: "a".repeat(64), bytes: 1, extra: true } };
+    const read = normalizeManifest({ version: MANIFEST_VERSION, renderVersion: 9, files }, "blog");
+    expect(read.files).toEqual({ "a/index.html": { sha256: "a".repeat(64), bytes: 1 } });
+    expect(read.renderVersion).toBe(9);
   });
 
-  it("keeps a manifest of the current version", () => {
-    const files = { "a.html": { sha256: "x", bytes: 1 } };
-    expect(normalizeManifest({ version: MANIFEST_VERSION, files }, "blog").files).toEqual(files);
+  it("refuses one that does not read, rather than forgetting what the bridge wrote", () => {
+    const ok = { sha256: "a".repeat(64), bytes: 1 };
+    for (const raw of [
+      "text",
+      [],
+      { version: 99, files: {} },
+      { version: MANIFEST_VERSION },
+      { version: MANIFEST_VERSION, files: { "../etc/passwd.html": ok } },
+      { version: MANIFEST_VERSION, files: { "a/index.html": { sha256: "x", bytes: 1 } } },
+      { version: MANIFEST_VERSION, files: { "a/index.html": { ...ok, bytes: -1 } } },
+      { version: MANIFEST_VERSION, renderVersion: "9", files: {} }
+    ]) {
+      expect(() => normalizeManifest(raw, "blog"), JSON.stringify(raw)).toThrow(StateFileError);
+    }
+    expect(() => normalizeManifest({ version: 99, files: {} }, "blog")).toThrow(/manifest\.json/);
   });
 });
 

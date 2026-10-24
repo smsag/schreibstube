@@ -672,9 +672,18 @@ export class ExplorerPaneView extends ItemView {
           this.itemHits = { query: key, hits };
           this.requestRender();
         })
-        .catch(() => undefined);
+        .catch(this.searchFailed);
     });
   }
+
+  /**
+   * A search by meaning, or of the sources' items, that failed leaves the
+   * words' answer on screen. Said in the console, so that a search which never
+   * finds anything by meaning can be told from one that found nothing.
+   */
+  private readonly searchFailed = (error: unknown): void => {
+    this.host?.logger.debug("explorer: a search by meaning failed", error);
+  };
 
   /**
    * Ask by meaning once the typing has paused, and redraw when the answer comes.
@@ -706,7 +715,7 @@ export class ExplorerPaneView extends ItemView {
           if (this.query !== key || hits.length === 0) return;
           this.meaning = { query: key, hits: hits.map((hit) => ({ path: hit.id })) };
         })
-        .catch(() => undefined)
+        .catch(this.searchFailed)
         .finally(settle);
     });
   }

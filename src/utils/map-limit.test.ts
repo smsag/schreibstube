@@ -28,6 +28,14 @@ describe("mapLimit", () => {
     expect(most).toBe(3);
   });
 
+  it("works on every item whatever limit it is given", async () => {
+    for (const limit of [Number.NaN, 0, -2, 1.5, Infinity]) {
+      const seen: number[] = [];
+      await mapLimit([1, 2, 3], limit, async (n) => void seen.push(n));
+      expect(seen.sort(), String(limit)).toEqual([1, 2, 3]);
+    }
+  });
+
   it("does nothing for no items", async () => {
     expect(await mapLimit([], 3, async () => 1)).toEqual([]);
   });

@@ -54,7 +54,15 @@ export class PropertyWidgetControls {
   }
 
   detach(win: Window): void {
-    this.documents.delete(win.document);
+    const doc = win.document;
+    this.documents.delete(doc);
+    // A closed window's widgets stay connected to its own document, so the
+    // next pass never finds them gone: their watches would outlive it.
+    for (const [widget, observer] of this.watches) {
+      if (widget.ownerDocument !== doc) continue;
+      observer.disconnect();
+      this.watches.delete(widget);
+    }
   }
 
   stop(): void {

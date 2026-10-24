@@ -49,8 +49,18 @@ describe("findExecutableCode", () => {
     expect(kinds("<%*\nawait tp.system.prompt()\n%>\n")).toEqual(["templater"]);
   });
 
-  it("does not count inline constructs inside a shown fence", () => {
-    expect(kinds("```md\n<% tp.date.now() %> and `$= 1`\n```\n")).toEqual([]);
+  it("does not let a line that names a language close a fence", () => {
+    const text = "```dataviewjs\n```js\ndv.span(1)\n```\nprose\n";
+    const [region] = findExecutableCode(text);
+    expect(text.slice(region?.from, region?.to)).toBe("```dataviewjs\n```js\ndv.span(1)\n```\n");
+  });
+
+  it("does not count Dataview's inline JavaScript inside a shown fence", () => {
+    expect(kinds("```md\n`$= 1`\n```\n")).toEqual([]);
+  });
+
+  it("counts a Templater tag inside a fence, which Templater runs all the same", () => {
+    expect(kinds("```md\n<% tp.date.now() %>\n```\n")).toEqual(["templater"]);
   });
 
   it("finds nothing in plain prose", () => {

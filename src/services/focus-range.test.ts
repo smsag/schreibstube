@@ -74,6 +74,12 @@ describe("resolveFocusRange", () => {
     });
   });
 
+  it("keeps a fenced block whole past a line that names a language", () => {
+    const doc = createDoc(["```", "```js", "const a = 1;", "```", "tail"]);
+
+    expect(resolveFocusRange(doc, 3, "paragraph")).toEqual({ startLine: 1, endLine: 4 });
+  });
+
   it("returns full fenced code block when cursor is inside", () => {
     const doc = createDoc(["```ts", "const a = 1;", "const b = 2;", "```", "", "tail"]);
 
