@@ -18,6 +18,9 @@ export const enExtra = {
     perDay: (value: string) => `${value} per day`,
     perMonth: (value: string) => `${value} per month`,
     perYear: (value: string) => `${value} per year`,
+    without: (title: string, rows: number) =>
+      `${title} (without ${rows.toLocaleString("en-GB")} ${rows === 1 ? "row" : "rows"})`,
+    changed: "The table changed while the dialog was open. Chart it again.",
     kinds: {
       time: "Over time",
       pie: "Shares",

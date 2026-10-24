@@ -11,6 +11,7 @@ import { numberFormatFor, type NumberStyle } from "../services/amounts";
 import {
   MAX_CHART_ROWS,
   chartOffer,
+  mayChart,
   placeChart,
   type ChartLabels,
   type ChartOffer,
@@ -27,13 +28,25 @@ function chartLabels(): ChartLabels {
     byGroups: labels.byGroups,
     perDay: labels.perDay,
     perMonth: labels.perMonth,
-    perYear: labels.perYear
+    perYear: labels.perYear,
+    without: labels.without
   };
 }
 
 /** What the selection offers, its amounts read in the number format the sums use. */
 export function selectionChartOffer(editor: Editor, style: NumberStyle): ChartOffer {
   return chartOffer(
+    editor.getValue().split("\n"),
+    editor.getCursor("from").line,
+    editor.getCursor("to").line,
+    numberFormatFor(style, obsidianLanguageTag()),
+    chartLabels()
+  );
+}
+
+/** Whether the menu offers a chart for the selection: cheap enough for every right-click. */
+export function selectionMayChart(editor: Editor, style: NumberStyle): boolean {
+  return mayChart(
     editor.getValue().split("\n"),
     editor.getCursor("from").line,
     editor.getCursor("to").line,
@@ -63,9 +76,9 @@ export function chartSelectedTable(
   app: App,
   editor: Editor,
   sourcePath: string,
-  style: NumberStyle,
-  offer: ChartOffer = selectionChartOffer(editor, style)
+  style: NumberStyle
 ): void {
+  const offer = selectionChartOffer(editor, style);
   if (!offer.ok) {
     new Notice(t().common.notice(refusalText(offer.reason)));
     return;
@@ -82,6 +95,10 @@ export function insertChart(
   suggestion: ChartSuggestion
 ): void {
   const edit = placeChart(editor.getValue().split("\n"), offer, suggestion);
+  if (!edit) {
+    new Notice(t().common.notice(t().chart.changed));
+    return;
+  }
   const from = { line: edit.from, ch: 0 };
   const to = edit.to === null ? from : { line: edit.to, ch: editor.getLine(edit.to).length };
   editor.replaceRange(edit.text, from, to);

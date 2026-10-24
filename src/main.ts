@@ -83,7 +83,7 @@ import {
   localTable,
   selectedLineRange
 } from "./controllers/table-insert";
-import { chartSelectedTable, selectionChartOffer } from "./controllers/table-chart";
+import { chartSelectedTable, selectionMayChart } from "./controllers/table-chart";
 import { ProofreadController } from "./controllers/proofread-controller";
 import { ReadingHistoryController } from "./controllers/reading-history-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
@@ -582,23 +582,21 @@ export default class SchreibstubePlugin extends Plugin {
               })
           );
         }
-        // A table with amounts can be drawn. Offered only when it can, like
-        // the conversion below: the menu is built for this very selection.
-        if (editor.somethingSelected()) {
-          const style = this.settings.sumsNumberStyle;
-          const offer = selectionChartOffer(editor, style);
-          if (offer.ok) {
-            menu.addItem((item) =>
-              item
-                .setTitle(t().chart.menu)
-                .setIcon("chart-pie")
-                .setSection("selection")
-                .onClick(() => {
-                  const path = this.app.workspace.getActiveFile()?.path ?? "";
-                  chartSelectedTable(this.app, editor, path, style, offer);
-                })
-            );
-          }
+        // A table with amounts can be drawn. Offered only when its first rows
+        // can, like the conversion below: the menu is built for this very
+        // selection, and the whole table is read once the chart is asked for.
+        const style = this.settings.sumsNumberStyle;
+        if (editor.somethingSelected() && selectionMayChart(editor, style)) {
+          menu.addItem((item) =>
+            item
+              .setTitle(t().chart.menu)
+              .setIcon("chart-pie")
+              .setSection("selection")
+              .onClick(() => {
+                const path = this.app.workspace.getActiveFile()?.path ?? "";
+                chartSelectedTable(this.app, editor, path, style);
+              })
+          );
         }
         const range = selectedLineRange(editor);
         if (!range) return;
