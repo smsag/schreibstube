@@ -1,5 +1,6 @@
 import {
   type Command,
+  Component,
   type Editor,
   editorInfoField,
   editorLivePreviewField,
@@ -170,6 +171,9 @@ const READING_TICK_MS = 15 * 60_000;
 
 /** The first look after start, once the metadata cache knows the vault. */
 const READING_FIRST_DELAY_MS = 60_000;
+
+/** How a controller listens on a window's document; see `inEveryWindow`. */
+type WindowListen = (doc: Document, type: string, handler: (event: Event) => void) => void;
 
 const RECOMMEND_LIMIT = 20;
 
@@ -620,10 +624,31 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
-   * Property icons and menu entries, in this window and every one popped out
-   * later. Capture phase: the press has to be seen before Obsidian's own
-   * handler opens the menu, whatever that handler does with the event.
+   * Wire a controller into this window and every one popped out later, its
+   * listeners in the capture phase: a press has to be seen before Obsidian's
+   * own handlers act on it, whatever they do with the event. A pop-out's
+   * listeners go when it closes; held by the plugin until it unloaded, each
+   * kept a closed window's page alive for the rest of the session.
    */
+  private inEveryWindow(attach: (win: Window, on: WindowListen) => void): void {
+    const wire = (win: Window, scope: Component): void =>
+      attach(win, (doc, type, handler) =>
+        scope.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true })
+      );
+    wire(window, this);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (_opened, win) => {
+        const scope = this.addChild(new Component());
+        wire(win, scope);
+        scope.registerEvent(
+          this.app.workspace.on("window-close", (_closed, gone) => {
+            if (gone === win) this.removeChild(scope);
+          })
+        );
+      })
+    );
+  }
+
   /**
    * The description and star buttons on Obsidian's bar over a picture, in
    * every window. The description is the Explorer's to find and open, since
@@ -641,13 +666,7 @@ export default class SchreibstubePlugin extends Plugin {
       this.logger
     );
     this.pictureActions = actions;
-    const register = (doc: Document, type: string, handler: (event: Event) => void) => {
-      this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
-    };
-    actions.attach(window, register);
-    this.registerEvent(
-      this.app.workspace.on("window-open", (_workspaceWindow, win) => actions.attach(win, register))
-    );
+    this.inEveryWindow((win, on) => actions.attach(win, on));
     this.registerEvent(
       this.app.workspace.on("window-close", (_workspaceWindow, win) => actions.detach(win))
     );
@@ -711,13 +730,7 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     const reading = new BasesReadingView(this.app, flags, this.logger);
-    const register = (doc: Document, type: string, handler: (event: Event) => void) => {
-      this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
-    };
-    reading.attach(window, register);
-    this.registerEvent(
-      this.app.workspace.on("window-open", (_workspaceWindow, win) => reading.attach(win, register))
-    );
+    this.inEveryWindow((win, on) => reading.attach(win, on));
     this.registerEvent(this.app.workspace.on("file-open", (file) => void reading.opened(file)));
   }
 
@@ -783,22 +796,16 @@ export default class SchreibstubePlugin extends Plugin {
     }
   }
 
+  /** Property icons and menu entries, and the controls beside "Add property". */
   private startProperties(
     properties: PropertyController,
     sets: PropertySetController,
     controls: PropertyWidgetControls
   ): void {
-    const register = (doc: Document, type: string, handler: (event: Event) => void) => {
-      this.registerDomEvent(doc, type as keyof DocumentEventMap, handler, { capture: true });
-    };
-    properties.attach(window, register);
-    controls.attach(window, register);
-    this.registerEvent(
-      this.app.workspace.on("window-open", (_workspaceWindow, win) => {
-        properties.attach(win, register);
-        controls.attach(win, register);
-      })
-    );
+    this.inEveryWindow((win, on) => {
+      properties.attach(win, on);
+      controls.attach(win, on);
+    });
     this.registerEvent(
       this.app.workspace.on("window-close", (_workspaceWindow, win) => {
         properties.detach(win);
