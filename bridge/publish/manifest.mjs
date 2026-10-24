@@ -1,5 +1,13 @@
 /** The manifest: what the bridge has published, and what that lets it delete. */
-import { assetPath, hasOwnPage, isListed, pagePath, tagPagePath, thumbnailPath } from "./path.mjs";
+import {
+  assetName,
+  assetPath,
+  hasOwnPage,
+  isListed,
+  pagePath,
+  tagPagePath,
+  thumbnailPath
+} from "./path.mjs";
 
 export const MANIFEST_VERSION = 1;
 
@@ -47,13 +55,13 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   const uploadAssets = [];
   const expectedAssets = new Set();
   for (const asset of index.assets) {
-    const path = assetPath(asset.sha256, asset.name ?? asset.sourcePath);
+    const path = assetPath(asset.sha256, assetName(asset));
     expectedAssets.add(path);
     if (published.has(path)) continue;
     uploadAssets.push({
       sourcePath: asset.sourcePath,
       sha256: asset.sha256,
-      name: asset.name ?? asset.sourcePath,
+      name: assetName(asset),
       bytes: asset.bytes ?? 0,
       path
     });
@@ -64,14 +72,14 @@ export function planUploads({ index, manifest, storedSourceHashes }) {
   const uploadThumbnails = [];
   for (const asset of index.assets) {
     if (asset.thumbnail !== true) continue;
-    const path = thumbnailPath(asset.sha256, asset.name ?? asset.sourcePath);
+    const path = thumbnailPath(asset.sha256, assetName(asset));
     if (!path || expectedAssets.has(path)) continue;
     expectedAssets.add(path);
     if (published.has(path)) continue;
     uploadThumbnails.push({
       sourcePath: asset.sourcePath,
       sha256: asset.sha256,
-      name: asset.name ?? asset.sourcePath,
+      name: assetName(asset),
       path
     });
   }
