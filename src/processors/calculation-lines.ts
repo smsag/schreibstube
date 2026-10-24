@@ -78,7 +78,13 @@ class ResultWidget extends WidgetType {
   }
 
   override eq(other: ResultWidget): boolean {
-    return other.result === this.result && other.lineNumber === this.lineNumber;
+    // The title too: the language can change under a result that did not,
+    // and the drawn one kept saying how to accept it in the old one.
+    return (
+      other.result === this.result &&
+      other.lineNumber === this.lineNumber &&
+      other.title === this.title
+    );
   }
 
   override toDOM(view: EditorView): HTMLElement {

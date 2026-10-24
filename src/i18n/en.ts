@@ -321,7 +321,7 @@ export const en = {
       `the bridge names ${url} as the site's address, which is not a web address, so it was not opened.`,
 
     connectionOk: (target: string, entries: number) =>
-      `connection to ${target} works (${entries} entries).`,
+      `connection to ${target} works (${entries === 1 ? "1 entry" : `${entries} entries`}).`,
     connectionFailed: (reason: string) => reason,
     bridgeOutdated: (bridge: number, plugin: number) =>
       `the bridge speaks protocol ${bridge}, the plugin expects ${plugin} — redeploy the bridge.`,

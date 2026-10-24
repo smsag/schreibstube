@@ -110,9 +110,13 @@ export function renderPublish(ctx: SettingsContext): void {
 function renderAccount(ctx: SettingsContext, position: number, account: PublishAccount): void {
   const { containerEl } = ctx;
 
+  // The fields save without redrawing, so `account` is the one the rows were
+  // drawn from: a test or a setup block taken from it went to the target
+  // that was there before the one just typed.
+  const current = (): PublishAccount => ctx.plugin.settings.publishAccounts[position] ?? account;
   const update = async (changes: Partial<PublishAccount>): Promise<void> => {
     const accounts = [...ctx.plugin.settings.publishAccounts];
-    accounts[position] = { ...(accounts[position] ?? account), ...changes };
+    accounts[position] = { ...current(), ...changes };
     await saveAccounts(ctx, accounts, { redraw: false });
   };
 
@@ -213,7 +217,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     )
     .addButton((button) =>
       button.setButtonText(t().common.testConnection).onClick(async () => {
-        await testTarget(ctx, account);
+        await testTarget(ctx, current());
       })
     )
     .addButton((button) =>
@@ -229,7 +233,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     );
 
   renderLastRun(ctx, account);
-  renderSetup(ctx, account);
+  renderSetup(ctx, current);
 }
 
 /**
@@ -256,14 +260,14 @@ function renderLastRun(ctx: SettingsContext, account: PublishAccount): void {
 }
 
 /** The environment block for this account, ready to paste into the bridge. */
-function renderSetup(ctx: SettingsContext, account: PublishAccount): void {
+function renderSetup(ctx: SettingsContext, account: () => PublishAccount): void {
   new Setting(ctx.containerEl)
     .setName(t().publish.setup)
     .setDesc(t().publish.setupDesc)
     .addButton((button) =>
       button.setButtonText(t().publish.setupCopy).onClick(async () => {
         try {
-          await navigator.clipboard.writeText(environmentBlock(account));
+          await navigator.clipboard.writeText(environmentBlock(account()));
           new Notice(t().common.notice(t().common.copied));
         } catch (error) {
           createLogger(() => ctx.plugin.settings.debugLogging).warn(

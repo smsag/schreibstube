@@ -10,6 +10,7 @@ import { editorLivePreviewField } from "obsidian";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
 import { topEdgeLine } from "../services/editor-top-edge";
 import { isCommentLine } from "../services/comment-line";
+import { visibleLineRuns } from "../services/visible-lines";
 import type { SchreibstubeSettings } from "../types";
 
 export interface EditorViewportUpdate {
@@ -46,6 +47,9 @@ export function createEditorExtension(options: EditorExtensionOptions): Extensio
 }
 
 const COMMENT_LINE = Decoration.line({ class: "schreibstube-comment-line" });
+
+const onScreen = (view: EditorView) =>
+  visibleLineRuns(view.visibleRanges, (position) => view.state.doc.lineAt(position).number);
 
 /**
  * Lines that open with `//` are the writer's asides, and fade by the focus
@@ -87,9 +91,8 @@ function createCommentDimExtension(getSettings: () => SchreibstubeSettings): Ext
       private build(): DecorationSet {
         const builder = new RangeSetBuilder<Decoration>();
         const doc = this.view.state.doc;
-        for (const range of this.view.visibleRanges) {
-          const lastLine = doc.lineAt(range.to).number;
-          for (let n = doc.lineAt(range.from).number; n <= lastLine; n += 1) {
+        for (const run of onScreen(this.view)) {
+          for (let n = run.first; n <= run.last; n += 1) {
             const line = doc.line(n);
             if (isCommentLine(line.text)) builder.add(line.from, line.from, COMMENT_LINE);
           }
@@ -111,6 +114,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
       private measurePending = false;
       private lastEdgeLines = "";
       private lastFocusSignature = "";
+      private settingsChanged = false;
       /** Whether the editor wears the mode's classes and variable right now. */
       private dressed = false;
       private onViewportUpdate: (update: EditorViewportUpdate) => void;
@@ -132,7 +136,15 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
         // The decorations cover only the visible range, so a scroll has to
         // decorate the lines it revealed, and an edit moves every position
         // under them, whether or not the focused range read the same.
-        this.syncFocus(this.getSettings(), update.docChanged || update.viewportChanged);
+        const moved = update.docChanged || update.viewportChanged;
+        // Working out the range reads the note from its top, for the fences
+        // above the cursor; a transaction that moved neither the text, the
+        // cursor nor the focus — an effect another extension sent — cannot
+        // have changed it.
+        if (moved || update.selectionSet || update.focusChanged || this.settingsChanged) {
+          this.settingsChanged = false;
+          this.syncFocus(this.getSettings(), moved);
+        }
 
         // Turning Live Preview on or off puts the heading overlay up or takes
         // it down, and moves no line of the note.
@@ -158,6 +170,7 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
       };
 
       private handleFocusSettingsChanged = (): void => {
+        this.settingsChanged = true;
         this.view.dispatch({ annotations: [] });
       };
 
@@ -240,11 +253,8 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
           focusRange.startCh !== undefined &&
           focusRange.endCh !== undefined;
 
-        for (const range of this.view.visibleRanges) {
-          const firstLine = doc.lineAt(range.from).number;
-          const lastLine = doc.lineAt(range.to).number;
-
-          for (let lineNumber = firstLine; lineNumber <= lastLine; lineNumber += 1) {
+        for (const run of onScreen(this.view)) {
+          for (let lineNumber = run.first; lineNumber <= run.last; lineNumber += 1) {
             const line = doc.line(lineNumber);
             const inFocusRange = sentence
               ? false

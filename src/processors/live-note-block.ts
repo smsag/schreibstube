@@ -15,6 +15,13 @@ const RERENDER_DELAY_MS = 60;
  */
 export abstract class LiveNoteBlock extends MarkdownRenderChild {
   private pendingRender: number | null = null;
+  /**
+   * Which read is the latest. A read of the file is slower than one of an
+   * editor's buffer, so an earlier read could land after a later one and draw
+   * the note as it was; and one landing after the block was unloaded drew
+   * into an element nobody shows.
+   */
+  private renders = 0;
 
   constructor(
     protected readonly app: App,
@@ -41,6 +48,7 @@ export abstract class LiveNoteBlock extends MarkdownRenderChild {
     this.register(() => {
       if (this.pendingRender !== null) window.clearTimeout(this.pendingRender);
       this.pendingRender = null;
+      this.renders += 1;
     });
 
     void this.render();
@@ -55,7 +63,9 @@ export abstract class LiveNoteBlock extends MarkdownRenderChild {
   }
 
   private async render(): Promise<void> {
-    this.draw(await this.readContent());
+    const render = ++this.renders;
+    const content = await this.readContent();
+    if (render === this.renders) this.draw(content);
   }
 
   /** The first open markdown view that `accepts`. */

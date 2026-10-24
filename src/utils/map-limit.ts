@@ -27,7 +27,9 @@ export async function mapLimit<T, R>(
     }
   };
 
-  const workers = Math.max(1, Math.min(limit, items.length));
+  // A limit that is not a number made no workers at all, and every item was
+  // reported done without being worked on.
+  const workers = Math.max(1, Math.min(Number.isNaN(limit) ? 1 : limit, items.length));
   await Promise.all(Array.from({ length: workers }, worker));
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- set by the workers
   if (failure) throw (failure as { error: unknown }).error;
