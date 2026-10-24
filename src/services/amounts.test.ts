@@ -31,6 +31,11 @@ describe("numberFormatFor", () => {
     expect(numberFormatFor("auto", "fr").spaceGroups).toBe(true);
   });
 
+  it("reads the marks a total is written with, in Latin digits", () => {
+    expect(numberFormatFor("auto", "ps").decimal).toBe(",");
+    expect(numberFormatFor("auto", "fa").decimal).toBe(".");
+  });
+
   it("falls back to English for a language Intl cannot read", () => {
     expect(numberFormatFor("auto", "not a language!").locale).toBe("en");
     expect(numberFormatFor("auto", "  ").locale).toBe("en");
