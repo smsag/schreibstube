@@ -12,6 +12,7 @@ import {
   type SourceDescriptor,
   type SourceRegistration
 } from "../../services/semantic/semantic-api";
+import { applyMeaningFloor, type MeaningFloor } from "../../services/semantic/search-fusion";
 import { removeSourceFiles } from "./index-files";
 import { SourceIndex, type SourceIndexHost } from "./source-index";
 
@@ -192,6 +193,17 @@ export class SemanticSources {
     return found ? found.entry.index.link(found.item) : null;
   }
 
+  /**
+   * Whether pressing an item's row does anything: its source shows it, or
+   * gives a link to it. A row that does neither is drawn as text, not as a
+   * link a press goes nowhere from.
+   */
+  opens(key: string): boolean {
+    const found = this.entryOf(key);
+    if (!found) return false;
+    return found.entry.index.opensItself() || found.entry.index.link(found.item) !== null;
+  }
+
   /** The items that had `path` attached as context, as keys. */
   attachedTo(path: string): string[] {
     return this.active().flatMap(([source, entry]) =>
@@ -296,13 +308,21 @@ export class SemanticSources {
    * from each source: by the words of their title, then by meaning. Capped
    * per source rather than in all, so one source whose titles happen to match
    * cannot push every other one off the list. A meaning search that fails
-   * still leaves the titles.
+   * still leaves the titles. A lone word's relative cut is read across every
+   * source's meaning hits, as it is across a note search's.
    */
-  async find(text: string, perSource: number, minScore: number): Promise<SourceResult[]> {
+  async find(text: string, perSource: number, floor: MeaningFloor): Promise<SourceResult[]> {
     const answers = await this.perSource(null, (index) =>
-      index.search(text, { minScore, limit: perSource, exclude: [] })
+      index.search(text, { minScore: floor.minScore, limit: perSource, exclude: [] })
     );
-    return answers.flatMap(({ source, entry, hits }) => {
+    const near = new Set(
+      applyMeaningFloor(
+        answers.flatMap((answer) => answer.hits),
+        floor
+      ).map((hit) => hit.key)
+    );
+    return answers.flatMap(({ source, entry, hits: found }) => {
+      const hits = found.filter((hit) => near.has(hit.key));
       const known = entry.index
         .titles()
         .map((item) => ({ id: itemKey(source, item.id), title: item.title }));

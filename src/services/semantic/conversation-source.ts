@@ -12,6 +12,12 @@
 
 /** At most this many conversations are indexed, the newest first. */
 export const MAX_CONVERSATIONS = 1000;
+/**
+ * At most this many entries of a list are looked at to find the newest. A
+ * list of half a million had every entry's text read and held before the cap
+ * applied; a source with more than this has its first ones considered.
+ */
+export const MAX_LISTED_ENTRIES = MAX_CONVERSATIONS * 4;
 /** At most this much text per conversation, title and summary included. */
 export const MAX_CONVERSATION_CHARS = 40_000;
 const MAX_ID_CHARS = 200;
@@ -46,6 +52,12 @@ export interface ConversationItem {
 
 const text = (value: unknown): string => (typeof value === "string" ? value : "");
 
+function updatedAtOf(record: Record<string, unknown>): number {
+  return typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
+    ? record.updatedAt
+    : 0;
+}
+
 /** One listed conversation, checked and bounded, or null when it has no id. */
 export function normalizeConversation(raw: unknown): ConversationItem | null {
   if (typeof raw !== "object" || raw === null) return null;
@@ -53,10 +65,7 @@ export function normalizeConversation(raw: unknown): ConversationItem | null {
   const id = normalizeItemId(record.id);
   if (id === null) return null;
   const title = text(record.title).trim().slice(0, MAX_TITLE_CHARS);
-  const updatedAt =
-    typeof record.updatedAt === "number" && Number.isFinite(record.updatedAt)
-      ? record.updatedAt
-      : 0;
+  const updatedAt = updatedAtOf(record);
 
   let budget = MAX_CONVERSATION_CHARS - title.length;
   const take = (value: string): string => {
@@ -126,15 +135,26 @@ export function normalizeChanges(raw: unknown, maxCursorChars: number): ItemChan
   return { changed: normalizeConversations(record.changed), removed: [...removed], cursor };
 }
 
-/** The whole list: each entry checked, one per id, the newest first, capped. */
+/**
+ * The whole list: each entry checked, one per id, the newest first, capped.
+ * The newest are chosen by id and date alone, which cost nothing to read, and
+ * only the ones kept have their texts read, so what a list costs is the cap's
+ * and not the source's.
+ */
 export function normalizeConversations(raw: unknown): ConversationItem[] {
   if (!Array.isArray(raw)) return [];
-  const byId = new Map<string, ConversationItem>();
-  for (const entry of raw) {
-    const item = normalizeConversation(entry);
-    if (item && !byId.has(item.id)) byId.set(item.id, item);
+  const newest = new Map<string, { entry: Record<string, unknown>; updatedAt: number }>();
+  for (const entry of raw.slice(0, MAX_LISTED_ENTRIES)) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    const id = normalizeItemId(record.id);
+    if (id !== null && !newest.has(id))
+      newest.set(id, { entry: record, updatedAt: updatedAtOf(record) });
   }
-  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, MAX_CONVERSATIONS);
+  return [...newest.values()]
+    .sort((a, b) => b.updatedAt - a.updatedAt)
+    .slice(0, MAX_CONVERSATIONS)
+    .flatMap(({ entry }) => normalizeConversation(entry) ?? []);
 }
 
 /** The text chunks a conversation is embedded as: title and summary lead, then

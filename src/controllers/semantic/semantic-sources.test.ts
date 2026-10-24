@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Plugin } from "obsidian";
 import { SemanticSources } from "./semantic-sources";
+import { MAX_EMBED_TRIES } from "./source-index";
+import { PHRASE_FLOOR, WORD_FLOOR } from "../../services/semantic/search-fusion";
 import type { EmbeddingProvider } from "../../services/semantic/embedding-provider";
 import { NULL_LOGGER } from "../../services/logger";
 import { deserializeIndex, serializeIndex } from "../../services/semantic/embedding-index";
@@ -16,9 +18,17 @@ class FakeProvider implements EmbeddingProvider {
   embedded: string[] = [];
   /** While set, a batch with a text containing "garten" waits for it. */
   gate: Promise<void> | null = null;
+  /** While set, a batch with a text containing it fails, and is counted. */
+  failOn: string | null = null;
+  failed = 0;
   async ready(): Promise<void> {}
   async embed(texts: string[]): Promise<Float32Array[]> {
     if (this.gate && texts.some((t) => t.includes("garten"))) await this.gate;
+    const fail = this.failOn;
+    if (fail !== null && texts.some((t) => t.includes(fail))) {
+      this.failed++;
+      throw new Error("embed failed");
+    }
     this.embedded.push(...texts);
     return texts.map((t) => Float32Array.from(t.includes("küche") ? [1, 0, 0, 0] : [0, 1, 0, 0]));
   }
@@ -325,6 +335,75 @@ describe("a source with a cursor", () => {
     expect(src.raw.list).toHaveBeenCalledTimes(1);
   });
 
+  it("replaces its listing with the answer to a null cursor, even after it was read whole", async () => {
+    const s = setup();
+    const items = [item("a", "küche"), item("b", "küche zwei")];
+    let broken = true;
+    const src = cursorSource(s, items, () =>
+      broken ? "no" : { changed: items, removed: [], cursor: "1" }
+    );
+    s.register("pythia", src);
+    expect(ids(await s.sources.search("küche", QUERY)).sort()).toEqual([key("a"), key("b")]);
+    broken = false;
+    items.splice(0, 1);
+    src.notify();
+    expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("b")]);
+    expect(src.changes).toHaveBeenLastCalledWith(null);
+  });
+
+  it("drops an answer that arrives after its listing was forgotten, and reads everything again", async () => {
+    const s = setup();
+    const items = [item("a", "küche"), item("b", "küche zwei")];
+    let open: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    const src = cursorSource(s, items, (cursor) =>
+      cursor === null
+        ? { changed: items, removed: [], cursor: "1" }
+        : gate.then(() => ({ changed: [item("c", "küche drei")], removed: [], cursor: "2" }))
+    );
+    s.register("pythia", src);
+    await s.sources.search("küche", QUERY);
+    src.notify();
+    const searching = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(src.changes).toHaveBeenCalledTimes(2));
+    s.sources.reset();
+    open();
+    await searching;
+
+    expect(ids(await s.sources.search("küche", QUERY)).sort()).toEqual([key("a"), key("b")]);
+    expect(src.changes).toHaveBeenLastCalledWith(null);
+  });
+
+  it("tries an item again whose embed failed, though the source will not list it again", async () => {
+    const s = setup();
+    const items = [item("a", "küche")];
+    const src = cursorSource(s, items);
+    s.register("pythia", src);
+    await s.sources.search("küche", QUERY);
+    items.push(item("b", "küche zwei"));
+    src.notify();
+    s.provider.failOn = "zwei";
+    expect(ids(await s.sources.search("küche", QUERY))).toEqual([key("a")]);
+
+    s.provider.failOn = null;
+    expect(ids(await s.sources.search("küche", QUERY)).sort()).toEqual([key("a"), key("b")]);
+  });
+
+  it("leaves an item that keeps failing until it changes, rather than trying it at every sync", async () => {
+    const s = setup();
+    const items = [item("a", "küche"), item("b", "küche zwei")];
+    const src = cursorSource(s, items);
+    s.provider.failOn = "zwei";
+    s.register("pythia", src);
+    for (let i = 0; i < MAX_EMBED_TRIES + 2; i++) await s.sources.search("küche", QUERY);
+    expect(s.provider.failed).toBe(MAX_EMBED_TRIES);
+
+    s.provider.failOn = null;
+    items[1] = item("b", "küche zwei neu", 2);
+    src.notify();
+    expect(ids(await s.sources.search("küche", QUERY)).sort()).toEqual([key("a"), key("b")]);
+  });
+
   it("holds titles, not texts, once an item is embedded", async () => {
     const s = setup();
     const items = [item("a", "küche")];
@@ -405,6 +484,25 @@ describe("a source that stops or is refused", () => {
     expect(s.disk.has(FILE("pythia"))).toBe(false);
   });
 
+  it("puts nothing back in memory when refused while its listing was on the way", async () => {
+    const s = setup();
+    let answer: (items: Item[]) => void = () => undefined;
+    const slow = s.makeSource(s.listed, {
+      list: () => new Promise<Item[]>((resolve) => (answer = resolve))
+    });
+    s.register("pythia", slow);
+    const searching = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(s.sources.isSyncing()).toBe(true));
+    s.answers.pythia = "denied";
+    const refused = s.sources.consentChanged("pythia");
+    answer(s.listed);
+    await refused;
+    await searching;
+
+    expect(s.sources.registered()[0]).toMatchObject({ size: 0, listed: false });
+    expect(s.sources.titleOf(key("c1"))).toBeNull();
+  });
+
   it("leaves nothing behind when refused: no titles in memory, no file on disk", async () => {
     const s = setup();
     s.register();
@@ -414,6 +512,19 @@ describe("a source that stops or is refused", () => {
     await s.sources.consentChanged("pythia");
     expect(s.disk.has(FILE("pythia"))).toBe(false);
     expect(s.sources.registered()[0]).toMatchObject({ size: 0, listed: false });
+  });
+
+  it("leaves the files of a source whose id begins with its own when refused", async () => {
+    const s = setup();
+    s.answers["pythia-notes"] = "allowed";
+    s.register();
+    s.register("pythia-notes", s.makeSource(one("n1")));
+    await s.sources.search("küche", QUERY);
+    expect(s.disk.has(FILE("pythia-notes"))).toBe(true);
+    s.answers.pythia = "denied";
+    await s.sources.consentChanged("pythia");
+    expect(s.disk.has(FILE("pythia"))).toBe(false);
+    expect(s.disk.has(FILE("pythia-notes"))).toBe(true);
   });
 
   it("is refused a registration after the plugin unloaded", () => {
@@ -444,7 +555,7 @@ describe("on a phone", () => {
     s.state.background = false;
     s.listed[0]!.title = "Küche";
     s.register();
-    const found = await s.sources.find("küche", 5, 0.35);
+    const found = await s.sources.find("küche", 5, PHRASE_FLOOR);
     expect(found.map((r) => [r.key, r.title])).toEqual([[key("c1"), "Küche"]]);
     expect(s.provider.embedded).toEqual(["küche"]);
   });
@@ -527,9 +638,23 @@ describe("the Explorer's items", () => {
     s.register("pythia", s.makeSource(many));
     s.register("reader", s.makeSource([{ ...one("r1")[0]!, title: "Küche Leser" }]));
     (s.listed as unknown[]).length = 0;
-    const found = await s.sources.find("küche", 3, 0.35);
+    const found = await s.sources.find("küche", 3, PHRASE_FLOOR);
     expect(found.filter((r) => r.source === "pythia")).toHaveLength(3);
     expect(found.filter((r) => r.source === "reader")).toHaveLength(1);
+  });
+
+  it("hold a lone word's items to the relative cut, not to the bare floor", async () => {
+    const s = setup();
+    s.listed[0]!.title = "Eins";
+    s.listed[1]!.title = "Zwei";
+    s.register();
+    // Close to the kitchen, and just above the phrase floor for the garden.
+    s.state.vector = new Int8Array([118, 47, 0, 0]);
+    expect((await s.sources.find("küche", 5, PHRASE_FLOOR)).map((r) => r.key).sort()).toEqual([
+      key("c1"),
+      key("c2")
+    ]);
+    expect((await s.sources.find("küche", 5, WORD_FLOOR)).map((r) => r.key)).toEqual([key("c1")]);
   });
 });
 

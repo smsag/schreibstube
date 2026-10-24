@@ -3,6 +3,7 @@ import { createSemanticApi, type SemanticApiDeps } from "./semantic-api";
 import type { RelatedFound, SemanticEngine } from "./semantic-engine";
 import { NULL_LOGGER } from "../../services/logger";
 import {
+  MAX_KIND_POOL,
   MAX_QUERY_CHARS,
   itemKey,
   relevance,
@@ -78,6 +79,7 @@ function api(engine: SemanticEngine, over: Partial<SemanticApiDeps> = {}) {
     engine,
     logger: NULL_LOGGER,
     vaultHit,
+    indexedPathOf: (id) => (id === "Bilder/see.jpg" ? "Bildbeschreibungen/see.md" : id),
     isIcon: () => true,
     pluginPresent: () => true,
     ...over
@@ -106,6 +108,23 @@ describe("a search", () => {
     const hits = await api(engine).search("küche", { kinds: ["image"], limit: 10 });
     expect(hits.map((h) => h.id)).toEqual(["Bilder/see.jpg"]);
     expect(searchAll.mock.calls[0]?.[1]).toMatchObject({ items: 0 });
+  });
+
+  it("asks only the sources of the kinds wanted, so another kind cannot fill the limit", async () => {
+    const { engine, searchAll } = fakeEngine();
+    const hits = await api(engine).search("küche", { kinds: ["conversation"], limit: 10 });
+    const opts = searchAll.mock.calls[0]?.[1] as unknown as { sources: Set<string>; notes: number };
+    expect([...opts.sources]).toEqual(["pythia"]);
+    expect(opts.notes).toBe(0);
+    expect(hits.map((h) => h.id)).toEqual(["pythia:c1"]);
+  });
+
+  it("asks the vault for enough rows that pictures alone can fill the limit", async () => {
+    const { engine, searchAll } = fakeEngine();
+    await api(engine).search("küche", { kinds: ["image"], limit: 10 });
+    expect(searchAll.mock.calls[0]?.[1]).toMatchObject({ notes: MAX_KIND_POOL });
+    await api(engine).search("küche", { limit: 10 });
+    expect(searchAll.mock.calls[1]?.[1]).toMatchObject({ notes: 10 });
   });
 
   it("asks no source when an empty list of sources is given", async () => {
@@ -166,7 +185,7 @@ describe("what is related", () => {
     expect(engine.relatedToItem).toHaveBeenCalledWith(itemKey("pythia", "c1"), 5, {
       notes: false,
       items: true,
-      sources: null
+      sources: new Set(["reader"])
     });
     expect(hits.map((h) => h.id)).toEqual(["reader:h1"]);
   });
@@ -182,6 +201,16 @@ describe("what is related", () => {
     expect(scope.notes).toBe(false);
     expect(scope.items).toBe(true);
     expect([...scope.sources]).toEqual(["pythia"]);
+  });
+
+  it("finds what is like a picture, through the description note it is indexed by", async () => {
+    const { engine } = fakeEngine();
+    const hits = await api(engine).related({ path: "Bilder/see.jpg" });
+    expect((engine.relatedToNote as ReturnType<typeof vi.fn>).mock.calls[0]?.[0]).toBe(
+      "Bildbeschreibungen/see.md"
+    );
+    expect(hits.map((h) => h.id)).not.toContain("Bilder/see.jpg");
+    expect(hits.map((h) => h.id)).toContain("Notizen/küche.md");
   });
 
   it("answers nothing for a source that could not be a plugin", async () => {
@@ -239,6 +268,10 @@ describe("its state", () => {
       api(fakeEngine({ searchState: () => "none", waitsOnPerson: () => true }).engine).status()
     ).toBe("unavailable");
     expect(api(fakeEngine({ searchState: () => "partial" }).engine).status()).toBe("partial");
+    // A phone whose model is paused holds an index it can read, and searches nothing.
+    expect(
+      api(fakeEngine({ searchState: () => "ready", waitsOnPerson: () => true }).engine).status()
+    ).toBe("unavailable");
     expect(api(fakeEngine().engine).version).toBe(2);
   });
 

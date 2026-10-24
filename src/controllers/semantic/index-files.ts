@@ -2,6 +2,7 @@ import { normalizePath, type Plugin } from "obsidian";
 import type { IndexStore } from "../../services/semantic/index-store";
 import { vectorFamily, type EmbeddingModelId } from "../../services/semantic/embedding-models";
 import { conflictCopies } from "../../services/semantic/conflict-copies";
+import { isSourceFileName } from "../../services/semantic/source-files";
 
 /**
  * The semantic index as files in Schreibstube's plugin folder: one per model
@@ -157,16 +158,15 @@ export async function removeRetiredIndexFiles(plugin: Plugin): Promise<void> {
 
 /**
  * Remove every index file a source left, for every model: a source the
- * person refused, or one they forgot, keeps nothing on this device.
+ * person refused, or one they forgot, keeps nothing on this device. Only its
+ * own: `isSourceFileName` keeps a source whose id extends this one's out.
  */
 export async function removeSourceFiles(plugin: Plugin, sourceId: string): Promise<void> {
   const adapter = plugin.app.vault.adapter;
   const dir = pluginDir(plugin);
   if (!(await adapter.exists(dir))) return;
-  const prefix = `semantic-source-${sourceId}-`;
   for (const path of (await adapter.list(dir)).files) {
-    const name = baseName(path);
-    if (name.startsWith(prefix)) await adapter.remove(path);
+    if (isSourceFileName(baseName(path), sourceId)) await adapter.remove(path);
   }
 }
 

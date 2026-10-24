@@ -25,6 +25,12 @@ describe("matchConversationTitles", () => {
     expect(matchConversationTitles("hausverwaltung frist", chats).map((c) => c.id)).toEqual(["c"]);
   });
 
+  it("finds a short word only at the start of a word, as the filter reads names", () => {
+    expect(matchConversationTitles("er", chats)).toEqual([]);
+    expect(matchConversationTitles("vert", chats)).toEqual([]);
+    expect(matchConversationTitles("miet", chats).map((c) => c.id)).toEqual(["b"]);
+  });
+
   it("finds nothing for an empty query", () => {
     expect(matchConversationTitles("  ", chats)).toEqual([]);
   });

@@ -96,8 +96,10 @@ export interface SourceRegistration {
 /**
  * How much a search can answer. "loading": the index is being read or built,
  * or will be on the first search. "unavailable": it cannot answer until the
- * person acts — the build failed, automatic builds are paused, or a phone
- * waits for the desktop's index — so a caller stops waiting.
+ * person acts — the build failed, automatic builds are paused, a phone waits
+ * for the desktop's index, or a phone's model is paused after it ended
+ * Obsidian twice — so a caller stops waiting. `related()` reads stored
+ * vectors and still answers on a paused phone.
  */
 export type SearchStatus = "off" | "loading" | "unavailable" | "partial" | "ready";
 
@@ -160,6 +162,40 @@ export function readExclude(exclude: unknown): Set<string> {
 /** Whether a kind is asked for: every kind when none was named. */
 export function wants(kinds: Set<string> | null, kind: string): boolean {
   return kinds === null || kinds.has(kind);
+}
+
+/**
+ * How many of the vault's best a question for pictures alone, or for notes
+ * alone, is answered from. Both are rows of one index, and which kind a row
+ * is shows only once it is found: asked for `limit`, a search for pictures
+ * kept the few description notes among the best notes, often none.
+ */
+export const MAX_KIND_POOL = 500;
+
+/** How many of the vault's rows to ask for, so that `limit` of the wanted kinds can remain. */
+export function vaultPool(kinds: Set<string> | null, limit: number, excluded = 0): number {
+  const both = wants(kinds, "note") && wants(kinds, "image");
+  return (both ? limit : Math.max(limit, MAX_KIND_POOL)) + excluded;
+}
+
+/**
+ * The sources a question reaches: those named, or every allowed one, and of
+ * them only the ones whose kind is wanted. Asked of every source and filtered
+ * afterwards, the list was cut to `limit` before the unwanted kinds were set
+ * aside, and a question for conversations could come back empty. Null is
+ * every allowed source.
+ */
+export function reachedSources(
+  kinds: Set<string> | null,
+  named: Set<string> | null,
+  allowed: readonly { source: string; kind: string }[]
+): Set<string> | null {
+  if (kinds === null) return named;
+  return new Set(
+    allowed
+      .filter((entry) => kinds.has(entry.kind) && (named === null || named.has(entry.source)))
+      .map((entry) => entry.source)
+  );
 }
 
 /** A source id as given, or null when it is not one a plugin could have. */

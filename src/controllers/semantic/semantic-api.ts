@@ -13,7 +13,9 @@ import {
   readQuery,
   readSource,
   readSourceId,
+  reachedSources,
   relevance,
+  vaultPool,
   splitItemKey,
   wants,
   type Hit,
@@ -29,6 +31,9 @@ export interface SemanticApiDeps {
   /** What a vault path is as a hit: a picture for a description note, a note
    *  otherwise, or null for a path that is no longer a file. */
   vaultHit(path: string): { kind: "note" | "image"; id: string; title: string } | null;
+  /** The vault path a hit's id is indexed under: a picture's description
+   *  note, the path itself for anything else. */
+  indexedPathOf(id: string): string;
   /** Whether a name is in Schreibstube's icon set. */
   isIcon(name: string): boolean;
   /** Whether an installed plugin has this id: null when that cannot be told. */
@@ -83,11 +88,12 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
   /** Whether the vault can answer this question at all, and the sources that may. */
   const scope = (opts: { kinds?: unknown; sources?: unknown } | undefined) => {
     const kinds = readNames(opts?.kinds);
-    const sources = readNames(opts?.sources);
+    const allowed = engine.sources
+      .kinds()
+      .map(({ source, descriptor }) => ({ source, kind: descriptor.kind }));
+    const sources = reachedSources(kinds, readNames(opts?.sources), allowed);
     const vault = wants(kinds, "note") || wants(kinds, "image");
-    const items =
-      (sources === null || sources.size > 0) &&
-      (kinds === null || engine.sources.kinds().some((k) => kinds.has(k.descriptor.kind)));
+    const items = sources === null || sources.size > 0;
     return { kinds, sources, vault, items };
   };
 
@@ -116,9 +122,11 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
 
     status(): SearchStatus {
       if (!engine.enabled()) return "off";
+      // Asked first: an index a paused phone holds is queryable, and read
+      // first it said "ready" while every search answered nothing.
+      if (engine.waitsOnPerson()) return "unavailable";
       const state = engine.searchState();
-      if (state !== "none") return state;
-      return engine.waitsOnPerson() ? "unavailable" : "loading";
+      return state === "none" ? "loading" : state;
     },
 
     kinds() {
@@ -161,7 +169,7 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
       try {
         // One embed of the query for the vault and every source.
         const found = await engine.searchAll(query, {
-          notes: s.vault ? limit + exclude.size : 0,
+          notes: s.vault ? vaultPool(s.kinds, limit, exclude.size) : 0,
           items: s.items ? limit : 0,
           exclude: excludeKeys,
           sources: s.sources
@@ -180,8 +188,15 @@ export function createSemanticApi(deps: SemanticApiDeps): SchreibstubeSemanticAp
       const s = scope(opts);
       try {
         if ("path" in ref && typeof ref.path === "string") {
-          const found = await engine.relatedToNote(ref.path, limit, relatedScope(s));
-          return merged(found, s, limit, new Set([ref.path]));
+          // A picture is a hit by its own path, and indexed by its description
+          // note's: asked by the picture, related() found nothing for it.
+          const indexed = deps.indexedPathOf(ref.path);
+          const found = await engine.relatedToNote(
+            indexed,
+            vaultPool(s.kinds, limit),
+            relatedScope(s)
+          );
+          return merged(found, s, limit, new Set([ref.path, indexed]));
         }
         if ("source" in ref && "id" in ref && typeof ref.id === "string") {
           const source = readSourceId(ref.source);

@@ -3,6 +3,7 @@ import {
   MAX_CONTEXT_NOTES,
   MAX_CONVERSATION_CHARS,
   MAX_CONVERSATIONS,
+  MAX_LISTED_ENTRIES,
   MAX_MESSAGES,
   conversationChunks,
   normalizeChanges,
@@ -126,6 +127,25 @@ describe("normalizeConversations", () => {
 
   it("reads anything that is not a list as nothing", () => {
     expect(normalizeConversations({})).toEqual([]);
+  });
+
+  it("reads the texts of the newest only, and looks at a bounded part of a long list", () => {
+    const read = new Set<string>();
+    const entry = (i: number) => ({
+      id: `c${i}`,
+      updatedAt: i,
+      get messages() {
+        read.add(`c${i}`);
+        return ["text"];
+      }
+    });
+    const list = Array.from({ length: MAX_LISTED_ENTRIES * 2 }, (_, i) => entry(i));
+    const out = normalizeConversations(list);
+    expect(out).toHaveLength(MAX_CONVERSATIONS);
+    expect(read.size).toBe(MAX_CONVERSATIONS);
+    expect(out[0]?.id).toBe(`c${MAX_LISTED_ENTRIES - 1}`);
+    const changes = normalizeChanges({ changed: list, removed: [], cursor: "1" }, 100);
+    expect(changes?.changed).toHaveLength(MAX_CONVERSATIONS);
   });
 });
 

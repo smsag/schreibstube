@@ -31,8 +31,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
   mailed or published. Schreibstube reads only the settings this file names from them.
 - These do not reach a PDF: raw HTML (tags are dropped, words stay), embedded notes
   (`![[Another note]]`), and LaTeX math, which prints as its source in a code block.
-- Write the language the person writes. German UI names are given in
-  parentheses where the plugin shows them in German.
+- Write the language the person writes. German UI names are given in parentheses where the plugin shows them in German.
 
 ## 2. Frontmatter keys
 
@@ -59,6 +58,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubeReadingView`     | `.base` file   | `true` at the top: its notes open in Reading view              |
 | `type: schreibstube-passages` | `.base` view   | callouts and highlights; `calloutTypes`, `show`, `readingView` |
 | `published`                   | published note | `true` puts it on the website (see 9)                          |
+| `nimbusProject`               | project note   | Nimbus' tag: notes like it are listed; `type: summary` never   |
 
 Written by the plugin, never by you: `schreibstubeMessageId`, `schreibstubeSentAt`,
 `schreibstubeSendUnconfirmed`, `schreibstubeMergedIds` (mail); `schreibstubeImage`,

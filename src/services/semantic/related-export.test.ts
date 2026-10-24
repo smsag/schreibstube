@@ -10,10 +10,18 @@ import {
   nextRelatedRun,
   passageHeading,
   projectTag,
+  readDeviceId,
   readRelatedFile,
+  readWriterClaim,
   relatedFileAction,
+  serializeWriterClaim,
+  writerDecision,
+  RELATED_CLAIM_MS,
+  RELATED_RENEW_MS,
   sameRelatedContent,
   serializeRelatedFile,
+  MAX_CANDIDATE_READS,
+  MAX_CARRIER_READS,
   MAX_PASSAGE_UNITS,
   MAX_RELATED_PER_PROJECT,
   type ExportNote,
@@ -301,6 +309,50 @@ describe("buildRelatedFile", () => {
     expect([...scores].sort((a, b) => b - a)).toEqual(scores);
   });
 
+  it("tells every note that carries the tag apart, not only those the anchors were taken from", async () => {
+    const carriers = Array.from({ length: 150 }, (_, i) => ({
+      path: `Meeting ${String(i).padStart(3, "0")}.md`,
+      content: `#umzug KISTEN ${FILLER}`
+    }));
+    const others = Array.from({ length: 25 }, (_, i) => ({
+      path: `Notiz ${String(i).padStart(2, "0")}.md`,
+      content: `KISTEN ${FILLER}`
+    }));
+    const file = await buildRelatedFile(world([base[0]!, ...carriers, ...others]));
+    const related = file.projects[0]?.related.map((r) => r.path) ?? [];
+    expect(related).toHaveLength(MAX_RELATED_PER_PROJECT);
+    expect(related.every((path) => path.startsWith("Notiz"))).toBe(true);
+  });
+
+  it("reads each note once a run, across projects, and a bounded number of carriers", async () => {
+    const carriers = Array.from({ length: MAX_CARRIER_READS + 50 }, (_, i) => ({
+      path: `Meeting ${String(i).padStart(3, "0")}.md`,
+      content: `#umzug KISTEN ${FILLER}`
+    }));
+    const w = world([
+      base[0]!,
+      {
+        path: "Projekte/Kisten.md",
+        content: `KISTEN ${FILLER}`,
+        frontmatter: { nimbusProject: "kisten" }
+      },
+      ...carriers,
+      { path: "Notiz.md", content: `KISTEN ${FILLER}` }
+    ]);
+    const loads = new Map<string, number>();
+    await buildRelatedFile({
+      ...w,
+      load: async (path) => {
+        loads.set(path, (loads.get(path) ?? 0) + 1);
+        return w.load(path);
+      }
+    });
+    expect(Math.max(...loads.values())).toBe(1);
+    expect(
+      [...loads.keys()].filter((path) => path.startsWith("Meeting")).length
+    ).toBeLessThanOrEqual(MAX_CARRIER_READS + MAX_CANDIDATE_READS);
+  });
+
   it("writes an empty list when there are no projects", async () => {
     const file = await buildRelatedFile(world([{ path: "a.md", content: "a" }]));
     expect(file.projects).toEqual([]);
@@ -411,6 +463,48 @@ describe("relatedFileAction", () => {
     expect(relatedFileAction({ device: "desktop", switchedOn: false })).toBe("delete");
     expect(relatedFileAction({ device: "mobile", switchedOn: true })).toBe("none");
     expect(relatedFileAction({ device: "mobile", switchedOn: false })).toBe("none");
+  });
+});
+
+describe("which desktop writes the list", () => {
+  const me = "desktop-this-0001";
+  const other = "desktop-other-0002";
+  const now = Date.UTC(2026, 9, 24);
+
+  it("is the one that claims it first, and renews its claim once a day", () => {
+    expect(writerDecision(null, me, now)).toEqual({ handles: true, claims: true });
+    expect(writerDecision({ device: me, at: now - 1000 }, me, now)).toEqual({
+      handles: true,
+      claims: false
+    });
+    expect(writerDecision({ device: me, at: now - RELATED_RENEW_MS }, me, now)).toEqual({
+      handles: true,
+      claims: true
+    });
+  });
+
+  it("is never a second one while the claim stands, and is once it is old or dated far off", () => {
+    expect(writerDecision({ device: other, at: now - 1000 }, me, now).handles).toBe(false);
+    expect(writerDecision({ device: other, at: now - RELATED_CLAIM_MS }, me, now)).toEqual({
+      handles: true,
+      claims: true
+    });
+    expect(writerDecision({ device: other, at: now + RELATED_CLAIM_MS }, me, now).handles).toBe(
+      true
+    );
+  });
+
+  it("reads a claim as written, and anything else as none", () => {
+    const text = serializeWriterClaim({ device: me, at: now });
+    expect(readWriterClaim(text)).toEqual({ device: me, at: now });
+    for (const bad of [null, "", "{", "[]", '{"device":"X Y","at":"2026-10-24T00:00:00Z"}']) {
+      expect(readWriterClaim(bad)).toBeNull();
+    }
+    expect(readWriterClaim(`{"device":"${me}","at":"soon"}`)).toBeNull();
+    expect(readWriterClaim("x".repeat(2000))).toBeNull();
+    expect(readDeviceId(me)).toBe(me);
+    expect(readDeviceId("short")).toBeNull();
+    expect(readDeviceId(7)).toBeNull();
   });
 });
 

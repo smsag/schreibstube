@@ -71,6 +71,8 @@ export interface ItemCard {
   icon?: string;
   /** Whether the item has a link its source will give. */
   linkable: boolean;
+  /** Whether pressing it does anything: its source opens it, or links to it. */
+  openable: boolean;
   reasons: RecommendReason[];
 }
 
@@ -147,6 +149,12 @@ export class RecommendedPanel {
   private latest: Recommendation | null = null;
   /** Which request is the latest, so an older answer cannot land on a newer note. */
   private asked = 0;
+  /**
+   * A change that came too soon after the last ask, waiting for the time to
+   * be up. Without it a link written a few seconds after the note opened
+   * stood unseen until some later change happened to ask again.
+   */
+  private later: { path: string; place: string; timer: number } | null = null;
   /** Under the note only: folded away by a press on its heading. Not kept:
    *  the next note opens with the list shown. */
   private collapsed = false;
@@ -175,21 +183,27 @@ export class RecommendedPanel {
 
   /** Show what belongs with `path`, or the empty state for no note. */
   show(path: string | null): void {
+    this.showFor(path, false);
+  }
+
+  /** Something in the vault changed: ask again for the note shown. */
+  refresh(): void {
+    this.showFor(this.source, true);
+  }
+
+  /** `changed`: a vault change, asked about later when it came too soon. */
+  private showFor(path: string | null, changed: boolean): void {
     if (path !== this.source) {
       this.answers.clear();
       this.asks.clear();
       this.latest = null;
       this.collapsed = false;
+      this.cancelLater();
     }
     this.source = path;
     this.place = path === null ? "" : (this.host.placeKey?.(path, this.opts.place) ?? "");
     this.draw();
-    if (path !== null) this.ask(path);
-  }
-
-  /** Something in the vault changed: ask again for the note shown. */
-  refresh(): void {
-    this.show(this.source);
+    if (path !== null) this.ask(path, changed);
   }
 
   /**
@@ -203,16 +217,20 @@ export class RecommendedPanel {
     if (place === this.place) return;
     this.place = place;
     this.draw();
-    this.ask(path);
+    this.ask(path, false);
   }
 
-  private ask(path: string): void {
+  private ask(path: string, changed: boolean): void {
     const recommend = this.host.recommend;
     if (!recommend) return;
     const place = this.place;
     const now = Date.now();
     const asked = this.asks.get(place);
-    if (asked !== undefined && now - asked < REASK_MS) return;
+    if (asked !== undefined && now - asked < REASK_MS) {
+      if (changed) this.askLater(path, place, asked + REASK_MS - now);
+      return;
+    }
+    if (this.later?.place === place) this.cancelLater();
     this.asks.set(place, now);
     const token = ++this.asked;
     recommend(path, this.opts.place)
@@ -229,6 +247,27 @@ export class RecommendedPanel {
         this.host.warn?.("recommended: the answer for the open note failed", e);
         if (this.source === path) this.asks.delete(place);
       });
+  }
+
+  /** Ask once the time between asks is up, unless an ask already waits for it. */
+  private askLater(path: string, place: string, delay: number): void {
+    if (this.later?.path === path && this.later.place === place) return;
+    this.cancelLater();
+    const win = this.root.ownerDocument.defaultView ?? window;
+    const timer = win.setTimeout(() => {
+      this.later = null;
+      // A panel taken off the page, or moved on to another note or place,
+      // asks nothing: it has no dispose of its own to cancel this.
+      if (!this.root.isConnected || this.source !== path || this.place !== place) return;
+      this.ask(path, true);
+    }, delay);
+    this.later = { path, place, timer };
+  }
+
+  private cancelLater(): void {
+    if (!this.later) return;
+    (this.root.ownerDocument.defaultView ?? window).clearTimeout(this.later.timer);
+    this.later = null;
   }
 
   /** A place's answer, kept for the note shown; the oldest goes past the limit. */
@@ -407,11 +446,16 @@ export class RecommendedPanel {
       key: string;
       /** Which floors its likeness is read against. */
       floors: "file" | "item";
+      /** Whether a press opens it; a row that cannot is no link. */
+      pressable?: boolean;
     }
   ): HTMLElement {
     const el = list.createEl("li").createDiv({
       cls: row.kind ? `schreibstube-related-card ${row.kind}` : "schreibstube-related-card",
-      attr: { role: "link", tabindex: "0", "data-key": row.key }
+      attr:
+        row.pressable === false
+          ? { "data-key": row.key }
+          : { role: "link", tabindex: "0", "data-key": row.key }
     });
     if (row.path !== undefined) el.setAttribute("title", row.path);
     // The line under the title says the same in words, for a screen reader too.
@@ -580,10 +624,13 @@ export class RecommendedPanel {
       glyph: item.icon ?? ITEM_FALLBACK_ICON,
       kind: "is-item",
       key: item.key,
-      floors: "item"
+      floors: "item",
+      pressable: item.openable
     });
     this.actions(el, item.linkable ? { kind: "item", key: item.key } : null);
-    this.pressable(el, () => this.host.openItem(item.key));
+    // A source with neither open() nor link() gives a press nowhere to go:
+    // drawn as a link, its row was one that did nothing (ItemSource.open).
+    if (item.openable) this.pressable(el, () => this.host.openItem(item.key));
   }
 }
 

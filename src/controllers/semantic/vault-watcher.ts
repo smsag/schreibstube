@@ -195,7 +195,10 @@ export function registerVaultWatcher(
     vault.on("rename", (f, oldPath) => {
       batch.markDeleted(oldPath);
       if (f instanceof TFile) markChanged(f);
-      else flush();
+      // The old path is gone whatever the file became: a note renamed to
+      // `.txt` is no note, and with no flush armed its row answered searches
+      // until some other change in the vault happened to flush.
+      flush();
     })
   );
 

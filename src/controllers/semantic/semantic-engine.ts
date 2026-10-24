@@ -45,7 +45,11 @@ import {
   type FocusPoint
 } from "../../services/semantic/passage-focus";
 import { catchUpIndex, CATCH_UP_DELAY_MS } from "../../services/semantic/vault-catch-up";
-import { applyMeaningFloor, meaningFloor } from "../../services/semantic/search-fusion";
+import {
+  applyMeaningFloor,
+  applyMeaningFloorAcross,
+  meaningFloor
+} from "../../services/semantic/search-fusion";
 import type { IndexKeeper } from "../../services/semantic/embedding-index";
 import { pluginRunsOwnModel } from "../../services/workspace-internals";
 import { modelPluginInTheWay } from "../../services/semantic/model-plugins";
@@ -56,7 +60,7 @@ import { SearchRuntimeLoader } from "./host/search-runtime-loader";
 import { SemanticSources, type ScoredKey } from "./semantic-sources";
 import { SemanticIndexFiles, removeRetiredIndexFiles } from "./index-files";
 import { registerVaultWatcher } from "./vault-watcher";
-import { RelatedExportWriter, type RelatedSnapshot } from "./related-export";
+import { localDeviceId, RelatedExportWriter, type RelatedSnapshot } from "./related-export";
 
 /** Milliseconds for timing a search: steps with no clock change. */
 function now(): number {
@@ -227,7 +231,9 @@ export class SemanticEngine {
         device: Platform.isMobile ? "mobile" : "desktop",
         switchedOn: () => this.getSettings().semanticSearchEnabled,
         snapshot: () => this.relatedSnapshot(),
-        onContentChange: (listener) => this.onContentChange(listener)
+        onContentChange: (listener) => this.onContentChange(listener),
+        vaultRevision: () => this.service?.revision() ?? 0,
+        deviceId: () => localDeviceId(this.plugin.app)
       },
       this.logger
     );
@@ -881,19 +887,21 @@ export class SemanticEngine {
     // One floor for both: the same comparison, a query against chunks, and
     // the one the query's own length decides — a lone word scores lower
     // against everything, and read against a phrase's floor an item lost to
-    // a note that cleared the same word's lower one.
-    const floor = meaningFloor(text).minScore;
-    const notes = opts.notes > 0 ? await this.search(text, opts.notes) : [];
-    const items =
+    // a note that cleared the same word's lower one. A lone word's relative
+    // cut is read across both lists, so items are held to it too.
+    const floor = meaningFloor(text);
+    const found = opts.notes > 0 ? await this.search(text, opts.notes) : [];
+    const listed =
       opts.items > 0
         ? await this.sources.search(text, {
-            minScore: floor,
+            minScore: floor.minScore,
             limit: opts.items,
             exclude: opts.exclude,
             only: opts.sources
           })
         : [];
-    return { notes, notesFloor: floor, items, itemsFloor: floor };
+    const [notes, items] = applyMeaningFloorAcross(found, listed, floor);
+    return { notes, notesFloor: floor.minScore, items, itemsFloor: floor.minScore };
   }
 
   /** Items for the Explorer's search, up to `perSource` from each source. */
@@ -901,7 +909,7 @@ export class SemanticEngine {
     text: string,
     perSource: number
   ): Promise<{ key: string; title: string; source: string }[]> {
-    return this.sources.find(text, perSource, meaningFloor(text).minScore);
+    return this.sources.find(text, perSource, meaningFloor(text));
   }
 
   /** The measured floors a relation is read against: note to note, and

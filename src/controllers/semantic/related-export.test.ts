@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TFile, type Plugin } from "obsidian";
 import {
+  localDeviceId,
   RelatedExportWriter,
   type RelatedExportHost,
   type RelatedSnapshot
@@ -10,10 +11,18 @@ import {
 import { quantize } from "../../services/semantic/vector-math";
 import { passageHashes } from "../../services/semantic/embedding-index";
 import { vaultNoteChunks } from "../../services/semantic/vault-retrieval";
-import { readRelatedFile } from "../../services/semantic/related-export";
+import {
+  RELATED_CLAIM_MS,
+  readRelatedFile,
+  readWriterClaim,
+  serializeWriterClaim
+} from "../../services/semantic/related-export";
 import { NULL_LOGGER } from "../../services/logger";
 
 const PATH = ".obsidian/plugins/schreibstube/nimbus-related.json";
+const CLAIM = ".obsidian/plugins/schreibstube/nimbus-related.writer.json";
+const ME = "desktop-this-0001";
+const OTHER = "desktop-other-0002";
 const FILLER = "mit genug Worten darin damit es Substanz hat und nicht nur Rauschen ist";
 
 function vectorFor(text: string): Int8Array {
@@ -26,7 +35,9 @@ function world(device: "desktop" | "mobile" = "desktop") {
     ["Kisten.md", { content: `KISTEN zählen ${FILLER}`, frontmatter: {} }]
   ]);
   const disk = new Map<string, string>();
+  /** Writes of the list itself; the claim's are counted apart. */
   const writes: string[] = [];
+  const claims: string[] = [];
   const handlers: ((file: TFile, data: string, cache: { frontmatter?: unknown }) => void)[] = [];
   const layout: (() => void)[] = [];
   const file = (path: string): TFile => {
@@ -45,7 +56,7 @@ function world(device: "desktop" | "mobile" = "desktop") {
         stat: async (p: string) => (disk.has(p) ? { size: disk.get(p)!.length, mtime: 1 } : null),
         read: async (p: string) => disk.get(p) ?? "",
         write: async (p: string, text: string) => {
-          writes.push(p);
+          (p === CLAIM ? claims : writes).push(p);
           disk.set(p, text);
         },
         remove: async (p: string) => void disk.delete(p),
@@ -72,7 +83,7 @@ function world(device: "desktop" | "mobile" = "desktop") {
       return { id, chunks: chunks.map(vectorFor), passages: passageHashes(chunks) };
     });
   const content = new Set<() => void>();
-  const state = { on: true, ready: true };
+  const state = { on: true, ready: true, revision: 0, device: ME };
   const host: RelatedExportHost = {
     device,
     switchedOn: () => state.on,
@@ -80,7 +91,9 @@ function world(device: "desktop" | "mobile" = "desktop") {
     onContentChange: (listener) => {
       content.add(listener);
       return () => content.delete(listener);
-    }
+    },
+    vaultRevision: () => state.revision,
+    deviceId: () => state.device
   };
   let clock = 0;
   const writer = new RelatedExportWriter(plugin, host, NULL_LOGGER, {
@@ -94,9 +107,17 @@ function world(device: "desktop" | "mobile" = "desktop") {
     notes,
     disk,
     writes,
+    claims,
     state,
+    now: () => clock,
     layoutReady: () => layout.forEach((cb) => cb()),
-    contentChanged: () => content.forEach((cb) => cb()),
+    /** A row of the vault index moved. */
+    contentChanged: () => {
+      state.revision++;
+      content.forEach((cb) => cb());
+    },
+    /** A source synced: the content event moves, the vault index does not. */
+    sourceChanged: () => content.forEach((cb) => cb()),
     metadataChanged: (path: string, frontmatter: unknown) =>
       handlers.forEach((h) => h(file(path), "", { frontmatter })),
     advance: async (ms: number) => {
@@ -229,6 +250,76 @@ describe("RelatedExportWriter", () => {
     await w.advance(20_000);
     expect(w.writes).toEqual([]);
     expect(w.listeners()).toBe(0);
+  });
+
+  it("builds nothing when only a source synced, since the list is not made from it", async () => {
+    const w = world();
+    w.writer.start();
+    w.contentChanged();
+    await w.advance(1_100);
+    expect(w.writes).toHaveLength(1);
+    w.notes.set("Mehr.md", { content: `KISTEN mehr ${FILLER}`, frontmatter: {} });
+    w.sourceChanged();
+    await w.advance(20_000);
+    expect(w.writes).toHaveLength(1);
+    w.contentChanged();
+    await w.advance(20_000);
+    expect(w.writes).toHaveLength(2);
+  });
+
+  it("claims the list for this desktop when nobody holds it", async () => {
+    const w = world();
+    w.writer.start();
+    await w.writer.run();
+    expect(w.writes).toEqual([PATH]);
+    expect(readWriterClaim(w.disk.get(CLAIM) ?? null)?.device).toBe(ME);
+  });
+
+  it("leaves the list to the desktop that holds it, and takes it once that claim is old", async () => {
+    const w = world();
+    w.disk.set(CLAIM, serializeWriterClaim({ device: OTHER, at: w.now() }));
+    w.writer.start();
+    await w.writer.run();
+    expect(w.writes).toEqual([]);
+    expect(w.claims).toEqual([]);
+
+    w.disk.set(CLAIM, serializeWriterClaim({ device: OTHER, at: w.now() - RELATED_CLAIM_MS }));
+    await w.advance(20_000);
+    await w.writer.run();
+    expect(w.writes).toEqual([PATH]);
+    expect(readWriterClaim(w.disk.get(CLAIM) ?? null)?.device).toBe(ME);
+  });
+
+  it("deletes the list when switched off only where it holds it, and lets the claim go", async () => {
+    const theirs = world();
+    theirs.disk.set(PATH, "{}");
+    theirs.disk.set(CLAIM, serializeWriterClaim({ device: OTHER, at: theirs.now() }));
+    theirs.state.on = false;
+    theirs.writer.start();
+    theirs.writer.settingsChanged();
+    await theirs.advance(0);
+    expect(theirs.disk.get(PATH)).toBe("{}");
+
+    const mine = world();
+    mine.writer.start();
+    await mine.writer.run();
+    mine.state.on = false;
+    mine.writer.settingsChanged();
+    await mine.advance(0);
+    expect(mine.disk.has(PATH)).toBe(false);
+    expect(mine.disk.has(CLAIM)).toBe(false);
+  });
+
+  it("keeps one id for this device, in its own storage, and the same one without it", () => {
+    const stored = new Map<string, unknown>();
+    const app = {
+      loadLocalStorage: (key: string) => stored.get(key) ?? null,
+      saveLocalStorage: (key: string, value: unknown) => void stored.set(key, value)
+    };
+    const id = localDeviceId(app);
+    expect(id).toMatch(/^[a-z0-9-]{8,64}$/);
+    expect(localDeviceId(app)).toBe(id);
+    expect(localDeviceId({})).toBe(localDeviceId({}));
   });
 
   it("writes over a file a reader would refuse", async () => {

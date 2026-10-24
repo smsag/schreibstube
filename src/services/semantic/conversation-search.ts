@@ -7,7 +7,7 @@
  * because an item called what was typed is the one being looked for.
  */
 
-import { queryTokens, tokenize } from "../file-search";
+import { matchStrength, queryTokens, tokenize } from "../file-search";
 
 export interface ConversationResult {
   id: string;
@@ -22,8 +22,10 @@ export const ITEM_RESULTS_PER_SOURCE = 10;
 /**
  * Conversations whose title holds every word typed.
  *
- * Inside a word as well as at its start, as the filter reads names: *Vertrag*
- * finds a chat called *Mietvertrag prüfen*.
+ * Read by the filter's own rule for names (`matchStrength`): at a word's start,
+ * and inside one once enough is typed, so *Vertrag* finds a chat called
+ * *Mietvertrag prüfen*. Matched inside every word from the first letter, "er"
+ * found every title with those two letters in it.
  */
 export function matchConversationTitles(
   query: string,
@@ -34,7 +36,7 @@ export function matchConversationTitles(
 
   return conversations.filter((conversation) => {
     const words = tokenize(conversation.title);
-    return wanted.every((token) => words.some((word) => word.includes(token)));
+    return wanted.every((token) => matchStrength(words, token) > 0);
   });
 }
 

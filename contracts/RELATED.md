@@ -80,15 +80,22 @@ their frontmatter (reports, also Nimbus' own) are no candidates.
 
 No recency or folder filter is applied here: the reader decides what it shows.
 
+The writer bounds its work, and a list can come out shorter for it: at most 250 projects per file (the first by tag),
+at most 400 notes read per project to tell which carry its tag (past that, a note Obsidian lists with the tag is
+treated as carrying it), and at most 120 candidates read per project to fill its 20. Trimmed to the 2 MB limit, the
+last entries of the longest lists go first.
+
 ## 5. When it is written
 
-- Only by the device that keeps the index (desktop by default): a phone never writes the file, so two devices
-  never write it at once.
+- Only by the device that keeps the index (desktop by default): a phone never writes the file. Of two desktops on
+  one vault, one: the first to write names itself in `nimbus-related.writer.json` beside the file, and another
+  desktop takes over only once that claim is three days old. So two devices never write it at once. The reader
+  ignores the claim file.
 - After the index has changed (built, a note re-embedded or removed) and when a project note changed, at most once
   every five minutes, and only when the content (everything but `writtenAt`) differs from the file on disk.
 - No projects: the file is written with an empty `projects` list, so a reader can tell "no projects" from "never
   written".
-- When the search is switched off, the file is deleted.
+- When the search is switched off, the file is deleted, by the desktop that writes it.
 
 ## 6. What the reader does (Nimbus)
 

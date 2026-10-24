@@ -398,6 +398,7 @@ export default class SchreibstubePlugin extends Plugin {
       engine: this.semantic,
       logger: this.logger,
       vaultHit: (path) => this.vaultHit(path),
+      indexedPathOf: (id) => this.explorer?.descriptionNoteOf(id) ?? id,
       isIcon: (name) => iconGlyph(name) !== undefined,
       pluginPresent: (id) => communityPluginInstalled(this.app, id)
     });
@@ -1197,6 +1198,7 @@ export default class SchreibstubePlugin extends Plugin {
             label: source.label,
             ...(source.icon ? { icon: source.icon } : {}),
             linkable: engine.sources.link(entry.path) !== null,
+            openable: engine.sources.opens(entry.path),
             reasons: entry.reasons
           }
         });
@@ -1367,7 +1369,14 @@ export default class SchreibstubePlugin extends Plugin {
           return (await engine.findItems(text, limit)).flatMap((hit) => {
             const source = engine.sources.descriptorOf(hit.source);
             return source
-              ? [{ ...hit, plural: source.plural, ...(source.icon ? { icon: source.icon } : {}) }]
+              ? [
+                  {
+                    ...hit,
+                    plural: source.plural,
+                    openable: engine.sources.opens(hit.key),
+                    ...(source.icon ? { icon: source.icon } : {})
+                  }
+                ]
               : [];
           });
         },

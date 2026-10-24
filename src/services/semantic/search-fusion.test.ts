@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyMeaningFloor,
+  applyMeaningFloorAcross,
   fuseRankings,
   meaningFloor,
   meaningQuery,
@@ -115,5 +116,23 @@ describe("meaning for one word", () => {
     expect(applyMeaningFloor(hits, WORD_FLOOR).map((h) => h.id)).toEqual(["a", "b"]);
     expect(applyMeaningFloor(hits, PHRASE_FLOOR)).toEqual([]);
     expect(applyMeaningFloor([], WORD_FLOOR)).toEqual([]);
+  });
+
+  it("reads a lone word's relative cut across two lists, against the best of either", () => {
+    const notes = [{ id: "n", score: 0.6 }];
+    const items = [
+      { key: "i1", score: 0.58 },
+      { key: "i2", score: 0.3 }
+    ];
+    const [keptNotes, keptItems] = applyMeaningFloorAcross(notes, items, WORD_FLOOR);
+    expect(keptNotes.map((h) => h.id)).toEqual(["n"]);
+    expect(keptItems.map((h) => h.key)).toEqual(["i1"]);
+
+    const [, beside] = applyMeaningFloorAcross([], items, WORD_FLOOR);
+    expect(beside.map((h) => h.key)).toEqual(["i1"]);
+    const [, phrase] = applyMeaningFloorAcross(notes, items, PHRASE_FLOOR);
+    expect(phrase.map((h) => h.key)).toEqual(["i1"]);
+    const [byItem] = applyMeaningFloorAcross(notes, [{ key: "top", score: 0.9 }], WORD_FLOOR);
+    expect(byItem).toEqual([]);
   });
 });

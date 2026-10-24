@@ -16,7 +16,9 @@ Mobile checklist: not run. What to try first: publish a folder with a
 `schreibstubeHome: marketing` note and a footer note from a phone, and open
 the start page, a note and a tag page; the footer should be under each, with
 working links. Then type `Deutsch` into **Sprache der Seiten** and leave the
-field; it should be refused with a notice.
+field; it should be refused with a notice. And type a phrase into the
+Explorer search on a phone with the desktop's index synced: rows found by
+meaning should appear under the word matches within a second.
 
 The bridge moves from 3.4.0 to 3.5.0 and the protocol from 9 to 10. A site
 that uses a start page, a footer or a language is not published through an
@@ -30,6 +32,18 @@ older bridge; the notice says to redeploy it. The render version moves to
 - **The language of the pages.** **Sprache der Seiten** in each account takes a language tag such as `en` or `en-GB`; empty is German, as before. A note says otherwise with `schreibstubePageLanguage`, which the frontmatter fields can map to `lang` where notes already say it. The page's language goes into its `<html lang>`, and the words the site writes itself — the tag links' label, the empty list, a slideshow's labels and controls, a note index's summary — and the dates follow it: German and `12.09.2026` on a German page, English and `2026-09-12` on any other. The field is saved when you leave it; a word that is no language tag is refused with a notice.
 - **Videos that play by themselves.** `![[clip.mp4|loop]]` plays a video silently over and over, `![[clip.mp4|autoplay]]` once, `![[clip.mp4|muted]]` silently on a click; the words combine with `|`, a size may follow, and `![loop](clip.mp4)` works too. Only these words count, and only alone: a caption that happens to hold one of them stays a caption. The controls always stay.
 - **Two property sets for a website.** **Website start page** adds what a front page needs, marked as a marketing start page; **Website footer** adds the footer's two keys.
+
+### Fixed
+
+- **Typing into the Explorer search finds by meaning again.** The search by meaning and the other plugins' items waited a moment longer than the words did, and the words' turn cancelled them, so nothing typed was ever asked by meaning — only a search typed before the index was ready, and asked again once it was. Enter and the arrow into the list no longer cancel them either.
+- **Recommended catches up with a link written just after the note opened.** A change within fifteen seconds of the last answer was not asked about, and with nothing else changing the list stayed without the new link; it is now asked about once the fifteen seconds are up.
+- **Recommended ranks a linked note above notes that only share a tag or a folder.** A rare tag could outweigh a link written by hand, and a small folder outweighed most shared links. Shared tags now add less than a link, and the folder only orders notes that are otherwise alike, as the README always said.
+- **An item that cannot be opened is no longer drawn as a link.** A source that gives neither a way to open its items nor a link to them shows them as text in Recommended and the Explorer, rather than as rows a press did nothing on.
+- **A note renamed to another kind of file leaves search by meaning.** Renaming `Notiz.md` to `Notiz.txt` kept the note in search, in Recommended and in the Nimbus list until something else in the vault changed.
+- **A source's items for a one-word search are held to the same cut as the notes.** They came back at the bare floor, which let in items barely related to the word; and a short word typed into the Explorer no longer matches every item title with those letters inside it.
+- **Refusing a source takes all of it back.** A listing still on its way when the source was refused put its titles back into memory; it is now dropped. Refusing or forgetting a source no longer deletes the index of another source whose name begins with the same word, such as `reader` and `reader-sync`. An item whose embed failed is tried again at the next sync, up to three times, instead of being left out for the rest of the session.
+- **Other plugins asking for one kind get that kind.** A search or related call for conversations alone could come back empty when another source's items filled the list first, and one for pictures alone kept only the few among the best notes. `status()` says `unavailable` on a phone whose model is paused, where it said `ready` and every search answered nothing; and `related()` finds what is like a picture, asked by the picture's own path.
+- **The Nimbus list is made from the project's notes, by one desktop.** Notes that carry a project's tag beyond the first few dozen were taken for candidates and used up the reads, so a busy project's list came out nearly empty. A source's sync no longer rebuilds the list, and with the vault open on two desktops only one of them writes it — or deletes it when switched off — named in `nimbus-related.writer.json`. A note edited while the list was being made can no longer have one passage's score written beside another's text.
 
 ## 1.88.2 - 2026-10-21
 
