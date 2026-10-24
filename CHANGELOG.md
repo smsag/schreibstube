@@ -61,6 +61,9 @@ older bridge; the notice says to redeploy it. The render version moves to
 - **Settings act on what they show.** After correcting a publish target's name, Test connection and Copy setup used the old one; and closing the settings or a pop-out window no longer keeps it in memory until Obsidian quits.
 - **Counts read right in both languages.** "1 suggestions", "1 amounts", "(1 entries)" and "section(s)" are proper singulars and plurals now, in English and German.
 
+- **Mail times are your local time.** The mail search and a merged reply's heading showed when a message was sent in UTC without saying so, two hours off in a German summer; they now show the time on your clock.
+- **A damaged record on the host stops a publish instead of being forgotten.** When the bridge's `manifest.json` or `shares.json` did not read, the bridge started over as if it had published nothing, and the pages and links it had written stayed on the host for good. It now refuses with `state_unreadable`, naming the file and what is wrong, and changes nothing.
+
 ## 1.88.2 - 2026-10-21
 
 An icon that is a link's words follows its link in Live Preview. Clicking
