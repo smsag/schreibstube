@@ -78,6 +78,10 @@ describe("extractError", () => {
   it("truncates a body that is not worth showing in full", () => {
     expect(extractError("x".repeat(500))).toHaveLength(200);
   });
+
+  it("truncates the bridge's own message as well, which a proxy can forge", () => {
+    expect(extractError(JSON.stringify({ error: "x".repeat(5000) }))).toHaveLength(200);
+  });
 });
 
 describe("extractCode", () => {

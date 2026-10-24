@@ -121,9 +121,21 @@ const ANTHROPIC: ProviderAdapter = {
       }
     ]
   }),
-  parse: (json) =>
-    (json as { content?: { text?: string }[] } | null | undefined)?.content?.[0]?.text ?? ""
+  // The first block that holds text, not the first block: one that reasons or
+  // calls a tool may come before it.
+  parse: (json) => {
+    const blocks = (json as { content?: unknown } | null | undefined)?.content;
+    const texts = Array.isArray(blocks)
+      ? (blocks as ({ text?: unknown } | null)[]).map((block) => textOf(block?.text))
+      : [];
+    return texts.find(Boolean) ?? "";
+  }
 };
+
+/** The answer's text, or nothing: a gateway in front of the provider may say anything. */
+function textOf(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
 
 const OPENAI: ProviderAdapter = {
   label: "OpenAI",
@@ -162,8 +174,10 @@ const OPENAI: ProviderAdapter = {
     ]
   }),
   parse: (json) =>
-    (json as { choices?: { message?: { content?: string } }[] } | null | undefined)?.choices?.[0]
-      ?.message?.content ?? ""
+    textOf(
+      (json as { choices?: { message?: { content?: unknown } }[] } | null | undefined)?.choices?.[0]
+        ?.message?.content
+    )
 };
 
 /** The single source of truth for provider integration. Add or remove a
@@ -408,20 +422,21 @@ export function describeApiError(providerName: string, status: number, body: str
   return `${providerName} API error ${status}${detail ? `: ${detail}` : ""}`;
 }
 
+/**
+ * The provider's own words for a failure, bounded like the raw body they
+ * stand in for: they end up in a notice, and a proxy or a gateway in front of
+ * the provider decides their length and their type.
+ */
 function extractApiMessage(body: string): string {
-  if (!body) {
-    return "";
-  }
+  let parsed: { error?: unknown; message?: unknown } | null;
   try {
-    const parsed = JSON.parse(body) as {
-      error?: string | { message?: string };
-      message?: string;
-    };
-    if (typeof parsed.error === "string") {
-      return parsed.error;
-    }
-    return parsed.error?.message ?? parsed.message ?? "";
+    parsed = JSON.parse(body) as typeof parsed;
   } catch {
     return body.slice(0, 200);
   }
+  const error = parsed?.error;
+  const message = [error, (error as { message?: unknown } | null)?.message, parsed?.message].find(
+    (value) => typeof value === "string"
+  );
+  return typeof message === "string" ? message.slice(0, 200) : "";
 }
