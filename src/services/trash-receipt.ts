@@ -32,7 +32,10 @@ export function arrivedReceipt(
   before: readonly string[],
   after: readonly string[]
 ): string | null {
-  const arrived = after.filter((entry) => !before.includes(entry));
+  // A set, since a trash nobody empties holds thousands, and every entry after
+  // was looked for along the whole listing before.
+  const held = new Set(before);
+  const arrived = after.filter((entry) => !held.has(entry));
   return arrived.find((entry) => basenameOf(entry) === name) ?? arrived[0] ?? null;
 }
 
