@@ -1,4 +1,4 @@
-import { Keymap, MarkdownView, type App, type WorkspaceLeaf } from "obsidian";
+import { Keymap, MarkdownView, type App, type TFile, type WorkspaceLeaf } from "obsidian";
 
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
@@ -36,12 +36,14 @@ export class LinkModeController {
     this.unpatch = installOpenLinkTextPatch(
       this.app.workspace,
       (original) => async (linkText, sourcePath, newLeaf, openViewState) => {
-        if (this.mode === "default") {
+        // A tab or a window asked for by a modifier is the person's choice
+        // over the mode; a heading in the same note, or a note that does not
+        // exist yet, is Obsidian's to scroll to or create. Taken over, the
+        // first opened beside the note anyway and the others did nothing.
+        const sourceLeaf =
+          this.mode === "default" || newLeaf ? null : this.findSourceLeafByPath(sourcePath);
+        if (!sourceLeaf || !(await this.openInSidePane(linkText, sourceLeaf))) {
           return original(linkText, sourcePath, newLeaf, openViewState);
-        }
-        const sourceLeaf = this.findSourceLeafByPath(sourcePath);
-        if (sourceLeaf) {
-          await this.openInSidePane(linkText, sourceLeaf);
         }
       },
       this.logger
@@ -87,15 +89,13 @@ export class LinkModeController {
       return;
     }
 
-    event.preventDefault();
-
-    event.stopPropagation();
-
     const sourceLeaf = this.findLeafContainingNode(target);
-    if (!sourceLeaf) {
+    if (!sourceLeaf || !this.resolve(href, sourceLeaf)) {
       return;
     }
 
+    event.preventDefault();
+    event.stopPropagation();
     await this.openInSidePane(href, sourceLeaf);
   }
 
@@ -118,20 +118,26 @@ export class LinkModeController {
     return found;
   }
 
-  private async openInSidePane(linkText: string, sourceLeaf: WorkspaceLeaf): Promise<void> {
+  /** The note a link names and the part of it, or null when the link stays
+   *  in its own note or names nothing the vault holds. */
+  private resolve(
+    linkText: string,
+    sourceLeaf: WorkspaceLeaf
+  ): { file: TFile; subpath: string } | null {
     const sourcePath =
       sourceLeaf.view instanceof MarkdownView ? (sourceLeaf.view.file?.path ?? "") : "";
+    const [, linkPath = "", subpath = ""] = /^([^#^]*)([#^].*)?$/.exec(linkText) ?? [];
+    const file = linkPath
+      ? this.app.metadataCache.getFirstLinkpathDest(linkPath, sourcePath)
+      : null;
+    return file ? { file, subpath } : null;
+  }
 
-    const subpathMatch = linkText.match(/^([^#^]*)([#^].*)?$/);
-
-    const linkPath = subpathMatch?.[1] ?? linkText;
-    const subpath = subpathMatch?.[2] ?? "";
-
-    const file = this.app.metadataCache.getFirstLinkpathDest(linkPath || linkText, sourcePath);
-    if (!file) {
-      this.logger.debug("No link target resolved for", linkText);
-      return;
-    }
+  /** Whether the link was opened beside its note. */
+  private async openInSidePane(linkText: string, sourceLeaf: WorkspaceLeaf): Promise<boolean> {
+    const target = this.resolve(linkText, sourceLeaf);
+    if (!target) return false;
+    const { file, subpath } = target;
 
     if (this.targetLeaf && !this.targetLeaf.view.containerEl.isConnected) {
       this.targetLeaf = null;
@@ -146,12 +152,13 @@ export class LinkModeController {
       );
     }
     if (!this.targetLeaf) {
-      return;
+      return false;
     }
 
     await this.targetLeaf.openFile(file, subpath ? { eState: { subpath } } : undefined);
 
     this.app.workspace.setActiveLeaf(sourceLeaf, { focus: true });
+    return true;
   }
 
   private updateStatus(): void {

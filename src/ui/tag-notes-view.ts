@@ -32,6 +32,9 @@ export class TagNotesView extends ItemView {
   private tag: string | null = null;
   /** The redraw waiting for the next frame. */
   private frame: number | null = null;
+  /** What the last draw showed, and for which tag. */
+  private drawn: string | null = null;
+  private drawnTag: string | null = null;
 
   constructor(leaf: WorkspaceLeaf) {
     super(leaf);
@@ -91,6 +94,7 @@ export class TagNotesView extends ItemView {
   protected override async onClose(): Promise<void> {
     if (this.frame !== null) this.containerEl.win.cancelAnimationFrame(this.frame);
     this.frame = null;
+    this.drawn = null;
     this.contentEl.empty();
   }
 
@@ -106,20 +110,30 @@ export class TagNotesView extends ItemView {
 
   private render(): void {
     const root = this.contentEl;
+    const tag = this.tag;
+    const cards = tag === null || this.host === null ? null : this.host.cards(tag);
+    const active = this.app.workspace.getActiveFile()?.path;
+    // Every save anywhere in the vault is a metadata change. Drawn again for
+    // each, the list jumped back to its top under a person scrolling it, and
+    // the card the keyboard was on went with it.
+    const signature = JSON.stringify([tag, cards, active]);
+    if (signature === this.drawn) return;
+    const top = tag === this.drawnTag ? root.scrollTop : 0;
+    this.drawn = signature;
+    this.drawnTag = tag;
     root.empty();
 
-    if (this.tag === null || this.host === null) {
+    if (tag === null || cards === null) {
       root.createDiv({ cls: "schreibstube-tag-notes-empty", text: t().explorer.tags.viewNoTag });
       return;
     }
 
-    const cards = this.host.cards(this.tag);
     const summary = summarizeTagCards(cards);
 
     const header = root.createDiv({ cls: "schreibstube-tag-notes-header" });
     const title = header.createDiv({ cls: "schreibstube-tag-notes-title" });
     applyIcon(title.createSpan({ cls: "schreibstube-explorer-glyph" }), "tag");
-    title.createSpan({ text: `#${this.tag}` });
+    title.createSpan({ text: `#${tag}` });
     header.createDiv({
       cls: "schreibstube-tag-notes-summary",
       text: t().explorer.tags.summary(
@@ -135,8 +149,8 @@ export class TagNotesView extends ItemView {
     }
 
     const list = root.createDiv({ cls: "schreibstube-tag-notes-list" });
-    const active = this.app.workspace.getActiveFile()?.path;
     for (const card of cards) this.renderCard(list, card, card.path === active);
+    root.scrollTop = top;
   }
 
   private renderCard(list: HTMLElement, card: TagCard, active: boolean): void {
