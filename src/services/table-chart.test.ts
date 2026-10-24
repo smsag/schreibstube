@@ -639,19 +639,6 @@ describe("placing a chart", () => {
     expect(edit).toMatchObject({ from: 2, to: 1 + block.length });
   });
 
-  it("follows a table that moved while the dialog was open", () => {
-    const offer = offered(STATEMENT, 5);
-    const moved = ["New line", "", ...STATEMENT];
-    expect(placed(moved, offer, offer.suggestions[0]!).from).toBe(4);
-    // A chart made meanwhile is replaced, not stacked.
-    const block = chartBlock(offer.suggestions[0]!).split("\n");
-    const charted = [...STATEMENT.slice(0, 2), ...block, "", ...STATEMENT.slice(2)];
-    expect(placed(charted, offer, offer.suggestions[1]!)).toMatchObject({
-      from: 2,
-      to: 1 + block.length
-    });
-  });
-
   it("puts no chart above a table that changed while the dialog was open", () => {
     const offer = offered(STATEMENT, 5);
     const edited = STATEMENT.map((line) => line.replace("-45,90 €", "-55,90 €"));
@@ -660,13 +647,9 @@ describe("placing a chart", () => {
     const longer = [...STATEMENT.slice(0, 10), row, ...STATEMENT.slice(10)];
     expect(placeChart(longer, offer, offer.suggestions[0]!)).toBeNull();
     expect(placeChart(["Gone"], offer, offer.suggestions[0]!)).toBeNull();
-  });
-
-  it("takes the copy of a table nearest to where it was", () => {
-    const offer = offered(STATEMENT, 5);
-    const twice = ["Intro", ...STATEMENT.slice(2, 10), "", "Mid", "", ...STATEMENT.slice(2, 10)];
-    // The offer's table stood at line 2; the copies are at 1 and 12.
-    expect(placed(twice, offer, offer.suggestions[0]!).from).toBe(1);
+    // Moved by a sync: the same table a line further down is not where the
+    // dialog was opened for, and is charted again rather than guessed at.
+    expect(placeChart(["New line", ...STATEMENT], offer, offer.suggestions[0]!)).toBeNull();
   });
 
   it("leaves a Mermaid block someone wrote alone", () => {

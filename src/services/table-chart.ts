@@ -14,7 +14,7 @@
  * the table than it holds.
  */
 import { CURRENCY_CODES, readCell, type Amount, type NumberFormat } from "./amounts";
-import { fenceLanguage, fenceMarker, fencedLines } from "./markdown-fence";
+import { closesFence, fenceLanguage, fenceMarker, fencedLines } from "./markdown-fence";
 import { isTableDelimiter, rowCells } from "./markdown-table";
 import { parseFormula } from "./table-formulas";
 
@@ -172,7 +172,7 @@ type TextColumn = Extract<Column, { kind: "text" }>;
 
 /** A day, with a time after it or not, or a month: `2026-03-15T10:00`, `2026-03`. */
 const ISO_DATE =
-  /^(\d{4})-(\d{1,2})(?:-(\d{1,2})(?:[T ]\d{1,2}:\d{2}(?::\d{2}(?:[.,]\d+)?)?(?:\s?(?:Z|[+-]\d{2}:?\d{2}))?)?)?$/;
+  /^(\d{4})-(\d\d?)(?:-(\d\d?)(?:[T ]\d\d?:\d\d(?::\d\d(?:[.,]\d+)?)?(?:\s?(?:Z|[+-]\d\d:?\d\d))?)?)?$/;
 const DOTTED_DATE = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/;
 const SLASHED_DATE = /^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/;
 
@@ -260,7 +260,7 @@ function isYear(amount: Amount): boolean {
 const ENDING = String.raw`(?:e|n|en|s|es)?\b`;
 /** A column named like what is spent, earned or counted. */
 const AMOUNT_WORDS = new RegExp(
-  `(?:betrag|beträge|summe|preis|kosten|ausgabe|einnahme|umsatz|umsätze|wert|amount|sum|price|cost|expense|spend|spending|income|revenue|value|total)${ENDING}`,
+  `(?:betr[aä]g|summe|preis|kosten|ausgabe|einnahme|ums[aä]tz|wert|amount|sum|price|cost|expense|spend(?:ing)?|income|revenue|value|total)${ENDING}`,
   "i"
 );
 /** A running balance adds up to nothing meaningful. */
@@ -321,9 +321,7 @@ function profile(table: PlainTable, format: NumberFormat): Column[] {
 
 /** The rows numbered 1, 2, 3 … in order: a numbering, whatever its column is called. */
 function numbersRows(table: PlainTable, index: number): boolean {
-  return (
-    table.rows.length >= 3 && table.rows.every((row, at) => (row[index] ?? "") === String(at + 1))
-  );
+  return table.rows.length >= 3 && table.rows.every((row, at) => row[index] === String(at + 1));
 }
 
 function valueColumn(table: PlainTable, columns: Column[]): AmountColumn | "mixed" | null {
@@ -492,16 +490,10 @@ function timeChart(
   const sums = new Map(keys.map((key) => [key, 0]));
   for (const { when, value } of dated) sums.set(keyOf(when), (sums.get(keyOf(when)) ?? 0) + value);
 
-  const dayLabel = new Intl.DateTimeFormat(format.locale, {
-    day: "2-digit",
-    month: "2-digit",
-    timeZone: "UTC"
-  });
-  const monthLabel = new Intl.DateTimeFormat(format.locale, {
-    month: "short",
-    year: "2-digit",
-    timeZone: "UTC"
-  });
+  const dates = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat(format.locale, { ...options, timeZone: "UTC" });
+  const dayLabel = dates({ day: "2-digit", month: "2-digit" });
+  const monthLabel = dates({ month: "short", year: "2-digit" });
   const label = (key: number): string =>
     period === "day"
       ? dayLabel.format(new Date(key * 86_400_000))
@@ -682,19 +674,21 @@ function figure(value: number): string {
 /**
  * Everything the command needs from a note and a selection: the table, the
  * charts it offers, and a chart this made before, right above the table, that
- * the new one replaces.
+ * the new one replaces. The charts are drawn from the first `rows` rows.
  */
 export function chartOffer(
   lines: readonly string[],
   first: number,
   last: number,
   format: NumberFormat,
-  labels: ChartLabels
+  labels: ChartLabels,
+  rows = MAX_CHART_ROWS
 ): ChartOffer {
   const table = tableAt(lines, first, last);
   if (!table) return { ok: false, reason: "no-table" };
   if (table.to - table.from - 1 > MAX_CHART_ROWS) return { ok: false, reason: "too-long" };
-  const result = suggestCharts(readTable(lines, table), format, labels);
+  const read = { from: table.from, to: Math.min(table.to, table.from + 1 + rows) };
+  const result = suggestCharts(readTable(lines, read), format, labels);
   if (!result.ok) return result;
   return {
     ok: true,
@@ -718,10 +712,7 @@ export function mayChart(
   format: NumberFormat,
   labels: ChartLabels
 ): boolean {
-  const table = tableAt(lines, first, last);
-  if (!table) return false;
-  const sample = { from: table.from, to: Math.min(table.to, table.from + 1 + MENU_SAMPLE_ROWS) };
-  return suggestCharts(readTable(lines, sample), format, labels).ok;
+  return chartOffer(lines, first, last, format, labels, MENU_SAMPLE_ROWS).ok;
 }
 
 /**
@@ -732,7 +723,6 @@ export function mayChart(
 export function chartAbove(lines: readonly string[], tableFrom: number): TableLines | null {
   let close = tableFrom - 1;
   while (close >= 0 && lines[close]!.trim() === "") close--;
-  if (close < 0) return null;
   // Fences pair from the top of the note, the way they are drawn: walked
   // backwards, a fence quoted inside a block would pass for its opening.
   let open: { line: number; marker: string } | null = null;
@@ -741,7 +731,7 @@ export function chartAbove(lines: readonly string[], tableFrom: number): TableLi
     if (!marker) continue;
     if (!open) {
       open = { line, marker };
-    } else if (marker[0] === open.marker[0] && marker.length >= open.marker.length) {
+    } else if (closesFence(lines[line]!, open.marker)) {
       if (line === close) {
         const chart =
           fenceLanguage(lines[open.line]!, open.marker) === "mermaid" &&
@@ -760,42 +750,25 @@ export function chartBlock(suggestion: ChartSuggestion): string {
 }
 
 /**
- * Where the table an offer was made for stands now: where it stood, or
- * wherever else it stands whole, the nearest first; null when it is no longer
- * in the note as it was read.
- */
-function tableNow(lines: readonly string[], text: readonly string[], near: number): number | null {
-  const fits = (from: number): boolean => {
-    if (!text.every((line, at) => lines[from + at] === line)) return false;
-    const found = tableAt(lines, from, from);
-    return found?.from === from && found.to === from + text.length - 1;
-  };
-  if (fits(near)) return near;
-  let best: number | null = null;
-  for (let from = 0; from + text.length <= lines.length; from++) {
-    if (lines[from] !== text[0] || !fits(from)) continue;
-    if (best === null || Math.abs(from - near) < Math.abs(best - near)) best = from;
-  }
-  return best;
-}
-
-/**
  * The edit that puts a chart above its table: the lines it replaces, or the
  * line it goes in front of, and the text. A blank line separates the chart
  * from the table and from whatever stands above it, so both still render.
  *
  * The note is read again for it: the dialog stays open as long as the person
- * likes, and the note can change under it, by their typing or by a sync. A
- * table that moved is followed; one that changed gets no chart, which would
- * show numbers it no longer has — null, for the command to say so.
+ * likes, and a sync or another pane can change the note under it. A chart of
+ * a table that is no longer where it was, line for line, could go in the
+ * wrong place or show numbers the table no longer has — null, for the
+ * command to say so.
  */
 export function placeChart(
   lines: readonly string[],
   offer: Extract<ChartOffer, { ok: true }>,
   suggestion: ChartSuggestion
 ): { from: number; to: number | null; text: string } | null {
-  const from = tableNow(lines, offer.tableText, offer.table.from);
-  if (from === null) return null;
+  const { from, to } = offer.table;
+  const found = tableAt(lines, from, from);
+  const same = offer.tableText.every((line, at) => lines[from + at] === line);
+  if (!same || found?.from !== from || found.to !== to) return null;
   const block = chartBlock(suggestion);
   const replaces = chartAbove(lines, from);
   if (replaces) return { from: replaces.from, to: replaces.to, text: block };

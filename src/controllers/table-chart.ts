@@ -13,46 +13,34 @@ import {
   chartOffer,
   mayChart,
   placeChart,
-  type ChartLabels,
   type ChartOffer,
   type ChartRefusal,
   type ChartSuggestion
 } from "../services/table-chart";
 import { TableChartModal } from "../ui/table-chart-modal";
 
-function chartLabels(): ChartLabels {
-  const labels = t().chart;
-  return {
-    other: labels.other,
-    byGroup: labels.byGroup,
-    byGroups: labels.byGroups,
-    perDay: labels.perDay,
-    perMonth: labels.perMonth,
-    perYear: labels.perYear,
-    without: labels.without
-  };
-}
-
-/** What the selection offers, its amounts read in the number format the sums use. */
-export function selectionChartOffer(editor: Editor, style: NumberStyle): ChartOffer {
-  return chartOffer(
+/**
+ * The note, the selected lines, and the number format the sums use, as the
+ * chart decisions take them; the catalogue's chart section is their labels.
+ */
+function selection(editor: Editor, style: NumberStyle) {
+  return [
     editor.getValue().split("\n"),
     editor.getCursor("from").line,
     editor.getCursor("to").line,
     numberFormatFor(style, obsidianLanguageTag()),
-    chartLabels()
-  );
+    t().chart
+  ] as const;
+}
+
+/** What the selection offers. */
+export function selectionChartOffer(editor: Editor, style: NumberStyle): ChartOffer {
+  return chartOffer(...selection(editor, style));
 }
 
 /** Whether the menu offers a chart for the selection: cheap enough for every right-click. */
 export function selectionMayChart(editor: Editor, style: NumberStyle): boolean {
-  return mayChart(
-    editor.getValue().split("\n"),
-    editor.getCursor("from").line,
-    editor.getCursor("to").line,
-    numberFormatFor(style, obsidianLanguageTag()),
-    chartLabels()
-  );
+  return mayChart(...selection(editor, style));
 }
 
 export function refusalText(reason: ChartRefusal): string {
