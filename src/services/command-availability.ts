@@ -18,6 +18,7 @@ export type GatedCommand =
   | "summarize"
   | "table"
   | "table-ai"
+  | "chart"
   | "proofread"
   | "insert-today"
   | "property-set"
@@ -70,6 +71,10 @@ export function commandAvailable(command: GatedCommand, context: CommandContext)
     // The same table read by the AI, offered only where the AI can be asked.
     case "table-ai":
       return context.ai && context.markdown && context.selection;
+    // A chart is drawn from a selected table. Whether the selection is one,
+    // with amounts to draw, is for the command to say when run.
+    case "chart":
+      return context.markdown && context.selection;
     // Proofreading sends the note to the AI. The glossary check does not, and
     // stays in the review panel either way.
     case "proofread":

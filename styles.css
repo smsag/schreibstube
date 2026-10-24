@@ -4147,6 +4147,17 @@
 
 /* Suggest tags: one section per source, a checkbox per tag. A new tag is
    marked, since ticking it adds a word to the vault's vocabulary. */
+/* Charts from a table: each drawing under its button, scrolled when tall. */
+.schreibstube-table-chart-option {
+  border-top: 1px solid var(--background-modifier-border);
+  padding-block: var(--size-4-2);
+}
+
+.schreibstube-table-chart-drawing {
+  max-height: 360px;
+  overflow: auto;
+}
+
 .schreibstube-tag-suggest-section {
   margin-bottom: var(--size-4-4);
 }

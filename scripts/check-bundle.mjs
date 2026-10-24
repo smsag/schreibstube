@@ -167,8 +167,15 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * claims the Nimbus list. The 1564 ceiling had been spent to 0.2 KB on main,
  * so no fix of any size fitted under it; the owner agreed to the raise in
  * this change. What is left is for the next one, not a new normal.
+ *
+ * Raised to 1584 KB at 1580 KB, for charts from a table (+12 KB on 1568): the
+ * rules that read a table's columns as dates, amounts and groups and pick the
+ * charts that suit them, the Mermaid they write, the dialog that draws them
+ * before one is chosen, and their words in two languages — about 10 KB of
+ * code and 2 of text. The 1572 ceiling had been spent to 4 KB on main; the
+ * raise is in the change that needs it, for the plugin's owner to agree to.
  */
-const MAX_BUNDLE_KB = 1572;
+const MAX_BUNDLE_KB = 1584;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.
