@@ -7,7 +7,7 @@
  * beside the figure. A heading's badge has no room for either. The rule is `task-state`'s, shared
  * with the Explorer and **Tidy up done tasks**.
  */
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 import { isOpenTask, taskState } from "./task-state";
 
 export const TASK_SUMMARY_LANGUAGE = "schreibstube-tasks";
@@ -55,13 +55,12 @@ function scanLines(
   let fence: string | null = null;
 
   for (const [lineNumber, line] of lines.entries()) {
-    const marker = fenceMarker(line);
-
     if (fence) {
-      if (marker && marker[0] === fence[0] && marker.length >= fence.length) fence = null;
+      if (closesFence(line, fence)) fence = null;
       continue;
     }
 
+    const marker = fenceMarker(line);
     if (marker) {
       fence = marker;
       const info = line.trimStart().slice(marker.length).trim();

@@ -13,7 +13,7 @@
  * written, without its fences or backticks: inside it an asterisk is code.
  */
 
-import { fenceMarker } from "./markdown-fence";
+import { closesFence, fenceMarker } from "./markdown-fence";
 import { type TaskState, taskState } from "./task-state";
 import { stripComments } from "./markdown-typst";
 
@@ -74,11 +74,10 @@ export function markdownToPlainText(markdown: string): string {
   const lines: { text: string; code: boolean }[] = [];
   let open: string | null = null;
   for (const line of source.split("\n")) {
-    const marker = fenceMarker(line);
     if (open === null) {
-      if (marker) open = marker;
-      else lines.push({ text: line, code: false });
-    } else if (marker && marker[0] === open[0] && marker.length >= open.length) {
+      open = fenceMarker(line);
+      if (open === null) lines.push({ text: line, code: false });
+    } else if (closesFence(line, open)) {
       open = null;
     } else {
       lines.push({ text: line, code: true });
