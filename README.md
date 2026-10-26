@@ -187,7 +187,7 @@ Obsidian's own _Toggle reading view_ goes back to whichever editor was last in u
 
 That last command makes a new empty note where Obsidian's _Default location for new notes_ says, named the way Obsidian names one (**Untitled**, then **Untitled 1**, and so on; **Unbenannt** in German), opens it in a new window, brings that window to the front whatever windows and tabs are already open, and puts the cursor in the editor. A pop-out window has no sidebars, so the screen holds the note and nothing else. On a phone, which has no windows, the note opens in a new tab and both drawers close instead. Nothing about the vault differs from a note made the usual way.
 
-While that window fills the screen, full screen or maximised, the note's lines are two thirds of the window wide, with Obsidian's _Readable line length_ on or off; make the window smaller and the usual width returns. Like the Recommended footer, which the new note opens without, this is for the first opening only: open the note again later and it looks like any other.
+While that window fills the screen, full screen or maximised, the note's lines are two thirds of the window wide, with Obsidian's _Readable line length_ on or off; make the window smaller and the usual width returns. The note also opens with nothing around it: in the pop-out the tab bar is empty and the note has no header, and on a phone the header and the navigation bar are gone while the toolbar above the keyboard stays. Like the Recommended footer, which the new note opens without, all of this is for the first opening only: show another note in that view or choose another tab in its window and everything comes back, and open the note again later and it looks like any other.
 
 #### New note from outside Obsidian
 
@@ -197,9 +197,15 @@ An Obsidian hotkey works only while Obsidian is the app in front. To start a new
 obsidian://schreibstube-new-doc?vault=Your%20Vault
 ```
 
-Opening that link does exactly what the **New note** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it. It acts at most once every five seconds; a second call within that time is ignored, so a page that opens the link over and over cannot fill the vault with empty notes and the screen with windows.
+Opening that link does exactly what the **New note** command does. If Obsidian is closed, it starts, loads the vault and then opens the note. Add `&typewriter=1` and the note starts in typewriter mode: the line you write stays in the middle of the screen and the text moves up past it. A click or a drag leaves the text where it is; the next key brings the line back to the middle. Like the rest, it lasts for this first opening.
 
-**1. Get the link.** In Obsidian, open **Settings → Schreibstube**. Under **Focus mode**, **New note from outside Obsidian** has a **Copy link** button, which copies the link for the vault you are in. To write it by hand, put your vault's name after `vault=`, with a space as `%20` (`My Notes` becomes `vault=My%20Notes`). Leaving out `?vault=…` works too, but then Obsidian uses whichever vault was open last.
+```
+obsidian://schreibstube-new-doc?vault=Your%20Vault&typewriter=1
+```
+
+The link carries nothing else: it cannot choose the folder, the name or the text, so no web page can put anything into your vault with it; the typewriter flag only changes how the note is shown. It acts at most once every five seconds; a second call within that time is ignored, so a page that opens the link over and over cannot fill the vault with empty notes and the screen with windows.
+
+**1. Get the link.** In Obsidian, open **Settings → Schreibstube**. Under **Focus mode**, **New note from outside Obsidian** has a **Copy link** button, which copies the link for the vault you are in, and a **Copy typewriter link** button for the same link with `&typewriter=1`. To write it by hand, put your vault's name after `vault=`, with a space as `%20` (`My Notes` becomes `vault=My%20Notes`). Leaving out `?vault=…` works too, but then Obsidian uses whichever vault was open last.
 
 **2. Try it.** Paste the link into a browser's address bar and press Enter, or on a Mac run it in Terminal, with the quotes:
 
@@ -1008,10 +1014,10 @@ A command that cannot do anything where you are is not offered at all: the image
 
 ### Focus mode
 
-| Setting                        | Description                                                                                                                                     | Default |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-| Dim opacity                    | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full)                                                                                     | 0.4     |
-| New note from outside Obsidian | **Copy link** copies this vault's `obsidian://schreibstube-new-doc` link; see [New note from outside Obsidian](#new-note-from-outside-obsidian) | —       |
+| Setting                        | Description                                                                                                                                                                                             | Default |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| Dim opacity                    | Opacity of out-of-focus lines (0.2 faint – 0.8 nearly full)                                                                                                                                             | 0.4     |
+| New note from outside Obsidian | **Copy link** copies this vault's `obsidian://schreibstube-new-doc` link, **Copy typewriter link** the same with `&typewriter=1`; see [New note from outside Obsidian](#new-note-from-outside-obsidian) | —       |
 
 ### Icons in the text
 

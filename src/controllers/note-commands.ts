@@ -15,11 +15,25 @@ export interface CreateUntitledOptions {
    * the screen (controllers/draft-width). Only this first time, as above.
    */
   draftWidth?: boolean;
+  /**
+   * Show the note and nothing else: no tab bar or header in a pop-out, no
+   * header or navigation bar on a phone (controllers/draft-focus). Only this
+   * first time, as above.
+   */
+  bare?: boolean;
+  /** With `bare`: keep the cursor's line in the middle of the screen, this first time. */
+  typewriter?: boolean;
 }
 
 export type FooterHolder = (file: TFile) => () => void;
 
 export type DraftWidener = (leaf: WorkspaceLeaf, file: TFile) => void;
+
+export type DraftFocuser = (
+  leaf: WorkspaceLeaf,
+  file: TFile,
+  options: { typewriter: boolean }
+) => void;
 
 /**
  * A blank note in a window of its own, in front of everything.
@@ -40,7 +54,8 @@ export class NoteCommands {
     private readonly app: App,
     private readonly logger: Logger,
     private readonly holdFooter: FooterHolder = () => () => undefined,
-    private readonly widenDraft: DraftWidener = () => undefined
+    private readonly widenDraft: DraftWidener = () => undefined,
+    private readonly focusDraft: DraftFocuser = () => undefined
   ) {}
 
   async createUntitled(options: CreateUntitledOptions = {}): Promise<void> {
@@ -93,6 +108,9 @@ export class NoteCommands {
     // the cursor where the typing goes.
     bringWindowToFront(leaf);
     this.app.workspace.setActiveLeaf(leaf, { focus: true });
+    // After the leaf is active: a change of active leaf in its window is
+    // what ends the bare view, and this one must not count.
+    if (options.bare) this.focusDraft(leaf, file, { typewriter: options.typewriter === true });
     if (leaf.view instanceof MarkdownView) leaf.view.editor.focus();
   }
 }

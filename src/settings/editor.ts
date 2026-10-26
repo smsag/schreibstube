@@ -61,25 +61,32 @@ export function renderHelpers(ctx: SettingsContext): void {
 
   section(ctx, { name: words.newDocHeading, commands: [t().commands.newNote] });
 
+  const copyNewDocLink = async (typewriter: boolean): Promise<void> => {
+    const link = newDocLink(ctx.plugin.app.vault.getName(), { typewriter });
+    try {
+      await navigator.clipboard.writeText(link);
+      new Notice(t().common.notice(t().common.copied));
+    } catch (error) {
+      // A page without clipboard access, or one that refused it: the
+      // console keeps the cause and the notice says that nothing was copied.
+      createLogger(() => ctx.plugin.settings.debugLogging).warn(
+        `Could not copy ${link} to the clipboard:`,
+        error
+      );
+      new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+    }
+  };
+
   new Setting(ctx.containerEl)
     .setName(t().settings.newDocLink)
     .setDesc(t().settings.newDocLinkDesc)
     .addButton((button) =>
-      button.setButtonText(t().settings.newDocLinkCopy).onClick(async () => {
-        const link = newDocLink(ctx.plugin.app.vault.getName());
-        try {
-          await navigator.clipboard.writeText(link);
-          new Notice(t().common.notice(t().common.copied));
-        } catch (error) {
-          // A page without clipboard access, or one that refused it: the
-          // console keeps the cause and the notice says that nothing was copied.
-          createLogger(() => ctx.plugin.settings.debugLogging).warn(
-            `Could not copy ${link} to the clipboard:`,
-            error
-          );
-          new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
-        }
-      })
+      button.setButtonText(t().settings.newDocLinkCopy).onClick(() => copyNewDocLink(false))
+    )
+    .addButton((button) =>
+      button
+        .setButtonText(t().settings.newDocLinkCopyTypewriter)
+        .onClick(() => copyNewDocLink(true))
     );
 
   renderProperties(ctx);

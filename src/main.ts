@@ -76,7 +76,8 @@ import { PictureEmbedActions } from "./controllers/picture-embed-actions";
 import { TagSuggestController } from "./controllers/tag-suggest-controller";
 import { TAG_NEIGHBOUR_REQUEST, type RecommendedEntry } from "./services/tag-suggestions";
 import { DraftWidth } from "./controllers/draft-width";
-import { NEW_DOC_ACTION } from "./services/new-note";
+import { DraftFocus } from "./controllers/draft-focus";
+import { NEW_DOC_ACTION, newDocLinkOptions } from "./services/new-note";
 import { FolderDescriber } from "./controllers/folder-describer";
 import {
   convertSelectionToTable,
@@ -89,6 +90,7 @@ import { ProofreadController } from "./controllers/proofread-controller";
 import { ReadingHistoryController } from "./controllers/reading-history-controller";
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
 import { revealFlashExtension } from "./processors/reveal-flash";
+import { typewriterExtension } from "./processors/typewriter";
 import {
   createIconShortcodeExtension,
   registerIconShortcodePostProcessor
@@ -208,6 +210,7 @@ export default class SchreibstubePlugin extends Plugin {
   private baseReading: BaseReadingFlags | null = null;
   private tagSuggest: TagSuggestController | null = null;
   private readonly draftWidth = new DraftWidth(this.app);
+  private readonly draftFocus = new DraftFocus(this.app);
   private proofread: ProofreadController | null = null;
   private reading: ReadingHistoryController | null = null;
   private explorer: ExplorerController | null = null;
@@ -347,7 +350,8 @@ export default class SchreibstubePlugin extends Plugin {
       this.app,
       this.logger,
       (file) => this.recommendedFooter?.holdBack(file) ?? (() => undefined),
-      (leaf, file) => this.draftWidth.follow(leaf, file)
+      (leaf, file) => this.draftWidth.follow(leaf, file),
+      (leaf, file, options) => this.draftFocus.follow(leaf, file, options)
     );
     this.doneTasks = new DoneTasksCommand(this.app, () => this.settings.doneTasksMode, this.logger);
     // The reader is reached for only when the command runs. Obsidian's pdf.js
@@ -485,6 +489,8 @@ export default class SchreibstubePlugin extends Plugin {
     );
     // Where "Show passage" landed, marked for a moment.
     this.registerEditorExtension(revealFlashExtension);
+    // Idle in every editor but the new note's opened with the link's flag.
+    this.registerEditorExtension(typewriterExtension);
     // `:folder:` in a note: the picker while one is typed, the glyph in Live
     // Preview, and the glyph in Reading view. One setting switches all three.
     const iconShortcodes = (): boolean => this.settings.iconShortcodes;
@@ -865,6 +871,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.pictureActions?.stop();
     this.pictureArticles?.stop();
     this.draftWidth.stop();
+    this.draftFocus.stop();
     this.print?.stop();
     this.proofread?.stop();
     void this.explorer?.stop();
@@ -1936,20 +1943,26 @@ export default class SchreibstubePlugin extends Plugin {
     });
   }
 
-  private newDoc(): void {
-    void this.notes?.createUntitled({ withoutRecommendations: true, draftWidth: true });
+  private newDoc(typewriter = false): void {
+    void this.notes?.createUntitled({
+      withoutRecommendations: true,
+      draftWidth: true,
+      bare: true,
+      typewriter
+    });
   }
 
   /**
    * `obsidian://schreibstube-new-doc`, so New doc can sit on a shortcut of the
    * system's rather than one that works only while Obsidian is in front.
-   * Nothing the link carries is read: Obsidian takes `vault` itself, and a
-   * link that could say where the note goes or what it holds would be one
-   * any web page could write into the vault with. A page can still call it
-   * in a loop, so it acts at most once in a few seconds.
+   * Obsidian takes `vault` itself, and the one thing read is whether the note
+   * starts in typewriter mode (`newDocLinkOptions`): a link that could say
+   * where the note goes or what it holds would be one any web page could
+   * write into the vault with. A page can still call it in a loop, so it acts
+   * at most once in a few seconds.
    */
   private registerNewDocLink(): void {
-    this.registerObsidianProtocolHandler(NEW_DOC_ACTION, () => {
+    this.registerObsidianProtocolHandler(NEW_DOC_ACTION, (params) => {
       const now = Date.now();
       if (!linkCallAllowed(this.newDocLinkActedAt, now)) {
         this.logger.debug("Ignoring the new-note link: called again within its interval.");
@@ -1958,7 +1971,8 @@ export default class SchreibstubePlugin extends Plugin {
       this.newDocLinkActedAt = now;
       // A link that started Obsidian arrives before the workspace is laid
       // out, and a window opened then is lost when the layout is restored.
-      this.app.workspace.onLayoutReady(() => this.newDoc());
+      const { typewriter } = newDocLinkOptions(params);
+      this.app.workspace.onLayoutReady(() => this.newDoc(typewriter === true));
     });
   }
 

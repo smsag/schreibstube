@@ -276,3 +276,48 @@ describe("the new note's line width", () => {
     expect(widenDraft).not.toHaveBeenCalled();
   });
 });
+
+describe("the new note on its own", () => {
+  afterEach(() => {
+    Platform.isDesktopApp = false;
+  });
+
+  it("clears the screen around the note once it is the active one, on a desktop and a phone", async () => {
+    for (const desktop of [true, false]) {
+      Platform.isDesktopApp = desktop;
+      const app = fakeApp();
+      const focusDraft = vi.fn((..._args: unknown[]) => {
+        expect(app.fake.setActiveLeaf).toHaveBeenCalledTimes(1);
+      });
+
+      await new NoteCommands(app, logger, undefined, undefined, focusDraft).createUntitled({
+        bare: true
+      });
+
+      expect(focusDraft).toHaveBeenCalledTimes(1);
+      const leaf = desktop ? app.fake.openPopoutLeaf : app.fake.getLeaf;
+      expect(focusDraft.mock.calls[0]?.[0]).toBe(leaf.mock.results[0]?.value);
+      expect((focusDraft.mock.calls[0]?.[1] as TFile).path).toBe("Untitled.md");
+      expect(focusDraft.mock.calls[0]?.[2]).toEqual({ typewriter: false });
+    }
+  });
+
+  it("passes typewriter mode on when asked", async () => {
+    const focusDraft = vi.fn();
+
+    await new NoteCommands(fakeApp(), logger, undefined, undefined, focusDraft).createUntitled({
+      bare: true,
+      typewriter: true
+    });
+
+    expect(focusDraft.mock.calls[0]?.[2]).toEqual({ typewriter: true });
+  });
+
+  it("leaves the screen as it is unless asked", async () => {
+    const focusDraft = vi.fn();
+
+    await new NoteCommands(fakeApp(), logger, undefined, undefined, focusDraft).createUntitled();
+
+    expect(focusDraft).not.toHaveBeenCalled();
+  });
+});

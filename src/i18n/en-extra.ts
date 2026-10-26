@@ -104,8 +104,12 @@ export const enExtra = {
     newDocLink: "New note from outside Obsidian",
     newDocLinkDesc:
       "This link runs New note in this vault from anywhere: a keyboard shortcut of the system's, " +
-      "the Shortcuts app, Raycast, Alfred, or a home-screen icon. The README explains the setup.",
+      "the Shortcuts app, Raycast, Alfred, or a home-screen icon. New note, from the command " +
+      "or either link, shows only the note until you open another note or tab there; the " +
+      "typewriter link also keeps the line you write in the middle of the screen. The README " +
+      "explains the setup.",
     newDocLinkCopy: "Copy link",
+    newDocLinkCopyTypewriter: "Copy typewriter link",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:

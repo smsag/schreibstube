@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { fillsScreen, joinVaultPath, newDocLink, newNotePath, nextFreeName } from "./new-note";
+import {
+  fillsScreen,
+  joinVaultPath,
+  newDocLink,
+  newDocLinkOptions,
+  newNotePath,
+  nextFreeName
+} from "./new-note";
 
 const taken = (...names: string[]) => {
   const set = new Set(names);
@@ -85,5 +92,39 @@ describe("newDocLink", () => {
 
   it("leaves the vault to Obsidian when it has no name", () => {
     expect(newDocLink("")).toBe("obsidian://schreibstube-new-doc");
+  });
+
+  it("adds the typewriter flag after the vault, or alone", () => {
+    expect(newDocLink("Schreiben", { typewriter: true })).toBe(
+      "obsidian://schreibstube-new-doc?vault=Schreiben&typewriter=1"
+    );
+    expect(newDocLink("", { typewriter: true })).toBe(
+      "obsidian://schreibstube-new-doc?typewriter=1"
+    );
+    expect(newDocLink("Schreiben", { typewriter: false })).toBe(
+      "obsidian://schreibstube-new-doc?vault=Schreiben"
+    );
+  });
+});
+
+describe("newDocLinkOptions", () => {
+  it("reads the flag the copied link carries, and the ways a person writes yes", () => {
+    for (const value of ["1", "true", "TRUE", " yes ", ""]) {
+      expect(newDocLinkOptions({ typewriter: value })).toEqual({ typewriter: true });
+    }
+  });
+
+  it("says no to anything else, and to a flag that is missing or not text", () => {
+    for (const value of ["0", "false", "no", "2", "typewriter"]) {
+      expect(newDocLinkOptions({ typewriter: value })).toEqual({ typewriter: false });
+    }
+    expect(newDocLinkOptions({})).toEqual({ typewriter: false });
+    expect(newDocLinkOptions({ typewriter: 1 })).toEqual({ typewriter: false });
+  });
+
+  it("reads nothing else the link carries", () => {
+    expect(
+      newDocLinkOptions({ action: "schreibstube-new-doc", vault: "V", file: "../x", content: "y" })
+    ).toEqual({ typewriter: false });
   });
 });

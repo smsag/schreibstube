@@ -72,6 +72,13 @@ export function fillsScreen(win: WindowSize, screen: ScreenSize): boolean {
 /** What follows `obsidian://` in the link that runs New doc from outside Obsidian. */
 export const NEW_DOC_ACTION = "schreibstube-new-doc";
 
+/** The link's one flag: the new note starts in typewriter mode. */
+export const NEW_DOC_TYPEWRITER_PARAM = "typewriter";
+
+export interface NewDocLinkOptions {
+  typewriter?: boolean;
+}
+
 /**
  * The link that runs New doc from outside Obsidian, in this vault.
  *
@@ -79,7 +86,28 @@ export const NEW_DOC_ACTION = "schreibstube-new-doc";
  * Obsidian uses whichever was open last, which is right only by luck. The name
  * is encoded, since a space or an ampersand in it would otherwise end it.
  */
-export function newDocLink(vaultName: string): string {
+export function newDocLink(vaultName: string, options: NewDocLinkOptions = {}): string {
+  const params: string[] = [];
+  if (vaultName.length > 0) params.push(`vault=${encodeURIComponent(vaultName)}`);
+  if (options.typewriter) params.push(`${NEW_DOC_TYPEWRITER_PARAM}=1`);
   const base = `obsidian://${NEW_DOC_ACTION}`;
-  return vaultName.length > 0 ? `${base}?vault=${encodeURIComponent(vaultName)}` : base;
+  return params.length > 0 ? `${base}?${params.join("&")}` : base;
+}
+
+/** What a flag may say to mean yes: what the copied link says, and the two a person types. */
+const YES = new Set(["1", "true", "yes"]);
+
+/**
+ * What a call of the link asks for, read from Obsidian's parsed parameters.
+ *
+ * Only the typewriter flag is read, and only as yes or no: it changes how
+ * the note is shown, never what goes into it or where it is put, so a page
+ * that sets it can do no more than a page that does not. Anything else the
+ * link carries is ignored, as it always was. A flag given without a value
+ * counts as yes, since `?typewriter` alone reads as asking for it.
+ */
+export function newDocLinkOptions(params: Readonly<Record<string, unknown>>): NewDocLinkOptions {
+  const value = params[NEW_DOC_TYPEWRITER_PARAM];
+  if (typeof value !== "string") return { typewriter: false };
+  return { typewriter: value === "" || YES.has(value.trim().toLowerCase()) };
 }
