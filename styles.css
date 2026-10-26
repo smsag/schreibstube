@@ -4299,8 +4299,13 @@
   border-bottom: none;
 }
 
-.schreibstube-draft-bare-window .workspace-tab-header-container > * {
+/* Hidden, its contents would still mark their places as not for dragging,
+   and most of the bar would no longer move the window. */
+.schreibstube-draft-bare-window .workspace-tab-header-container > *,
+.schreibstube-draft-bare-window .workspace-tab-header-container > * *,
+.schreibstube-draft-bare-window .workspace-tab-header-container .workspace-tab-header.is-active {
   visibility: hidden;
+  -webkit-app-region: drag;
 }
 
 .schreibstube-draft-bare-window .mobile-navbar {

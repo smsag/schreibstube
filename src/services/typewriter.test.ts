@@ -3,16 +3,17 @@ import { typewriterFollows, typewriterScrollDelta } from "./typewriter";
 
 describe("typewriterFollows", () => {
   it("follows typing and the keys", () => {
-    expect(typewriterFollows({ docChanged: true, selectionSet: true, pointer: false })).toBe(true);
-    expect(typewriterFollows({ docChanged: false, selectionSet: true, pointer: false })).toBe(true);
+    expect(typewriterFollows({ docChanged: true, cursorMoved: true, pointer: false })).toBe(true);
+    expect(typewriterFollows({ docChanged: false, cursorMoved: true, pointer: false })).toBe(true);
   });
 
   it("leaves a click or a drag where it was pressed", () => {
-    expect(typewriterFollows({ docChanged: false, selectionSet: true, pointer: true })).toBe(false);
+    expect(typewriterFollows({ docChanged: false, cursorMoved: true, pointer: true })).toBe(false);
   });
 
   it("does nothing for an update that moved neither text nor cursor", () => {
-    expect(typewriterFollows({ docChanged: false, selectionSet: false, pointer: false })).toBe(
+    // What a click sends after the pointer's own update: the same cursor again.
+    expect(typewriterFollows({ docChanged: false, cursorMoved: false, pointer: false })).toBe(
       false
     );
   });

@@ -10,7 +10,12 @@
 /** What happened in one editor update, as far as the mode cares. */
 export interface TypewriterUpdate {
   docChanged: boolean;
-  selectionSet: boolean;
+  /**
+   * The cursor is somewhere else than before the update. A selection set
+   * again where it already was does not count: a click sends one after the
+   * pointer's own, without saying it came from the pointer.
+   */
+  cursorMoved: boolean;
   /** The selection was set with the mouse or a finger. */
   pointer: boolean;
 }
@@ -24,7 +29,7 @@ export interface TypewriterUpdate {
  */
 export function typewriterFollows(update: TypewriterUpdate): boolean {
   if (update.pointer) return false;
-  return update.docChanged || update.selectionSet;
+  return update.docChanged || update.cursorMoved;
 }
 
 /** A vertical span on the screen, in pixels from the top of the window. */

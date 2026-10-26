@@ -37,7 +37,9 @@ export const typewriterExtension = ViewPlugin.fromClass(
       if (!update.view.dom.closest(`.${TYPEWRITER_CLASS}`)) return;
       const follows = typewriterFollows({
         docChanged: update.docChanged,
-        selectionSet: update.selectionSet,
+        cursorMoved:
+          update.selectionSet &&
+          update.startState.selection.main.head !== update.state.selection.main.head,
         pointer: update.transactions.some((tr) => tr.isUserEvent("select.pointer"))
       });
       if (follows) centreCursorLine(update.view);
