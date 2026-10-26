@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.89.0 - 2026-10-26
 
 A table with a column of amounts can be charted. Select it and pick **Chart
 this table**: a dialog draws the one or two charts that suit it — bars over

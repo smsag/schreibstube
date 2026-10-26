@@ -1,6 +1,6 @@
 # Schreibstube cheatsheet for language models
 
-Checked against Schreibstube 1.88.2
+Checked against Schreibstube 1.89.0
 
 **For the person:** paste this whole file into a conversation with a language
 model, then ask for what you need — a presentation, a letter, a mail, a cost
@@ -267,12 +267,12 @@ A formula alone in a cell works on the cells above it; the note keeps it.
 ```
 
 - `=sum`, `=avg`, `=median`, `=count`, `=min`, `=max`.
-- `=sum(fixed)` is written down as `=sum(fixed: 451.500 €)` the first time the
-  note is mailed, printed or published, and then stays.
-- Amounts: `300 €`, `€ 20`, `1.234,50 €`, `20,-`, `-20 €`. An amount in quotes, `"300 €"`, is
-  left out on purpose. Another formula above is not counted twice.
+- `=sum(fixed)` becomes `=sum(fixed: 451.500 €)` when the note is first mailed, printed or published.
+- Amounts: `300 €`, `€ 20`, `1.234,50 €`, `20,-`, `-20 €`; `"300 €"` in quotes is left out. No formula counts twice.
 - Alignment comes from the delimiter row: `:--`, `:-:`, `--:`.
 - A line ending in `=` shows its result: `Miete 1.240 € - 15% =`; Tab adds it.
+- **Chart this table** puts a ` ```mermaid ` block above the table, first line `%% schreibstube chart`.
+  Charting again replaces that block; a Mermaid block without the line is left alone.
 
 ## 6. Picture slideshows in a note
 
