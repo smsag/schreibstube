@@ -174,8 +174,16 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * before one is chosen, and their words in two languages — about 10 KB of
  * code and 2 of text. The 1572 ceiling had been spent to 4 KB on main; the
  * raise is in the change that needs it, for the plugin's owner to agree to.
+ *
+ * Raised to 1590 KB at 1587 KB, for New note in typewriter mode and with
+ * nothing around it (+2.6 KB on 1584): the link's flag and the rule that
+ * reads it, the editor extension that keeps the line in the middle, the
+ * controller that clears the window and gives it back, and the settings
+ * button and its words in two languages. The 1584 ceiling had been spent to
+ * 0.1 KB on main, so no feature fitted under it; the raise is in the change
+ * that needs it, for the plugin's owner to agree to.
  */
-const MAX_BUNDLE_KB = 1584;
+const MAX_BUNDLE_KB = 1590;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

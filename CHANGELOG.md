@@ -14,6 +14,10 @@ amount that is not a plain figure, a row without a date. After a change to
 the table, chart it again; the chart made before is replaced, and a table
 that changed while the dialog was open gets no chart, but a notice.
 
+**New note** opens with nothing around the note, and the link that runs it
+from outside Obsidian can start it in typewriter mode, the line being written
+held in the middle of the screen.
+
 A website can have a front page. One note in the publish folder says which
 kind of site it is — `schreibstubeHome: list` for a blog with an introduction
 above the list, `schreibstubeHome: marketing` for a page of a product or a
@@ -31,7 +35,10 @@ Explorer search on a phone with the desktop's index synced: rows found by
 meaning should appear under the word matches within a second. And select a
 table of amounts on a phone and pick **Chart this table** from the editor's
 menu: the dialog should draw its charts, and **Insert** should put one above
-the table.
+the table. And run the typewriter link from a phone's Shortcuts action: the
+note should open without its header and the navigation bar, the toolbar above
+the keyboard still there, the first line below the clock rather than under it,
+and each new line should stay at the middle as you type.
 
 The bridge moves from 3.4.0 to 3.5.0 and the protocol from 9 to 10. A site
 that uses a start page, a footer or a language is not published through an
@@ -44,6 +51,7 @@ older bridge; the notice says to redeploy it. The render version moves to
 - **A footer on every page.** A note with `schreibstubeFooter: true` is drawn beneath the start page, every note and every tag page, with links that work from each. It has no page of its own and is in no list, a link to it is plain text, and its footnotes and headings keep their own anchors, so they never lead into the page above. It gets no AI description, and the address it had as a page is removed from it at the next publish.
 - **The language of the pages.** **Sprache der Seiten** in each account takes a language tag such as `en` or `en-GB`; empty is German, as before. A note says otherwise with `schreibstubePageLanguage`, which the frontmatter fields can map to `lang` where notes already say it. The page's language goes into its `<html lang>`, and the words the site writes itself — the tag links' label, the empty list, a slideshow's labels and controls, a note index's summary — and the dates follow it: German and `12.09.2026` on a German page, English and `2026-09-12` on any other. The field is saved when you leave it; a word that is no language tag is refused with a notice.
 - **Videos that play by themselves.** `![[clip.mp4|loop]]` plays a video silently over and over, `![[clip.mp4|autoplay]]` once, `![[clip.mp4|muted]]` silently on a click; the words combine with `|`, a size may follow, and `![loop](clip.mp4)` works too. Only these words count, and only alone: a caption that happens to hold one of them stays a caption. The controls always stay.
+- **New note in typewriter mode, and with nothing around it.** **New note** now opens its note with nothing on screen but the note: a pop-out loses its tab bar and the note's header, a phone the header and the navigation bar, while the toolbar above the keyboard stays. The link from outside Obsidian takes `&typewriter=1`, which keeps the line you write in the middle of the screen as the text moves past it; a click or a drag leaves the text where it is until the next key. **Settings → Schreibstube → Focus mode** has a **Copy typewriter link** button beside **Copy link**. As with the line width, all of it is for the first opening only, and ends once the note's view shows another note or another tab in its window is chosen. The flag is the one thing the link reads besides the vault, and it changes only how the note is shown.
 - **Two property sets for a website.** **Website start page** adds what a front page needs, marked as a marketing start page; **Website footer** adds the footer's two keys.
 
 ### Fixed

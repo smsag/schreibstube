@@ -151,6 +151,29 @@ describe("New doc from a link", () => {
     expect(createUntitled).not.toHaveBeenCalled();
 
     for (const callback of ready) callback();
-    expect(createUntitled).toHaveBeenCalledWith({ withoutRecommendations: true, draftWidth: true });
+    expect(createUntitled).toHaveBeenCalledWith({
+      withoutRecommendations: true,
+      draftWidth: true,
+      bare: true,
+      typewriter: false
+    });
+  });
+
+  it("starts the note in typewriter mode when the link says so", () => {
+    const plugin = pluginWith({
+      workspace: { onLayoutReady: (callback: () => void) => callback() }
+    });
+    const handlers = new Map<string, (params: Record<string, string>) => void>();
+    const createUntitled = vi.fn(async () => undefined);
+    Object.assign(plugin, {
+      registerObsidianProtocolHandler: (action: string, handler: () => void) =>
+        handlers.set(action, handler),
+      notes: { createUntitled }
+    });
+
+    (plugin as unknown as { registerNewDocLink(): void }).registerNewDocLink();
+    handlers.get("schreibstube-new-doc")?.({ action: "schreibstube-new-doc", typewriter: "1" });
+
+    expect(createUntitled).toHaveBeenCalledWith(expect.objectContaining({ typewriter: true }));
   });
 });

@@ -4285,6 +4285,43 @@
   margin-inline: auto;
 }
 
+/* New note on its own (controllers/draft-focus): nothing on screen but the
+   note, the first time it opens. A pop-out's tab bar keeps its height and
+   loses what is in it and what it is drawn with: it is where the window is
+   dragged, and where macOS puts the window's buttons. A phone's toolbar above
+   the keyboard stays; it holds undo and the formatting. */
+.schreibstube-draft-bare > .view-header {
+  display: none;
+}
+
+.schreibstube-draft-bare-window .workspace-tab-header-container {
+  background: transparent;
+  border-bottom: none;
+}
+
+.schreibstube-draft-bare-window .workspace-tab-header-container > * {
+  visibility: hidden;
+}
+
+.schreibstube-draft-bare-window .mobile-navbar {
+  display: none;
+}
+
+/* Without its header, a phone's note would start under the clock. */
+.is-mobile .schreibstube-draft-bare > .view-content {
+  padding-top: env(safe-area-inset-top);
+}
+
+/* Typewriter mode (processors/typewriter): half a screen of room above the
+   first line and below the last, so either can be scrolled to the middle. */
+.schreibstube-typewriter .markdown-source-view.mod-cm6 .cm-sizer {
+  padding-top: 50vh;
+}
+
+.schreibstube-typewriter .markdown-source-view.mod-cm6 .cm-content {
+  padding-bottom: 50vh;
+}
+
 /* ══ Bases layout: Callouts & highlights ═════════════════════════════════════
    Every callout a card of its own and a note's highlights one card, drawn by
    Obsidian's renderer inside .markdown-rendered, so the theme's callouts and

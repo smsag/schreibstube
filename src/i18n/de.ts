@@ -588,8 +588,10 @@ export const de: Messages = {
     newDocLinkDesc:
       "Dieser Link führt „Neue Notiz“ in diesem Vault von überall aus: über ein Tastenkürzel des " +
       "Systems, die Kurzbefehle-App, Raycast, Alfred oder ein Symbol auf dem Home-Bildschirm. " +
-      "Die Einrichtung steht im README.",
+      "Die Notiz öffnet sich ohne alles drumherum; der Schreibmaschinen-Link hält zudem die " +
+      "Zeile, in der du schreibst, in der Mitte des Bildschirms. Die Einrichtung steht im README.",
     newDocLinkCopy: "Link kopieren",
+    newDocLinkCopyTypewriter: "Schreibmaschinen-Link kopieren",
 
     explorerHeading: "Schreibstube Explorer",
     explorerIntro:
