@@ -1,6 +1,6 @@
 {
   "name": "schreibstube",
-  "version": "1.88.2",
+  "version": "1.89.0",
   "private": true,
   "engines": {
     "node": ">=24"
