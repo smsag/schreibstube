@@ -12,6 +12,7 @@ import { BLOCK_REPORT_LABEL } from "./print-breaks";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
 import { buildHeadingIndex } from "./heading-index";
+import { isDraftCallout, stripDraftMarkers } from "./print-drafts";
 import { NOTE_INDEX_LANGUAGE, parseNoteIndexOptions, planNoteIndex } from "./note-index";
 import {
   groupSlides,
@@ -139,7 +140,6 @@ const CALLOUT_KINDS: Record<string, string> = {
   summary: "note",
   tldr: "note",
   info: "note",
-  todo: "note",
   tip: "tip",
   hint: "tip",
   important: "tip",
@@ -247,6 +247,8 @@ interface Shared {
   /** Footnotes being expanded right now, so one that cites itself ends. */
   expanding: Set<string>;
   slideshows: number;
+  /** Working notes left out, `[TODO …]` markers and `[!todo]` callouts, for the one warning. */
+  drafts: { markers: number; callouts: number };
   /** What is printed, whole: an index lists the headings of all of it, not of a callout. */
   printed: string;
   /**
@@ -258,16 +260,21 @@ interface Shared {
 }
 
 export function markdownToTypst(source: string, options: ConvertOptions = {}): Conversion {
-  return new Converter(source, options, {
+  const shared: Shared = {
     footnotes: new Map(),
     references: new Map(),
     diagrams: [],
     warnings: [],
     expanding: new Set(),
     slideshows: 0,
+    drafts: { markers: 0, callouts: 0 },
     printed: source,
     deck: options.slides === true
-  }).run();
+  };
+  const conversion = new Converter(source, options, shared).run();
+  const { markers, callouts } = shared.drafts;
+  if (markers + callouts > 0) conversion.warnings.push(t().print.draftsLeftOut(markers, callouts));
+  return conversion;
 }
 
 class Converter {
@@ -293,7 +300,9 @@ class Converter {
     // A slide's settings live in comments, so they are lifted out of theirs
     // before the comments go; only a deck reads them.
     const text = stripComments(options.slides ? markSlideDirectives(source) : source);
-    this.lines = (options.passage ? text : stripFrontmatter(text)).split(/\r?\n/);
+    const drafts = stripDraftMarkers(options.passage ? text : stripFrontmatter(text));
+    shared.drafts.markers += drafts.markers;
+    this.lines = drafts.text.split(/\r?\n/);
     this.breaks = new Set(options.breaksBefore ?? []);
     this.collectDefinitions(this.lines, this.consumed);
     if (options.definitionsFrom !== undefined) {
@@ -691,6 +700,10 @@ class Converter {
     if (callout?.[1]?.toLowerCase() === "notes" && this.shared.deck) {
       // The speaker's, not the audience's: handed to the deck, off the slide.
       this.marker = { kind: "notes", markup: this.nested(inner.slice(1).join("\n")) };
+      return null;
+    }
+    if (isDraftCallout(callout?.[1])) {
+      this.shared.drafts.callouts += 1;
       return null;
     }
     if (callout?.[1] !== undefined) {

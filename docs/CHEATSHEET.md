@@ -23,8 +23,8 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
   text with a width in pixels, `![Grundriss | 300](grundriss.png)`; to place
   it, put `left`, `center` or `right` before the width or alone:
   `![Grundriss | center | 300](grundriss.png)`. Never the word after the width.
-- Ask for facts you do not have — a recipient's address, a date, figures —
-  or mark them clearly as `[TODO: …]` in the body. Never invent them.
+- Ask for facts you do not have, or mark them as `[TODO: …]` in the body: a print
+  leaves it out and says so, and leaves a gap. Never invent them.
 - In the frontmatter, leave an unknown value out instead: a `[TODO: …]`
   there prints as written, on a title slide or in a letterhead.
 - Comments `<!-- … -->` and Obsidian's `%% … %%` are hidden in every view and never printed,
@@ -333,11 +333,11 @@ depth: 3
 
 `> [!note] Title`, then `> text` lines. Every kind prints in one of four styles, coloured by the template:
 
-- note: `note`, `info`, `todo`, `abstract`, `summary`, `tldr`, `example`, `quote`, `cite`
+- note: `note`, `info`, `abstract`, `summary`, `tldr`, `example`, `quote`, `cite`
 - tip: `tip`, `hint`, `important`, `success`, `check`, `done`
 - warning: `warning`, `caution`, `attention`, `question`, `help`, `faq`
 - danger: `danger`, `error`, `bug`, `failure`, `fail`, `missing`
-- `notes`: speaker notes in a deck; in any other print a note.
+- `notes`: speaker notes in a deck; in any other print a note. `todo`: never printed.
 
 ### Icons in the text
 

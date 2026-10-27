@@ -1237,6 +1237,13 @@ export const enExtra = {
       "or rename the folder and add the template again.",
     templateAdded: (path: string) => `${path} added. Open its template.md to see what it needs.`,
     diagramAsSource: (language: string) => `${language}: could not be drawn, printed as source`,
+    draftsLeftOut: (markers: number, callouts: number) =>
+      `left out as working notes: ${[
+        markers > 0 ? `${markers} [TODO …] ${markers === 1 ? "marker" : "markers"}` : "",
+        callouts > 0 ? `${callouts} [!todo] ${callouts === 1 ? "callout" : "callouts"}` : ""
+      ]
+        .filter(Boolean)
+        .join(" and ")}`,
     htmlDropped: "HTML is dropped when printing",
     mathAsSource: "math is printed as written, not typeset",
     embedNotPrinted: (target: string) => `embedded note is not printed: ${target}`,
