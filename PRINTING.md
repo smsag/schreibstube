@@ -149,6 +149,13 @@ a picture that cannot be read. Raw HTML means an element HTML knows — `<span>`
 angle brackets, such as the placeholder `<DOING SOMETHING>`, is text and prints
 as text. HTML comments (`<!-- … -->`) never reach paper, like `%%…%%`.
 
+Working notes are the backup for a comment someone forgot to write as one: a
+`> [!todo]` callout and a `[TODO …]`, `[TBD …]`, `[FIXME …]` or `[PRÜFEN …]` in
+the text, in capitals, alone in brackets or alone in a code span, are left out
+and counted in one warning (`services/print-drafts.ts`). A link's text, a
+wikilink and code that only mentions a marker stay; so does the frontmatter,
+which prints only as properties.
+
 Pictures: anything the device can decode is printed, drawn again at the size it
 prints as a format Typst reads (`services/print-images.ts`). JPEG, PNG and WebP
 stay what they are; GIF and BMP become PNG, since a canvas cannot write them;

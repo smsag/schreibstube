@@ -1755,6 +1755,13 @@ export const de: Messages = {
       `${path} angelegt. Die template.md darin sagt, was die Vorlage braucht.`,
     diagramAsSource: (language: string) =>
       `${language}: ließ sich nicht zeichnen und steht als Quelltext da`,
+    draftsLeftOut: (markers: number, callouts: number) =>
+      `als Arbeitsnotiz weggelassen: ${[
+        markers > 0 ? `${markers} [TODO …]-${markers === 1 ? "Vermerk" : "Vermerke"}` : "",
+        callouts > 0 ? `${callouts} [!todo]-${callouts === 1 ? "Callout" : "Callouts"}` : ""
+      ]
+        .filter(Boolean)
+        .join(" und ")}`,
     htmlDropped: "HTML wird beim Drucken weggelassen",
     mathAsSource: "Formeln werden so gedruckt, wie sie geschrieben sind, nicht gesetzt",
     embedNotPrinted: (target: string) => `eingebettete Notiz wird nicht gedruckt: ${target}`,

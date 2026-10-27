@@ -754,7 +754,7 @@ Without `schreibstubePrintTemplate` the command asks which template to use.
 
 Headings, paragraphs, emphasis, strong, strikethrough, highlight, nested lists, links, wikilinks, images and embeds, tables with their alignment, inline and fenced code, blockquotes, callouts, footnotes, `<br>`, and horizontal rules as an optional page break.
 
-Dropped with a warning rather than in silence: raw HTML, embedded notes, and a picture that cannot be read. LaTeX math is not converted yet and is reported like the rest.
+Dropped with a warning rather than in silence: raw HTML, embedded notes, a picture that cannot be read, and working notes — a `> [!todo]` callout, and a `[TODO …]`, `[TBD …]`, `[FIXME …]` or `[PRÜFEN …]` in the text — so a draft's open questions do not reach the reader and the print still says how many there were. LaTeX math is not converted yet and is reported like the rest.
 
 #### Diagrams
 

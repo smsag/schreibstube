@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+**Print note** leaves working notes out of the PDF: a `> [!todo]` callout, and
+a `[TODO …]`, `[TBD …]`, `[FIXME …]` or `[PRÜFEN …]` in the text, also when it
+stands alone in backticks. A comment was always the way to keep a note to
+oneself; this catches the ones written otherwise, so a reader never gets a
+question meant for the writer. The print report says how many were left out,
+so an open point is still noticed before the PDF goes out. A `[!todo]` callout
+used to print as a note.
+
 ## 1.89.0 - 2026-10-26
 
 A table with a column of amounts can be charted. Select it and pick **Chart

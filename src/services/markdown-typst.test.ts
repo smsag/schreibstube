@@ -46,6 +46,23 @@ describe("blocks", () => {
     expect(callout).toContain("Der Text");
   });
 
+  it("leaves out working notes, a todo callout and a [TODO …] marker, and says so", () => {
+    const conversion = markdownToTypst(
+      "Text [TODO: Datum]\n\n> [!todo] Offen\n> Anbieter klären\n\n> [!note]\n> > [!todo]-\n> > innen\n> bleibt"
+    );
+    expect(conversion.body).not.toContain("TODO");
+    expect(conversion.body).not.toContain("Anbieter");
+    expect(conversion.body).not.toContain("innen");
+    expect(conversion.body).toContain("bleibt");
+    expect(conversion.warnings).toContain(
+      "left out as working notes: 1 [TODO …] marker and 2 [!todo] callouts"
+    );
+  });
+
+  it("says nothing about working notes when there were none", () => {
+    expect(markdownToTypst("Text").warnings).toEqual([]);
+  });
+
   it("names a callout after its kind when the author gave no title", () => {
     expect(convert("> [!tip]\n> x")).toContain('#schreibstube-callout("tip", [Tip])[');
   });
