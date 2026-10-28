@@ -4294,16 +4294,21 @@
   display: none;
 }
 
-.schreibstube-draft-bare-window .workspace-tab-header-container {
+/* The note's own strip only: on a tablet the note opens in the main window,
+   and the sidebars' strips there are how their panes are switched. */
+.schreibstube-draft-bare-window .workspace-split.mod-root .workspace-tab-header-container {
   background: transparent;
   border-bottom: none;
 }
 
 /* Hidden, its contents would still mark their places as not for dragging,
    and most of the bar would no longer move the window. */
-.schreibstube-draft-bare-window .workspace-tab-header-container > *,
-.schreibstube-draft-bare-window .workspace-tab-header-container > * *,
-.schreibstube-draft-bare-window .workspace-tab-header-container .workspace-tab-header.is-active {
+.schreibstube-draft-bare-window .workspace-split.mod-root .workspace-tab-header-container > *,
+.schreibstube-draft-bare-window .workspace-split.mod-root .workspace-tab-header-container > * *,
+.schreibstube-draft-bare-window
+  .workspace-split.mod-root
+  .workspace-tab-header-container
+  .workspace-tab-header.is-active {
   visibility: hidden;
   -webkit-app-region: drag;
 }
@@ -4312,8 +4317,44 @@
   display: none;
 }
 
-/* Without its header, a phone's note would start under the clock. */
-.is-mobile .schreibstube-draft-bare > .view-content {
+/* Inside the note, everything that is not the text: the name it was given
+   before a word was written, the properties a template put in, the backlinks
+   and the heading path below and above it, the gutter beside it. Fixed, not a
+   setting: the shortcut is the choice, and nothing is asked after it. */
+.schreibstube-draft-bare .embedded-backlinks,
+.schreibstube-draft-bare .schreibstube-overlay,
+.schreibstube-draft-bare .cm-gutters {
+  display: none;
+}
+
+/* The first rule for the browsers that know it; the second for those that
+   still read Obsidian's styled scroll bars from the older pseudo-element. */
+.schreibstube-draft-bare .cm-scroller {
+  scrollbar-width: none;
+}
+
+.schreibstube-draft-bare .cm-scroller::-webkit-scrollbar {
+  display: none;
+}
+
+/* The title and the properties are folded away rather than removed: an
+   element that is not displayed cannot take the focus, so renaming the note
+   or adding a property from a command would type into nothing. Out of sight
+   until they are reached, they show while they are being edited. */
+.schreibstube-draft-bare .inline-title:not(:focus),
+.schreibstube-draft-bare .metadata-container:not(:focus-within) {
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  overflow: hidden;
+  opacity: 0;
+}
+
+/* Without its header, a phone's note would start under the clock. A tablet's
+   note keeps the tab strip's height above it, so it is clear already. */
+.is-phone .schreibstube-draft-bare > .view-content {
   padding-top: env(safe-area-inset-top);
 }
 
