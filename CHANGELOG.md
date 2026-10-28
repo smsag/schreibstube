@@ -17,7 +17,11 @@ title, properties a template put in, backlinks, the heading path, line numbers
 and the scroll bar are gone the first time the note opens, as the tab bar and
 the header already were; the cursor sits on an empty page instead of under
 "Untitled". Nothing about this is a setting: the shortcut is the choice. The
-typewriter flag on the link stays as it was.
+typewriter flag on the link stays as it was. Renaming the note or adding a
+property still works from a command, and shows the title or the properties
+while they are edited. On an iPad the sidebars keep their tab icons while the
+new note is open, and the note no longer starts a status bar's height lower
+than it needs to.
 
 ## 1.89.0 - 2026-10-26
 
