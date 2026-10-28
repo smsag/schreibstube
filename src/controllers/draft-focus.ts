@@ -1,7 +1,11 @@
 import { type App, type EventRef, MarkdownView, type TFile, type WorkspaceLeaf } from "obsidian";
 import { TYPEWRITER_CLASS } from "../processors/typewriter";
 
-/** Hides the view's own header, in styles.css. */
+/**
+ * Hides the view's own header, and inside the note all that is not the text:
+ * the inline title, properties, backlinks, the heading path, the gutter and
+ * the scroll bar, in styles.css.
+ */
 export const DRAFT_BARE_CLASS = "schreibstube-draft-bare";
 
 /**

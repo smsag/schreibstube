@@ -12,6 +12,13 @@ question meant for the writer. The print report says how many were left out,
 so an open point is still noticed before the PDF goes out. A `[!todo]` callout
 used to print as a note.
 
+**New note** now opens with nothing in the note but the text. The inline
+title, properties a template put in, backlinks, the heading path, line numbers
+and the scroll bar are gone the first time the note opens, as the tab bar and
+the header already were; the cursor sits on an empty page instead of under
+"Untitled". Nothing about this is a setting: the shortcut is the choice. The
+typewriter flag on the link stays as it was.
+
 ## 1.89.0 - 2026-10-26
 
 A table with a column of amounts can be charted. Select it and pick **Chart
