@@ -2,51 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.90.0 - 2026-11-02
 
-**Print note** leaves working notes out of the PDF: a `> [!todo]` callout, and
-a `[TODO …]`, `[TBD …]`, `[FIXME …]` or `[PRÜFEN …]` in the text, also when it
-stands alone in backticks. A comment was always the way to keep a note to
-oneself; this catches the ones written otherwise, so a reader never gets a
-question meant for the writer. The print report says how many were left out,
-so an open point is still noticed before the PDF goes out. A `[!todo]` callout
-used to print as a note.
+An Excalidraw drawing can follow a source, as a note can follow a Markdown
+file: a board that a script builds and commits to a repository is bound to
+that file, and each check that finds it changed replaces the drawing, with
+its pictures as files beside it. A print leaves working notes out, and
+**New note** opens with nothing in the note but the text.
 
-**New note** now opens with nothing in the note but the text. The inline
-title, properties a template put in, backlinks, the heading path, line numbers
-and the scroll bar are gone the first time the note opens, as the tab bar and
-the header already were; the cursor sits on an empty page instead of under
-"Untitled". Nothing about this is a setting: the shortcut is the choice. The
-typewriter flag on the link stays as it was. Renaming the note or adding a
-property still works from a command, and shows the title or the properties
-while they are edited. On an iPad the sidebars keep their tab icons while the
-new note is open, and the note no longer starts a status bar's height lower
-than it needs to.
+Mobile checklist: not run. A drawing is tried in a second Obsidian on the
+desktop with the Excalidraw plugin and a board of 123 screenshots, open and
+closed, with unsaved edits in its tab, and after the plugin's own save; not
+on a phone, where drawings are never fetched or written. What to try first:
+open a mirrored drawing on the phone after the desktop updated it, and check
+that its pictures show; then **Update note** on it, which should say that
+drawings are updated on the desktop. And open **New note** on an iPad: the
+sidebars should keep their tab icons, and the note should start right below
+the tab strip.
 
-**An Excalidraw drawing can follow a source**, as a note can follow a
-Markdown file. Bind a `Name.excalidraw.md` to an `.excalidraw` file — a board a
-script builds and commits, for instance — with **Bind to a source** in the
-explorer, and each check that finds the file changed replaces the drawing. A
-drawing is not reviewed: there are no cards, it is taken whole. Its pictures
-are written as files into a folder beside it rather than kept inside it, so a
-board of a hundred screenshots, 7 MB as JSON, becomes a note of a few hundred
-kilobytes, and only the pictures that changed are written again. Pictures the
-board no longer shows go to the trash, and only those: the mirror gives up
-only what it wrote itself, never a picture someone else put into the folder
-or pasted into the drawing before binding it; a file of someone else's in the
-way of a picture stops the update with its name. Moved or renamed, the
-drawing takes its pictures along on its next update. A drawing open in a tab
-is closed for each write and opened again after it, since the Excalidraw
-plugin would otherwise merge the old board into the new one. **Update note**
-on a drawing fetches it whole and writes it again, which mends one damaged
-here. Nothing about a drawing's checks is kept in the plugin's data: the
-drawing's own properties say which version of its source it holds
-(`schreibstubeSourceHash`, `schreibstubeSourceEtag`, `updatedAt`), and they
-change only when the source did; unbinding removes them. A drawing note bound
-to a Markdown file keeps mirroring it as a document. Drawings are updated on
-the desktop; a phone gets them through the vault's sync, and checking one
-there says so. Private GitHub repositories work with the same token as notes.
-The search index reads a drawing's texts, not its list of pictures.
+The bridge moves from 3.5.0 to 3.5.1 for updated dependencies — imapflow,
+KaTeX, mailparser and nodemailer — and a newer Node image. Nothing it does
+changes, and the protocol is unchanged.
+
+### Added
+
+- **An Excalidraw drawing can follow a source.** Bind a `Name.excalidraw.md` to an `.excalidraw` file with **Bind to a source** in the explorer, and each check that finds the file changed replaces the drawing. A drawing is not reviewed: there are no cards, it is taken whole. Its pictures are written as files into a folder beside it rather than kept inside it, so a board of a hundred screenshots, 7 MB as JSON, becomes a note of a few hundred kilobytes, and only the pictures that changed are written again. Pictures the board no longer shows go to the trash, and only those: the mirror gives up only what it wrote itself, never a picture someone else put into the folder or pasted into the drawing before binding it, and a file of someone else's in the way of a picture stops the update with its name. Moved or renamed, the drawing takes its pictures along on its next update. A drawing open in a tab is closed for each write and opened again after it, since the Excalidraw plugin would otherwise merge the old board into the new one. **Update note** on a drawing fetches it whole and writes it again, which mends one damaged here. Nothing about a drawing's checks is kept in the plugin's data: the drawing's own properties say which version of its source it holds (`schreibstubeSourceHash`, `schreibstubeSourceEtag`, `updatedAt`), and they change only when the source did; unbinding removes them. A drawing note bound to a Markdown file keeps mirroring it as a document. Drawings are updated on the desktop; a phone gets them through the vault's sync, and checking one there says so. Private GitHub repositories work with the same token as notes, and the search index reads a drawing's texts, not its list of pictures.
+
+### Changed
+
+- **Print note leaves working notes out of the PDF.** A `> [!todo]` callout, and a `[TODO …]`, `[TBD …]`, `[FIXME …]` or `[PRÜFEN …]` in the text, also when it stands alone in backticks, are left out, so a reader never gets a question meant for the writer. A comment was always the way to keep a note to oneself; this catches the ones written otherwise. The print report says how many were left out, so an open point is still noticed before the PDF goes out. A `[!todo]` callout used to print as a note.
+- **New note opens with nothing in the note but the text.** The inline title, properties a template put in, backlinks, the heading path, line numbers and the scroll bar are gone the first time the note opens, as the tab bar and the header already were; the cursor sits on an empty page instead of under "Untitled". Nothing about this is a setting: the shortcut is the choice, and the typewriter flag on the link stays as it was. Renaming the note or adding a property still works from a command, and shows the title or the properties while they are edited.
+
+### Fixed
+
+- **New note on an iPad keeps the sidebars' tab icons.** The rule that empties the new note's tab strip also emptied the sidebars' strips, taking away the icons that switch their panes; it now reaches the note's own strip only. The note no longer starts a status bar's height lower than it needs to, since the room kept clear of the clock is for a phone only.
 
 ## 1.89.0 - 2026-10-26
 
