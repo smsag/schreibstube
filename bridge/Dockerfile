@@ -5,7 +5,7 @@
 # says it is today, so the same Dockerfile could build a different image
 # tomorrow; the digest names one image, and Dependabot moves it in a pull
 # request that can be read. Both stages use the same one.
-FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS deps
+FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 AS deps
 WORKDIR /app
 
 # `npm ci` only: a lockfile that no longer matches package.json fails the build
@@ -24,7 +24,7 @@ RUN mkdir -p vendor \
   && cp node_modules/mermaid/dist/mermaid.min.js vendor/ \
   && npm uninstall mermaid --no-save --omit=dev
 
-FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f
+FROM node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53
 
 ENV NODE_ENV=production
 WORKDIR /app
