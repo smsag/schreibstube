@@ -57,12 +57,17 @@ import {
   type LocalState,
   type SyncRecord
 } from "../services/sync-document";
-import { resolveSourceUrl, sourceUrlFromNote, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import {
+  resolveSourceUrl,
+  sourceKindOf,
+  sourceUrlFromNote,
+  SYNC_FRONTMATTER_KEY
+} from "../services/sync-source";
 import { pathAfterMove } from "../services/path-follow";
 import { recordForSource } from "../services/sync-reconcile";
 import { SyncPoller, githubToken } from "./sync-poller";
 import { planSourceCheck } from "../services/sync-interval";
-import type { PollSummary } from "../services/sync-summary";
+import { describePollSummary, type PollSummary } from "../services/sync-summary";
 import { parseSyncEvery, SYNC_EVERY_KEY, type SyncSchedule } from "../services/sync-interval";
 
 import {
@@ -654,6 +659,17 @@ export class ProofreadController {
     const file = this.reviewedFile();
     if (!file) return;
 
+    // A drawing has no cards to show: it is replaced whole, by the same check
+    // the explorer's menu runs, and only when someone asked for it.
+    if (sourceKindOf(file.path) === "drawing") {
+      if (!manual) return;
+      const summary = await this.poller.checkFile(file);
+      new Notice(
+        t().common.notice(describePollSummary(summary, { scope: "note", name: file.basename }))
+      );
+      return;
+    }
+
     // Against this note, not against any check at all: another note's fetch
     // can be in flight for twenty seconds, and this one's check-on-open used
     // to be dropped for the whole of it.
@@ -987,7 +1003,12 @@ export class ProofreadController {
 
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
     this.syncInterval = this.readInterval(file).sentence;
-    if (typeof raw !== "string" || raw.trim().length === 0) {
+    // The panel's sync section is for cards; a drawing never has any.
+    if (
+      typeof raw !== "string" ||
+      raw.trim().length === 0 ||
+      sourceKindOf(file.path) === "drawing"
+    ) {
       this.sync = EMPTY_REVIEW_STATE.sync;
       return;
     }

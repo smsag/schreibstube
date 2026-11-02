@@ -43,7 +43,7 @@ plain Obsidian Markdown plus what this file lists. Write only what is here.
 | `schreibstubeCc`              | mail note      | list of addresses                                              |
 | `schreibstubeFrom`            | mail note      | optional sender `Name <address>`, one the bridge allows        |
 | `schreibstubeSubject`         | mail note      | subject line                                                   |
-| `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown file                               |
+| `schreibstubeSyncedFrom`      | synced note    | HTTPS address of a Markdown or Excalidraw file                 |
 | `schreibstubeSyncEvery`       | synced note    | `Alle 2 Tage`, `weekly`, `every 6 hours` or a cron line        |
 | `schreibstubeReadingFrom`     | reading note   | `instapaper:archive` or `instapaper:liked` (see 10)            |
 | `schreibstubeGlossary`        | glossary note  | `true`                                                         |
@@ -412,7 +412,9 @@ schreibstubeSyncEvery: Alle 2 Tage
 ---
 ```
 
-- HTTPS only, and the path must end in a Markdown extension.
+- HTTPS only, and the path must end in a Markdown extension — or in `.excalidraw` when the note is a
+  drawing (`Name.excalidraw.md`). The desktop then replaces it whole, pictures in a folder beside it,
+  and keeps `schreibstubeSourceHash` and `schreibstubeSourceEtag` itself; never write them.
 - `schreibstubeSyncEvery` reads German or English words (`täglich`, `every 6 hours`) or a cron line.
 - `schreibstubeReadingFrom: instapaper:archive` (or `instapaper:liked`) makes a reading history instead: lines
   `- [Title](link) · YYYY-MM-DD`, newest on top (**Update reading history**, `Lesehistorie aktualisieren`).
@@ -450,8 +452,7 @@ schreibstubeDefaultSeverity: error
 - [[Wochenplan]]
 ```
 
-- `#` and deeper headings are folders, nested by level; list items with a
-  link are bookmarks; everything else is ignored.
+- `#` headings are folders, nested by level; linked list items are bookmarks; the rest is ignored.
 - Schemes: `https://`, `obsidian://`, `vault://folder`, `note://path`.
 
 ## 13. Print templates of your own
@@ -496,5 +497,4 @@ template's folder; a missing one is left out with a warning.
 - HTML for layout (`<div>`, `<br>` grids) — use headings, columns and comments listed here.
 - Invented keys (`schreibstubeTheme`, `schreibstubeMenu`) — ignored.
 - A slideshow block with `![[…]]` lines — write `![Alt](file)` instead.
-- `recipient:` or `subject:` at the top level of a letter — they belong
-  under `schreibstubePrint:`.
+- `recipient:` or `subject:` at a letter's top level — they belong under `schreibstubePrint:`.

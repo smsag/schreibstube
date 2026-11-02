@@ -11,6 +11,8 @@ import { t } from "../i18n";
 export interface PollSummary {
   checked: number;
   withChanges: number;
+  /** Drawings replaced by their source's new version; they wait for no one. */
+  updated?: number;
   failed: number;
   /** Paths of notes with changes waiting, for the summary notice. */
   notes: string[];
@@ -47,6 +49,7 @@ export function describePollSummary(summary: PollSummary, where: SummaryScope): 
         : t().explorer.bind.failed(summary.reason);
     }
     if (summary.withChanges > 0) return words.withUpdates(summary.withChanges);
+    if ((summary.updated ?? 0) > 0) return words.drawingUpdated(where.name);
     if (summary.checked === 0) return words.notBound;
     return t().explorer.bind.checked(where.name);
   }
@@ -54,5 +57,7 @@ export function describePollSummary(summary: PollSummary, where: SummaryScope): 
   if (summary.checked === 0 && summary.failed === 0) {
     return where.scope === "folder" ? t().explorer.bind.folderEmpty : words.noneChecked;
   }
-  return words.checked(summary.checked, summary.withChanges, summary.failed);
+  const checked = words.checked(summary.checked, summary.withChanges, summary.failed);
+  const updated = summary.updated ?? 0;
+  return updated > 0 ? `${checked} ${words.drawingsUpdated(updated)}` : checked;
 }

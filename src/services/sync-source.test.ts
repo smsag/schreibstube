@@ -4,6 +4,7 @@ import {
   githubApiUrl,
   hasSourceBinding,
   resolveSourceUrl,
+  sourceKindOf,
   SYNC_FRONTMATTER_KEY,
   type SourceTarget
 } from "./sync-source";
@@ -230,5 +231,33 @@ describe("githubApiUrl", () => {
     expect(
       githubApiUrl({ kind: "github", owner: "org", repo: "repo", ref: "feat/x", path: "a.md" })
     ).toContain("?ref=feat%2Fx");
+  });
+});
+
+describe("drawings", () => {
+  it("binds the Excalidraw plugin's own note, and nothing else, to a drawing", () => {
+    expect(sourceKindOf("Projekte/Atlas.excalidraw.md")).toBe("drawing");
+    expect(sourceKindOf("Projekte/Atlas.Excalidraw.MD")).toBe("drawing");
+    expect(sourceKindOf("Projekte/Atlas.excalidraw")).toBe("markdown");
+    expect(sourceKindOf("Projekte/Atlas.md")).toBe("markdown");
+  });
+
+  it("takes a drawing's JSON, page links rewritten as for a document", () => {
+    const page = "https://github.com/org/repo/blob/main/Konzepte/Atlas.excalidraw";
+    expect(resolveSourceUrl(page, "drawing")).toMatchObject({
+      ok: true,
+      url: "https://raw.githubusercontent.com/org/repo/main/Konzepte/Atlas.excalidraw",
+      target: { kind: "github", path: "Konzepte/Atlas.excalidraw" }
+    });
+    expect(resolveSourceUrl("https://example.com/a.excalidraw.json", "drawing").ok).toBe(true);
+  });
+
+  it("keeps each kind to its own files", () => {
+    expect(resolveSourceUrl("https://example.com/a.md", "drawing")).toEqual({
+      ok: false,
+      reason: "The source is not an Excalidraw drawing (.excalidraw)."
+    });
+    expect(resolveSourceUrl("https://example.com/a.excalidraw").ok).toBe(false);
+    expect(resolveSourceUrl("http://example.com/a.excalidraw", "drawing").ok).toBe(false);
   });
 });

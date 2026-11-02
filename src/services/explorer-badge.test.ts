@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { syncBadgeFor, syncBadgeIcon } from "./explorer-badge";
+import { drawingBadgeFor, syncBadgeFor, syncBadgeIcon } from "./explorer-badge";
 
 const record = { hash: "0", etag: "", checkedAt: 1 };
 
@@ -33,5 +33,13 @@ describe("syncBadgeIcon", () => {
       expect(syncBadgeIcon(badge)).not.toBe("");
     }
     expect(syncBadgeIcon("none")).toBe("");
+  });
+});
+
+describe("drawingBadgeFor", () => {
+  it("is never waiting: a drawing is written as soon as its source changed", () => {
+    expect(drawingBadgeFor({ sourceValid: false, written: true })).toBe("error");
+    expect(drawingBadgeFor({ sourceValid: true, written: false })).toBe("unchecked");
+    expect(drawingBadgeFor({ sourceValid: true, written: true })).toBe("synced");
   });
 });

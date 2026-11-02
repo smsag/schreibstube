@@ -2,7 +2,7 @@
  * Checking every bound note, rather than the one that is open. Split from the
  * review controller because the two share nothing but the store.
  */
-import { MarkdownView, TFile, type App } from "obsidian";
+import { MarkdownView, Platform, TFile, type App } from "obsidian";
 
 import type { SchreibstubeSettings } from "../types";
 import type { Logger } from "../services/logger";
@@ -12,9 +12,13 @@ import {
   frontmatterLine,
   hasSourceBinding,
   resolveSourceUrl,
+  sourceKindOf,
   sourceUrlFromNote,
   SYNC_FRONTMATTER_KEY
 } from "../services/sync-source";
+import { checkDrawing, drawingStateOf, isDrawingChange } from "../services/drawing-mirror";
+import { t } from "../i18n";
+import { DrawingWriter } from "./drawing-writer";
 import { parseSyncEvery, planSourceCheck, SYNC_EVERY_KEY } from "../services/sync-interval";
 import { diffHunks } from "../services/line-diff";
 import {
@@ -45,6 +49,14 @@ const POLL_CONCURRENCY = 4;
 
 export class SyncPoller {
   private polling = false;
+  private readonly drawings: DrawingWriter;
+  /**
+   * When each drawing was last asked about, in this session only. A drawing
+   * keeps nothing in the plugin's data, and writing the moment of every check
+   * into its note would be a vault write per poll; after a restart the first
+   * check is a conditional request, which costs no download.
+   */
+  private readonly drawingChecks = new Map<string, number>();
 
   constructor(
     private readonly app: App,
@@ -52,7 +64,9 @@ export class SyncPoller {
     private readonly syncStore: SyncStore,
     private readonly refreshActive: () => Promise<void>,
     private readonly logger: Logger
-  ) {}
+  ) {
+    this.drawings = new DrawingWriter(app, logger);
+  }
 
   private githubToken(): string | undefined {
     return githubToken(this.app, this.getSettings());
@@ -134,6 +148,9 @@ export class SyncPoller {
   private bindingOf(path: string): NoteBinding {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return { kind: "missing" };
+    // A drawing keeps its state in its own frontmatter; a record left for one
+    // describes nothing, and is dropped.
+    if (sourceKindOf(path) === "drawing") return { kind: "unbound" };
 
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache) return { kind: "unknown" };
@@ -209,7 +226,11 @@ export class SyncPoller {
           const file = files[next];
           if (file === undefined) return;
           next += 1;
-          await this.pollOne(file, token, summary, updates, force);
+          if (sourceKindOf(file.path) === "drawing") {
+            await this.pollDrawing(file, token, summary, force);
+          } else {
+            await this.pollOne(file, token, summary, updates, force);
+          }
         }
       };
 
@@ -352,6 +373,80 @@ export class SyncPoller {
     if (changes > 0) {
       summary.withChanges += 1;
       summary.notes.push(file.path);
+    }
+  }
+
+  /**
+   * Check one drawing, and replace it when its source changed.
+   *
+   * Never on a phone: the board and its pictures arrive there through the
+   * vault's own sync, already written, and a hundred picture writes are what
+   * the phone's watchdog stops a plugin for.
+   */
+  private async pollDrawing(
+    file: TFile,
+    token: string | undefined,
+    summary: PollSummary,
+    force: boolean
+  ): Promise<void> {
+    if (Platform.isMobile) {
+      if (force) this.fail(file, t().sync.drawingDesktopOnly, summary);
+      return;
+    }
+
+    const resolved = resolveSourceUrl(await this.readBinding(file), "drawing");
+    if (!resolved.ok) {
+      this.fail(file, resolved.reason, summary);
+      return;
+    }
+
+    const own = await this.readInterval(file);
+    if (own !== null && !own.ok) {
+      this.fail(file, own.reason, summary);
+      return;
+    }
+
+    const state = drawingStateOf(this.app.metadataCache.getFileCache(file)?.frontmatter);
+    const plan = planSourceCheck({
+      record: { hash: "", etag: state.etag, checkedAt: this.drawingChecks.get(file.path) ?? 0 },
+      schedule: own === null ? null : own.schedule,
+      minIntervalMinutes: this.getSettings().syncMinIntervalMinutes,
+      now: new Date()
+    });
+    if (!force && !plan.due) return;
+    this.drawingChecks.set(file.path, Date.now());
+
+    try {
+      const outcome = await fetchSource({
+        url: resolved.url,
+        target: resolved.target,
+        etag: plan.etag,
+        token,
+        kind: "drawing"
+      });
+      summary.checked += 1;
+
+      if (outcome.status === "missing" || outcome.status === "error") {
+        this.fail(file, outcome.message, summary);
+        return;
+      }
+      if (outcome.status === "unchanged") return;
+
+      if (!isDrawingChange(state, outcome.body)) {
+        if (outcome.etag !== state.etag) await this.drawings.rememberEtag(file, outcome.etag);
+        return;
+      }
+
+      const checked = checkDrawing(outcome.body);
+      if (!checked.ok) {
+        this.fail(file, checked.reason, summary);
+        return;
+      }
+
+      await this.drawings.write(file, checked.drawing, outcome.body, outcome.etag);
+      summary.updated = (summary.updated ?? 0) + 1;
+    } catch (err) {
+      this.fail(file, err instanceof Error ? err.message : String(err), summary);
     }
   }
 

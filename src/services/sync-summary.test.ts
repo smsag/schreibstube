@@ -51,3 +51,20 @@ describe("describePollSummary", () => {
     expect(describePollSummary(summary(), { scope: "note", name: "a" })).toContain("not bound");
   });
 });
+
+describe("describePollSummary for drawings", () => {
+  it("says a drawing was updated, not that it waits in the review panel", () => {
+    expect(
+      describePollSummary(summary({ checked: 1, updated: 1 }), { scope: "note", name: "Atlas" })
+    ).toBe("Atlas was updated from its source.");
+  });
+
+  it("adds the drawings to a vault-wide count", () => {
+    expect(
+      describePollSummary(summary({ checked: 3, withChanges: 1, updated: 2 }), { scope: "vault" })
+    ).toBe("3 checked, 1 with updates, 0 failed. 2 drawing(s) updated from their source.");
+    expect(describePollSummary(summary({ checked: 3 }), { scope: "vault" })).toBe(
+      "3 checked, 0 with updates, 0 failed."
+    );
+  });
+});

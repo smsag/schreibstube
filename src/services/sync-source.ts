@@ -21,7 +21,24 @@ export type SourceResult =
   | { ok: true; url: string; rewritten: boolean; target: SourceTarget }
   | { ok: false; reason: string };
 
+/** What a bound note mirrors: a document's text, or an Excalidraw drawing. */
+export type SourceKind = "markdown" | "drawing";
+
 const MARKDOWN_EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd"];
+
+/** A drawing is fetched as the plain JSON Excalidraw itself saves. */
+const DRAWING_EXTENSIONS = [".excalidraw", ".excalidraw.json"];
+
+/**
+ * Which kind of source a note at this path can be bound to.
+ *
+ * Only the Excalidraw plugin's own wrapper, `Name.excalidraw.md`: it has the
+ * frontmatter a binding lives in, where the older `Name.excalidraw` is JSON
+ * with nowhere to write one.
+ */
+export function sourceKindOf(path: string): SourceKind {
+  return path.toLowerCase().endsWith(".excalidraw.md") ? "drawing" : "markdown";
+}
 
 /**
  * Turn a frontmatter value into a URL worth fetching.
@@ -29,7 +46,7 @@ const MARKDOWN_EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd"];
  * A GitHub page URL is rewritten to `raw.githubusercontent.com`, because
  * fetching the page itself would store a mountain of HTML into the note.
  */
-export function resolveSourceUrl(raw: unknown): SourceResult {
+export function resolveSourceUrl(raw: unknown, kind: SourceKind = "markdown"): SourceResult {
   if (typeof raw !== "string" || raw.trim().length === 0) {
     return { ok: false, reason: t().source.missing };
   }
@@ -52,8 +69,11 @@ export function resolveSourceUrl(raw: unknown): SourceResult {
 
   // The extension is the filter, on every host. A source without one is either
   // a rendered page or something that is not a document at all.
-  if (!hasMarkdownPath(resolved.pathname)) {
-    return { ok: false, reason: t().source.notMarkdown };
+  if (!hasExtension(resolved.pathname, kind)) {
+    return {
+      ok: false,
+      reason: kind === "drawing" ? t().source.notDrawing : t().source.notMarkdown
+    };
   }
 
   return {
@@ -187,16 +207,17 @@ export function hasSourceBinding(frontmatter: Record<string, unknown> | undefine
   return typeof value === "string" && value.trim().length > 0;
 }
 
-function hasMarkdownPath(pathname: string): boolean {
+function hasExtension(pathname: string, kind: SourceKind): boolean {
   const lower = pathname.toLowerCase();
-  return MARKDOWN_EXTENSIONS.some((extension) => lower.endsWith(extension));
+  const extensions = kind === "drawing" ? DRAWING_EXTENSIONS : MARKDOWN_EXTENSIONS;
+  return extensions.some((extension) => lower.endsWith(extension));
 }
 
 /**
  * `github.com/owner/repo/blob/ref/path.md` becomes
  * `raw.githubusercontent.com/owner/repo/ref/path.md`. The `raw` variant of the
  * page URL is handled the same way. Anything else on github.com is left alone
- * and will fail the Markdown check, which is the right answer for a repo or
+ * and will fail the extension check, which is the right answer for a repo or
  * issue URL.
  */
 function rewriteGitHubUrl(url: URL): { url: URL; target: SourceTarget } | null {
