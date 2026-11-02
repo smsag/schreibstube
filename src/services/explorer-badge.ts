@@ -41,6 +41,22 @@ export function syncBadgeFor({ bound, sourceValid, record }: SyncBadgeInput): Sy
   return (record.pendingChanges ?? 0) > 0 || hasWaitingUpdate(record) ? "pending" : "synced";
 }
 
+/**
+ * The mark for a bound drawing, which keeps no record: its frontmatter says
+ * whether a source was ever written into it, and a drawing never waits, since
+ * a check that finds a new board writes it.
+ */
+export function drawingBadgeFor({
+  sourceValid,
+  written
+}: {
+  sourceValid: boolean;
+  written: boolean;
+}): SyncBadge {
+  if (!sourceValid) return "error";
+  return written ? "synced" : "unchecked";
+}
+
 /** The glyph for a badge, from the bundled icon set. */
 export function syncBadgeIcon(badge: SyncBadge): string {
   switch (badge) {

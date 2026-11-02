@@ -19,7 +19,8 @@ import { basename, checkFileName, type FileNameProblem } from "../services/file-
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
-import { syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
+import { drawingBadgeFor, syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
+import { drawingStateOf } from "../services/drawing-mirror";
 import { publishMarkFor, type PublishMark } from "../services/publish-mark";
 import {
   buildExplorerMenu,
@@ -74,7 +75,12 @@ import {
   planMove,
   type MoveContext
 } from "../services/tree-move";
-import { hasSourceBinding, resolveSourceUrl, SYNC_FRONTMATTER_KEY } from "../services/sync-source";
+import {
+  hasSourceBinding,
+  resolveSourceUrl,
+  sourceKindOf,
+  SYNC_FRONTMATTER_KEY
+} from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
 import { DescriptionFollower } from "./description-follower";
 import { OrphanRepair, type OrphanRepairResult } from "./orphan-repair";
@@ -916,10 +922,16 @@ export class ExplorerController {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (!hasSourceBinding(frontmatter)) return "none";
 
+    const kind = sourceKindOf(file.path);
+    const sourceValid = resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY], kind).ok;
+    if (kind === "drawing") {
+      return drawingBadgeFor({ sourceValid, written: drawingStateOf(frontmatter).hash !== null });
+    }
+
     const record = this.getSettings().syncState[file.path];
     return syncBadgeFor({
       bound: true,
-      sourceValid: resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY]).ok,
+      sourceValid,
       ...(record ? { record } : {})
     });
   }
@@ -1289,17 +1301,18 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
 
     const current = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    const drawing = sourceKindOf(file.path) === "drawing";
 
     new PromptModal(
       this.app,
       {
         title: t().explorer.bind.title,
-        description: t().explorer.bind.desc,
-        placeholder: t().explorer.bind.placeholder,
+        description: drawing ? t().explorer.bind.drawingDesc : t().explorer.bind.desc,
+        placeholder: drawing ? t().explorer.bind.drawingPlaceholder : t().explorer.bind.placeholder,
         initial: typeof current === "string" ? current : "",
         submitLabel: t().explorer.bind.submit,
         validate: (value) => {
-          const resolved = resolveSourceUrl(value);
+          const resolved = resolveSourceUrl(value, drawing ? "drawing" : "markdown");
           return resolved.ok ? null : resolved.reason;
         }
       },
@@ -1308,7 +1321,7 @@ export class ExplorerController {
   }
 
   private async writeBinding(file: TFile, value: string): Promise<void> {
-    const resolved = resolveSourceUrl(value);
+    const resolved = resolveSourceUrl(value, sourceKindOf(file.path));
     if (!resolved.ok) return;
 
     // The resolved URL is stored, not what was typed: a GitHub page link is
@@ -1355,7 +1368,7 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
 
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
-    const resolved = resolveSourceUrl(raw);
+    const resolved = resolveSourceUrl(raw, sourceKindOf(file.path));
 
     if (!resolved.ok) {
       new Notice(t().common.notice(t().explorer.bind.noSource));

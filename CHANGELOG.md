@@ -23,6 +23,21 @@ while they are edited. On an iPad the sidebars keep their tab icons while the
 new note is open, and the note no longer starts a status bar's height lower
 than it needs to.
 
+**An Excalidraw drawing can follow a source**, as a note can follow a
+Markdown file. Bind a `Name.excalidraw.md` to an `.excalidraw` file — a board a
+script builds and commits, for instance — with **Bind to a source** in the
+explorer, and each check that finds the file changed replaces the drawing. A
+drawing is not reviewed: there are no cards, it is taken whole. Its pictures
+are written as files into a folder beside it rather than kept inside it, so a
+board of a hundred screenshots, 7 MB as JSON, becomes a note of a few hundred
+kilobytes, and only the pictures that changed are written again; pictures the
+board no longer shows go to the trash. Nothing about a drawing's checks is
+kept in the plugin's data: the drawing's own properties say which version of
+its source it holds (`schreibstubeSourceHash`, `schreibstubeSourceEtag`,
+`updatedAt`), and they change only when the source did. Drawings are updated
+on the desktop; a phone gets them through the vault's sync, and checking one
+there says so. Private GitHub repositories work with the same token as notes.
+
 ## 1.89.0 - 2026-10-26
 
 A table with a column of amounts can be charted. Select it and pick **Chart

@@ -14,6 +14,7 @@ import { requestUrl } from "obsidian";
 import { t } from "../i18n";
 import { withTimeout } from "../utils/with-timeout";
 import {
+  DRAWING_TIMEOUT_MS,
   interpretSourceResponse,
   planSourceRequest,
   REQUEST_TIMEOUT_MS,
@@ -30,7 +31,7 @@ export async function fetchSource(options: FetchOptions): Promise<FetchOutcome> 
   try {
     response = await withTimeout(
       requestUrl({ url: request.url, method: "GET", headers: request.headers, throw: false }),
-      REQUEST_TIMEOUT_MS,
+      options.kind === "drawing" ? DRAWING_TIMEOUT_MS : REQUEST_TIMEOUT_MS,
       (seconds) => t().source.timeout(seconds)
     );
   } catch (err) {

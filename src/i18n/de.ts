@@ -1028,6 +1028,7 @@ export const de: Messages = {
     notAUrl: "Quell-URL ist keine gültige URL.",
     notHttps: "Nur HTTPS-Quellen werden geladen.",
     notMarkdown: "Quelle ist keine Markdown-Datei (.md).",
+    notDrawing: "Quelle ist keine Excalidraw-Zeichnung (.excalidraw).",
     notFound: (status: number) => `Quelle nicht gefunden (HTTP ${status}).`,
     privateNeedsToken: "Für ein privates Repository wird ein GitHub-Token benötigt.",
     tokenNoAccess:
@@ -1038,6 +1039,12 @@ export const de: Messages = {
     httpStatus: (status: number) => `Quelle antwortete mit HTTP ${status}.`,
     metadataNotFile: "GitHub lieferte Metadaten statt Dateiinhalt.",
     notMarkdownType: (type: string) => `Quelle ist kein Markdown (${type}).`,
+    notDrawingType: (type: string) => `Quelle ist keine Excalidraw-Zeichnung (${type}).`,
+    drawingUnreadable:
+      "Quelle ist keine Excalidraw-Zeichnung: Ihr JSON lässt sich nicht als eine lesen.",
+    drawingTooMany: "Die Zeichnung hat mehr Elemente oder Bilder, als ein Spiegel aufnimmt.",
+    drawingImage: (id: string) =>
+      `Das Bild ${id} der Zeichnung ist kein Bild, das sie tragen kann.`,
     notText: "Die Quelle ist kein Text: Sie enthält Binärdaten.",
     tooLarge: "Quelle überschreitet die Größengrenze.",
     timeout: (seconds: number) => `Quelle antwortete nicht innerhalb von ${seconds}s.`,
@@ -1198,6 +1205,10 @@ export const de: Messages = {
       `${checked} geprüft, ${changed} mit Aktualisierungen, ${failed} fehlgeschlagen.`,
     withUpdates: (count: number) =>
       `${count} Notiz(en) mit Aktualisierungen aus der Quelle — im Überprüfungsbereich übernehmen.`,
+    drawingsUpdated: (count: number) => `${count} Zeichnung(en) aus der Quelle aktualisiert.`,
+    drawingUpdated: (name: string) => `${name} wurde aus der Quelle aktualisiert.`,
+    drawingDesktopOnly:
+      "Zeichnungen werden am Desktop aktualisiert; dieses Gerät erhält sie über die Synchronisierung des Vaults.",
 
     every: {
       notWords:
@@ -1558,6 +1569,10 @@ export const de: Messages = {
         "geschrieben wird nie. Nur HTTPS; eine GitHub-Seiten-URL wird auf die Rohform " +
         "umgeschrieben.",
       placeholder: "https://raw.githubusercontent.com/owner/repo/main/notiz.md",
+      drawingDesc:
+        "Die Zeichnung spiegelt diese Excalidraw-Datei: Jede Prüfung, die sie verändert findet, " +
+        "ersetzt die Zeichnung samt Bildern, zurück geschrieben wird nie. Aktualisiert nur am Desktop.",
+      drawingPlaceholder: "https://github.com/owner/repo/blob/main/board.excalidraw",
       submit: "Verbinden",
       bound: (name: string) => `${name} ist jetzt an die Quelle gebunden.`,
       unbound: (name: string) => `${name} ist nicht mehr an eine Quelle gebunden.`,

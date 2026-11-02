@@ -182,8 +182,16 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * button and its words in two languages. The 1584 ceiling had been spent to
  * 0.1 KB on main, so no feature fitted under it; the raise is in the change
  * that needs it, for the plugin's owner to agree to.
+ *
+ * Raised to 1600 KB at 1597 KB, for Excalidraw drawings that follow a source
+ * (+8.5 KB on 1588): the check of a fetched board and its pictures, the note
+ * it is written into with its state in the note's own properties, the writer
+ * that puts pictures beside it and trashes the ones it dropped, the poller's
+ * path for drawings, and their words in two languages. The 1590 ceiling had
+ * been spent to 1.7 KB on main; the raise is in the change that needs it, for
+ * the plugin's owner to agree to.
  */
-const MAX_BUNDLE_KB = 1590;
+const MAX_BUNDLE_KB = 1600;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

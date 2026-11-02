@@ -10,12 +10,22 @@
 
 import { t } from "../i18n";
 import { exceedsBytes } from "./response-size";
-import { githubApiUrl, type SourceTarget } from "./sync-source";
+import { githubApiUrl, type SourceKind, type SourceTarget } from "./sync-source";
 
 /** A document larger than this is refused rather than pasted into a note. */
 export const MAX_SOURCE_BYTES = 1_000_000;
 
+/**
+ * A drawing carries its pictures inline as base64, so it is measured in
+ * megabytes where a document is measured in pages: the board this was built
+ * for is 7.4 MB, two thirds of it pictures.
+ */
+export const MAX_DRAWING_BYTES = 25_000_000;
+
 export const REQUEST_TIMEOUT_MS = 20_000;
+
+/** Long enough for the largest drawing on a slow line, and no longer. */
+export const DRAWING_TIMEOUT_MS = 90_000;
 
 /** A validator is a few dozen characters; one far past that is not kept for every note. */
 export const MAX_ETAG_CHARS = 512;
@@ -39,6 +49,14 @@ const MARKDOWN_CONTENT_TYPES = [
   "application/octet-stream"
 ];
 
+/** What a host labels a `.excalidraw` file, which most of them do not know. */
+const DRAWING_CONTENT_TYPES = [
+  "application/json",
+  "application/vnd.excalidraw+json",
+  "text/plain",
+  "application/octet-stream"
+];
+
 /** What the contents API labels a file body when it honours the raw media type. */
 const GITHUB_RAW_CONTENT_TYPES = ["application/vnd.github.raw+json", "application/vnd.github.raw"];
 
@@ -56,6 +74,8 @@ export interface FetchOptions {
   etag?: string | undefined;
   /** A GitHub token from secret storage. Only ever sent to GitHub. */
   token?: string | undefined;
+  /** What is being fetched; absent is a document. */
+  kind?: SourceKind;
 }
 
 export interface SourceRequest {
@@ -100,7 +120,9 @@ export function planSourceRequest(options: FetchOptions): SourceRequest {
     // by name so the answer is the document and not its JSON description.
     accept: authenticated
       ? "application/vnd.github.raw+json"
-      : "text/markdown, text/plain;q=0.9, */*;q=0.1"
+      : options.kind === "drawing"
+        ? "application/json, text/plain;q=0.9, */*;q=0.1"
+        : "text/markdown, text/plain;q=0.9, */*;q=0.1"
   };
 
   if (authenticated) {
@@ -158,25 +180,29 @@ export function interpretSourceResponse(
 
   const contentType = header(response.headers, "content-type");
   const base = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  const drawing = options.kind === "drawing";
 
   // The contents API answers with the file body only when it honours the raw
   // media type. If it fell back to its JSON representation, that JSON must
-  // never be written into a note as if it were the document.
-  if (request.authenticated && base === "application/json") {
+  // never be written into a note as if it were the document. A drawing is
+  // JSON itself, and is told from that description by its own check.
+  if (request.authenticated && base === "application/json" && !drawing) {
     return { status: "error", message: messages.metadataNotFile };
   }
 
-  const accepted = request.authenticated
-    ? [...MARKDOWN_CONTENT_TYPES, ...GITHUB_RAW_CONTENT_TYPES]
-    : MARKDOWN_CONTENT_TYPES;
+  const types = drawing ? DRAWING_CONTENT_TYPES : MARKDOWN_CONTENT_TYPES;
+  const accepted = request.authenticated ? [...types, ...GITHUB_RAW_CONTENT_TYPES] : types;
   if (contentType && !accepted.includes(base)) {
-    return { status: "error", message: messages.notMarkdownType(base) };
+    return {
+      status: "error",
+      message: drawing ? messages.notDrawingType(base) : messages.notMarkdownType(base)
+    };
   }
 
   // In bytes, not characters: a document of umlauts is larger than its
   // character count says.
   const body = response.text ?? "";
-  if (exceedsBytes(response.headers, body, MAX_SOURCE_BYTES)) {
+  if (exceedsBytes(response.headers, body, drawing ? MAX_DRAWING_BYTES : MAX_SOURCE_BYTES)) {
     return { status: "error", message: messages.tooLarge };
   }
 

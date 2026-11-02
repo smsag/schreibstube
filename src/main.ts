@@ -1688,6 +1688,9 @@ export default class SchreibstubePlugin extends Plugin {
     if (summary.withChanges > 0) {
       new Notice(t().common.notice(t().sync.withUpdates(summary.withChanges)));
     }
+    if ((summary.updated ?? 0) > 0) {
+      new Notice(t().common.notice(t().sync.drawingsUpdated(summary.updated ?? 0)));
+    }
   }
 
   private registerProofreadEvents(): void {

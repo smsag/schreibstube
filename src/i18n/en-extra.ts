@@ -537,6 +537,7 @@ export const enExtra = {
     notAUrl: "The source URL is not a valid URL.",
     notHttps: "Only HTTPS sources are fetched.",
     notMarkdown: "The source is not a Markdown file (.md).",
+    notDrawing: "The source is not an Excalidraw drawing (.excalidraw).",
     notFound: (status: number) => `Source not found (HTTP ${status}).`,
     privateNeedsToken: "A private repository needs a GitHub token.",
     tokenNoAccess:
@@ -547,6 +548,11 @@ export const enExtra = {
     httpStatus: (status: number) => `The source answered with HTTP ${status}.`,
     metadataNotFile: "GitHub returned metadata instead of the file's contents.",
     notMarkdownType: (type: string) => `The source is not Markdown (${type}).`,
+    notDrawingType: (type: string) => `The source is not an Excalidraw drawing (${type}).`,
+    drawingUnreadable:
+      "The source is not an Excalidraw drawing: its JSON could not be read as one.",
+    drawingTooMany: "The drawing has more elements or pictures than a mirror takes.",
+    drawingImage: (id: string) => `The drawing's picture ${id} is not an image it can carry.`,
     notText: "The source is not text: it contains binary data.",
     tooLarge: "The source exceeds the size limit.",
     timeout: (seconds: number) => `The source did not answer within ${seconds}s.`,
@@ -700,6 +706,10 @@ export const enExtra = {
       `${checked} checked, ${changed} with updates, ${failed} failed.`,
     withUpdates: (count: number) =>
       `${count} note(s) have updates from their source — open the review panel to apply them.`,
+    drawingsUpdated: (count: number) => `${count} drawing(s) updated from their source.`,
+    drawingUpdated: (name: string) => `${name} was updated from its source.`,
+    drawingDesktopOnly:
+      "drawings are updated on the desktop; this device receives them through the vault's sync.",
 
     every: {
       notWords:
@@ -1054,6 +1064,10 @@ export const enExtra = {
         "The note mirrors this Markdown file: the source is the truth and nothing is ever " +
         "pushed back. HTTPS only; a GitHub page URL is rewritten to its raw form.",
       placeholder: "https://raw.githubusercontent.com/owner/repo/main/note.md",
+      drawingDesc:
+        "The drawing mirrors this Excalidraw file: each check that finds it changed replaces " +
+        "the drawing and its pictures, and nothing is ever pushed back. Updated on the desktop only.",
+      drawingPlaceholder: "https://github.com/owner/repo/blob/main/board.excalidraw",
       submit: "Bind",
       bound: (name: string) => `${name} is now bound to its source.`,
       unbound: (name: string) => `${name} is no longer bound to a source.`,

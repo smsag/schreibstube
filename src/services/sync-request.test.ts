@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { setLanguage } from "../i18n";
 import {
   interpretSourceResponse,
+  MAX_DRAWING_BYTES,
   MAX_ETAG_CHARS,
   MAX_SOURCE_BYTES,
   planSourceRequest,
@@ -259,5 +260,51 @@ describe("interpretSourceResponse", () => {
       })
     );
     expect(outcome.status === "error" && outcome.message).toContain("size limit");
+  });
+});
+
+describe("a drawing's source", () => {
+  const DRAWING = "https://raw.githubusercontent.com/org/repo/main/board.excalidraw";
+
+  function drawing(extra: Partial<FetchOptions> = {}): FetchOptions {
+    const resolved = resolveSourceUrl(DRAWING, "drawing");
+    if (!resolved.ok) throw new Error(resolved.reason);
+    return { url: resolved.url, target: resolved.target, kind: "drawing", ...extra };
+  }
+
+  function answer(opts: FetchOptions, response: SourceResponse) {
+    return interpretSourceResponse(opts, planSourceRequest(opts), response);
+  }
+
+  it("asks for JSON rather than Markdown", () => {
+    expect(planSourceRequest(drawing()).headers.accept).toMatch(/^application\/json/);
+  });
+
+  it("takes the JSON a host labels it with, which a document refuses", () => {
+    const json = { "Content-Type": "application/json" };
+    expect(answer(drawing(), respond(200, "{}", json)).status).toBe("updated");
+    expect(answer(options(PUBLIC), respond(200, "{}", json))).toMatchObject({ status: "error" });
+  });
+
+  it("takes JSON from the contents API, where a document takes it for metadata", () => {
+    const json = { "Content-Type": "application/json" };
+    expect(answer(drawing({ token: "t" }), respond(200, "{}", json)).status).toBe("updated");
+  });
+
+  it("refuses a page", () => {
+    const html = { "Content-Type": "text/html" };
+    expect(answer(drawing(), respond(200, "<html>", html))).toEqual({
+      status: "error",
+      message: "The source is not an Excalidraw drawing (text/html)."
+    });
+  });
+
+  it("takes a board larger than a document may be, up to its own limit", () => {
+    const big = "x".repeat(MAX_SOURCE_BYTES + 1);
+    expect(answer(drawing(), respond(200, big)).status).toBe("updated");
+    expect(answer(options(PUBLIC), respond(200, big)).status).toBe("error");
+
+    const huge = { "Content-Type": "text/plain", "Content-Length": String(MAX_DRAWING_BYTES + 1) };
+    expect(answer(drawing(), respond(200, "", huge))).toMatchObject({ status: "error" });
   });
 });
