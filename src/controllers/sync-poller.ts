@@ -11,12 +11,14 @@ import { fetchSource } from "../platform/sync-fetcher";
 import {
   frontmatterLine,
   hasSourceBinding,
+  resolveBinding,
   resolveSourceUrl,
-  sourceKindOf,
   sourceUrlFromNote,
-  SYNC_FRONTMATTER_KEY
+  SYNC_FRONTMATTER_KEY,
+  type SourceResult
 } from "../services/sync-source";
 import { checkDrawing, drawingStateOf, isDrawingChange } from "../services/drawing-mirror";
+import { hashText } from "../services/sync-document";
 import { t } from "../i18n";
 import { DrawingWriter } from "./drawing-writer";
 import { parseSyncEvery, planSourceCheck, SYNC_EVERY_KEY } from "../services/sync-interval";
@@ -148,9 +150,6 @@ export class SyncPoller {
   private bindingOf(path: string): NoteBinding {
     const file = this.app.vault.getAbstractFileByPath(path);
     if (!(file instanceof TFile)) return { kind: "missing" };
-    // A drawing keeps its state in its own frontmatter; a record left for one
-    // describes nothing, and is dropped.
-    if (sourceKindOf(path) === "drawing") return { kind: "unbound" };
 
     const cache = this.app.metadataCache.getFileCache(file);
     if (!cache) return { kind: "unknown" };
@@ -158,8 +157,11 @@ export class SyncPoller {
     const raw: unknown = cache.frontmatter?.[SYNC_FRONTMATTER_KEY];
     if (typeof raw !== "string" || raw.trim().length === 0) return { kind: "unbound" };
 
-    const resolved = resolveSourceUrl(raw);
-    return { kind: "bound", source: resolved.ok ? resolved.url : raw.trim() };
+    // A drawing keeps its state in its own frontmatter; a record left for one
+    // describes nothing, and is dropped.
+    const { kind, result } = resolveBinding(path, raw);
+    if (kind === "drawing") return { kind: "unbound" };
+    return { kind: "bound", source: result.ok ? result.url : raw.trim() };
   }
 
   /**
@@ -186,7 +188,7 @@ export class SyncPoller {
    * someone who asked for a check means now rather than in ten minutes.
    */
   async checkFile(file: TFile, force = true): Promise<PollSummary> {
-    return this.check([file], "manual", force);
+    return this.check([file], "manual", force, true);
   }
 
   /** Every Markdown note that names a source in its frontmatter. */
@@ -200,7 +202,9 @@ export class SyncPoller {
   private async check(
     files: TFile[],
     trigger: "schedule" | "manual",
-    force: boolean
+    force: boolean,
+    /** One note asked about by name, which is told why it was not checked. */
+    single = false
   ): Promise<PollSummary> {
     const settings = this.getSettings();
     const empty: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
@@ -226,8 +230,9 @@ export class SyncPoller {
           const file = files[next];
           if (file === undefined) return;
           next += 1;
-          if (sourceKindOf(file.path) === "drawing") {
-            await this.pollDrawing(file, token, summary, force);
+          const binding = resolveBinding(file.path, await this.readBinding(file));
+          if (binding.kind === "drawing") {
+            await this.pollDrawing(file, binding.result, token, summary, force, single);
           } else {
             await this.pollOne(file, token, summary, updates, force);
           }
@@ -381,20 +386,27 @@ export class SyncPoller {
    *
    * Never on a phone: the board and its pictures arrive there through the
    * vault's own sync, already written, and a hundred picture writes are what
-   * the phone's watchdog stops a plugin for.
+   * the phone's watchdog stops a plugin for. Only a drawing asked about by
+   * name says so; a folder of them is not a folder of failures.
+   *
+   * Asked for by hand, the board is fetched whole and written again even when
+   * the source has not moved: the note may have been damaged here — a sync
+   * conflict, a stale tab saving over it — and a conditional request would
+   * answer "unchanged" to it for good.
    */
   private async pollDrawing(
     file: TFile,
+    resolved: SourceResult,
     token: string | undefined,
     summary: PollSummary,
-    force: boolean
+    force: boolean,
+    single: boolean
   ): Promise<void> {
     if (Platform.isMobile) {
-      if (force) this.fail(file, t().sync.drawingDesktopOnly, summary);
+      if (single) this.fail(file, t().sync.drawingDesktopOnly, summary);
       return;
     }
 
-    const resolved = resolveSourceUrl(await this.readBinding(file), "drawing");
     if (!resolved.ok) {
       this.fail(file, resolved.reason, summary);
       return;
@@ -420,7 +432,7 @@ export class SyncPoller {
       const outcome = await fetchSource({
         url: resolved.url,
         target: resolved.target,
-        etag: plan.etag,
+        etag: force ? undefined : plan.etag,
         token,
         kind: "drawing"
       });
@@ -432,7 +444,9 @@ export class SyncPoller {
       }
       if (outcome.status === "unchanged") return;
 
-      if (!isDrawingChange(state, outcome.body)) {
+      const sourceHash = hashText(outcome.body);
+      const changed = isDrawingChange(state, sourceHash);
+      if (!changed && !force) {
         if (outcome.etag !== state.etag) await this.drawings.rememberEtag(file, outcome.etag);
         return;
       }
@@ -443,8 +457,13 @@ export class SyncPoller {
         return;
       }
 
-      await this.drawings.write(file, checked.drawing, outcome.body, outcome.etag);
-      summary.updated = (summary.updated ?? 0) + 1;
+      await this.drawings.write(file, {
+        drawing: checked.drawing,
+        sourceHash,
+        etag: outcome.etag,
+        changed
+      });
+      if (changed) summary.updated = (summary.updated ?? 0) + 1;
     } catch (err) {
       this.fail(file, err instanceof Error ? err.message : String(err), summary);
     }

@@ -553,6 +553,8 @@ export const enExtra = {
       "The source is not an Excalidraw drawing: its JSON could not be read as one.",
     drawingTooMany: "The drawing has more elements or pictures than a mirror takes.",
     drawingImage: (id: string) => `The drawing's picture ${id} is not an image it can carry.`,
+    drawingPathTaken: (path: string) =>
+      `${path} is in the way of one of the drawing's pictures, and the drawing did not put it there. Move it and check again.`,
     notText: "The source is not text: it contains binary data.",
     tooLarge: "The source exceeds the size limit.",
     timeout: (seconds: number) => `The source did not answer within ${seconds}s.`,

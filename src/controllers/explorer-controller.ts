@@ -20,7 +20,8 @@ import { t } from "../i18n";
 import type { Logger } from "../services/logger";
 import type { SchreibstubeSettings } from "../types";
 import { drawingBadgeFor, syncBadgeFor, type SyncBadge } from "../services/explorer-badge";
-import { drawingStateOf } from "../services/drawing-mirror";
+import { drawingStateOf, withBinding, withoutBinding } from "../services/drawing-mirror";
+import { processDrawingNote } from "./drawing-writer";
 import { publishMarkFor, type PublishMark } from "../services/publish-mark";
 import {
   buildExplorerMenu,
@@ -77,8 +78,8 @@ import {
 } from "../services/tree-move";
 import {
   hasSourceBinding,
-  resolveSourceUrl,
-  sourceKindOf,
+  isDrawingNote,
+  resolveBinding,
   SYNC_FRONTMATTER_KEY
 } from "../services/sync-source";
 import { someFileUnder } from "../services/vault-tree";
@@ -922,8 +923,8 @@ export class ExplorerController {
     const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter;
     if (!hasSourceBinding(frontmatter)) return "none";
 
-    const kind = sourceKindOf(file.path);
-    const sourceValid = resolveSourceUrl(frontmatter?.[SYNC_FRONTMATTER_KEY], kind).ok;
+    const { kind, result } = resolveBinding(file.path, frontmatter?.[SYNC_FRONTMATTER_KEY]);
+    const sourceValid = result.ok;
     if (kind === "drawing") {
       return drawingBadgeFor({ sourceValid, written: drawingStateOf(frontmatter).hash !== null });
     }
@@ -1301,7 +1302,7 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
 
     const current = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
-    const drawing = sourceKindOf(file.path) === "drawing";
+    const drawing = isDrawingNote(file.path);
 
     new PromptModal(
       this.app,
@@ -1312,8 +1313,8 @@ export class ExplorerController {
         initial: typeof current === "string" ? current : "",
         submitLabel: t().explorer.bind.submit,
         validate: (value) => {
-          const resolved = resolveSourceUrl(value, drawing ? "drawing" : "markdown");
-          return resolved.ok ? null : resolved.reason;
+          const { result } = resolveBinding(file.path, value);
+          return result.ok ? null : result.reason;
         }
       },
       (value) => this.reported(this.writeBinding(file, value), `binding ${file.path}`)
@@ -1321,30 +1322,40 @@ export class ExplorerController {
   }
 
   private async writeBinding(file: TFile, value: string): Promise<void> {
-    const resolved = resolveSourceUrl(value, sourceKindOf(file.path));
+    const { result: resolved } = resolveBinding(file.path, value);
     if (!resolved.ok) return;
 
     // The resolved URL is stored, not what was typed: a GitHub page link is
     // rewritten to its raw form once, here, rather than on every fetch.
-    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      frontmatter[SYNC_FRONTMATTER_KEY] = resolved.url;
-    });
+    if (isDrawingNote(file.path)) {
+      await processDrawingNote(this.app, file, (text) => withBinding(text, resolved.url));
+    } else {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        frontmatter[SYNC_FRONTMATTER_KEY] = resolved.url;
+      });
+    }
 
-    new Notice(t().common.notice(t().explorer.bind.bound(file.basename)));
+    new Notice(t().common.notice(t().explorer.bind.bound(this.displayName(file))));
     await this.checkSource(file);
   }
 
   private async unbindSource(file: TAbstractFile): Promise<void> {
     if (!(file instanceof TFile)) return;
 
-    await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
-      delete frontmatter[SYNC_FRONTMATTER_KEY];
-    });
+    // A drawing's hash goes with its source: left behind, it told a later
+    // binding that the board was already in the note.
+    if (isDrawingNote(file.path)) {
+      await processDrawingNote(this.app, file, (text) => withoutBinding(text) ?? text);
+    } else {
+      await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+        delete frontmatter[SYNC_FRONTMATTER_KEY];
+      });
+    }
     // The baseline described a mirror that no longer exists; leaving it behind
     // would make a later re-binding compare against a stale hash.
     await this.sync.forget(file.path);
 
-    new Notice(t().common.notice(t().explorer.bind.unbound(file.basename)));
+    new Notice(t().common.notice(t().explorer.bind.unbound(this.displayName(file))));
     this.emit();
   }
 
@@ -1352,10 +1363,14 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
 
     const summary = await this.sync.checkFile(file);
-    new Notice(
-      t().common.notice(describePollSummary(summary, { scope: "note", name: file.basename }))
-    );
+    const name = this.displayName(file);
+    new Notice(t().common.notice(describePollSummary(summary, { scope: "note", name })));
     this.emit();
+  }
+
+  /** A note as its row names it: `Atlas` for `Atlas.excalidraw.md` as for `Atlas.md`. */
+  private displayName(file: TFile): string {
+    return fileNameParts(file.name, file.extension).stem;
   }
 
   private async checkFolder(file: TAbstractFile): Promise<void> {
@@ -1368,7 +1383,7 @@ export class ExplorerController {
     if (!(file instanceof TFile)) return;
 
     const raw = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
-    const resolved = resolveSourceUrl(raw, sourceKindOf(file.path));
+    const { result: resolved } = resolveBinding(file.path, raw);
 
     if (!resolved.ok) {
       new Notice(t().common.notice(t().explorer.bind.noSource));

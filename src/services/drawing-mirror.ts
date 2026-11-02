@@ -21,9 +21,10 @@
 
 import { splitFrontmatter } from "./frontmatter-block";
 import { t } from "../i18n";
-import { hashText } from "./sync-document";
 import { checkEtag } from "./sync-request";
 import { formatUpdatedAt, SYNC_UPDATED_KEY } from "./sync-frontmatter";
+import { fileNameParts } from "./file-glyph";
+import { frontmatterLine, SYNC_FRONTMATTER_KEY } from "./sync-source";
 
 /** Hash of the source as last written into the note. */
 export const DRAWING_HASH_KEY = "schreibstubeSourceHash";
@@ -143,19 +144,31 @@ export function drawingStateOf(frontmatter: Record<string, unknown> | undefined)
 }
 
 /** Whether a fetched source is a different board from the one in the note. */
-export function isDrawingChange(state: DrawingState, sourceText: string): boolean {
-  return state.hash !== hashText(sourceText);
+export function isDrawingChange(state: DrawingState, sourceHash: string): boolean {
+  return state.hash !== sourceHash;
 }
 
 /**
- * Where a drawing's pictures live: a folder beside it, named as the row reads.
+ * Whether the mirror wrote this note before, read off the note itself.
+ *
+ * What makes the pictures it lists the mirror's to replace and to retire. A
+ * drawing someone made by hand and then bound lists pictures they pasted in,
+ * and those are theirs whatever the board does next.
+ */
+export function isMirroredNote(noteText: string): boolean {
+  return frontmatterLine(noteText, DRAWING_HASH_KEY) !== null;
+}
+
+/**
+ * Where a drawing's pictures go: a folder beside it, named as the row reads.
  * `Projekte/Atlas.excalidraw.md` keeps them in `Projekte/Atlas/`.
  */
 export function drawingImageFolder(notePath: string): string {
   const slash = notePath.lastIndexOf("/");
-  const parent = slash === -1 ? "" : notePath.slice(0, slash + 1);
-  const name = notePath.slice(slash + 1).replace(/\.excalidraw\.md$/i, "");
-  return `${parent}${name}`;
+  const name = notePath.slice(slash + 1);
+  const dot = name.lastIndexOf(".");
+  const { stem } = fileNameParts(name, dot === -1 ? "" : name.slice(dot + 1));
+  return `${notePath.slice(0, slash + 1)}${stem}`;
 }
 
 export function drawingImagePath(folder: string, image: DrawingImage): string {
@@ -163,24 +176,32 @@ export function drawingImagePath(folder: string, image: DrawingImage): string {
 }
 
 /**
- * The pictures in the folder that the board no longer shows.
+ * The links a drawing note lists under "Embedded Files", as written: by the
+ * mirror, or shortened by the Excalidraw plugin when it saved the note.
  *
- * Only files named as this mirror names them — an id and a picture extension
- * — are ever given up: a note or a picture a person put into the folder is
- * theirs.
+ * What the mirror wrote last time is what it may replace and give up now. A
+ * folder's name says nothing about whose files are in it — a person's own
+ * `Projekte/Atlas/logo.png` sits exactly where the board's pictures would.
  */
-export function retiredImages(
-  paths: readonly string[],
-  folder: string,
-  kept: ReadonlySet<string>
-): string[] {
-  const extensions = new Set(Object.values(IMAGE_EXTENSIONS));
-  return paths.filter((path) => {
-    if (kept.has(path) || !path.startsWith(`${folder}/`)) return false;
-    const name = path.slice(folder.length + 1);
-    const dot = name.lastIndexOf(".");
-    return dot > 0 && ID.test(name.slice(0, dot)) && extensions.has(name.slice(dot + 1));
-  });
+export function listedImageLinks(noteText: string): string[] {
+  const links: string[] = [];
+  let inSection = false;
+  for (const line of noteText.split(/\r?\n/)) {
+    if (/^#{1,6}\s|^%%/.test(line)) {
+      inSection = /^## Embedded Files\s*$/.test(line);
+      continue;
+    }
+    const link = inSection
+      ? /^[A-Za-z0-9_-]+: \[\[([^\]|#\n]+)(?:[|#][^\]\n]*)?\]\]\s*$/.exec(line)
+      : null;
+    if (link?.[1] !== undefined) links.push(link[1]);
+  }
+  return links;
+}
+
+/** The pictures the mirror wrote before and the board no longer shows. */
+export function retiredImages(owned: readonly string[], kept: ReadonlySet<string>): string[] {
+  return [...new Set(owned)].filter((path) => !kept.has(path));
 }
 
 export function decodeBase64(base64: string): Uint8Array<ArrayBuffer> {
@@ -202,22 +223,56 @@ export interface DrawingNoteInput {
   drawing: Drawing;
   /** Each picture's id and the vault path it was written to. */
   imagePaths: ReadonlyMap<string, string>;
-  /** The source's text, whose hash the note keeps. */
-  sourceText: string;
+  /** Hash of the source's text, which the note keeps. */
+  sourceHash: string;
   etag: string;
+  /**
+   * Whether the source moved. A board written again because someone asked for
+   * it — to mend a note damaged here — keeps the date its source last changed.
+   */
+  changed: boolean;
   now: Date;
 }
 
-/** The whole note a changed source becomes: its frontmatter kept, its body new. */
+/** The whole note a source becomes: its frontmatter kept, its body new. */
 export function buildDrawingNote(input: DrawingNoteInput): string {
   const { block } = splitFrontmatter(input.noteText);
   const frontmatter = setFrontmatter(block, [
-    [PLUGIN_KEY, "parsed"],
-    [DRAWING_HASH_KEY, JSON.stringify(hashText(input.sourceText))],
+    // The Excalidraw plugin's own key, and the plugin's to write: a note
+    // bound as a drawing already carries it, and only one that lost it is
+    // given it back, or the plugin would open the board as text.
+    [PLUGIN_KEY, "parsed", "missing"],
+    [DRAWING_HASH_KEY, JSON.stringify(input.sourceHash)],
     [DRAWING_ETAG_KEY, input.etag.length > 0 ? JSON.stringify(input.etag) : null],
-    [SYNC_UPDATED_KEY, formatUpdatedAt(input.now)]
+    ...(input.changed ? [[SYNC_UPDATED_KEY, formatUpdatedAt(input.now)] as Entry] : [])
   ]);
   return frontmatter + drawingBody(input.drawing, input.imagePaths);
+}
+
+/**
+ * A drawing note bound to a source, written as text rather than through
+ * Obsidian's frontmatter writer, so the write can go where an open drawing
+ * cannot merge it (see the writer).
+ */
+export function withBinding(noteText: string, url: string): string {
+  const { block, body } = splitFrontmatter(noteText);
+  return setFrontmatter(block, [[SYNC_FRONTMATTER_KEY, JSON.stringify(url)]]) + body;
+}
+
+/**
+ * A drawing note unbound: its source and what the mirror kept about it gone.
+ * Left behind, the hash told a later binding that the board was already in
+ * the note.
+ */
+export function withoutBinding(noteText: string): string | null {
+  const { block, body } = splitFrontmatter(noteText);
+  if (block.length === 0) return null;
+  const next = setFrontmatter(block, [
+    [SYNC_FRONTMATTER_KEY, null],
+    [DRAWING_HASH_KEY, null],
+    [DRAWING_ETAG_KEY, null]
+  ]);
+  return next === block ? null : next + body;
 }
 
 /**
@@ -256,17 +311,21 @@ function drawingBody(drawing: Drawing, imagePaths: ReadonlyMap<string, string>):
   return lines.join("\n");
 }
 
+/** A key, its value or null to remove it, and whether to write it only when missing. */
+type Entry = [string, string | null] | [string, string, "missing"];
+
 /**
  * Set or remove single-line keys in a frontmatter block, leaving every other
  * line as it was spelled. A key that was a list or a folded block loses its
  * continuation lines with it.
  */
-function setFrontmatter(block: string, entries: [string, string | null][]): string {
+function setFrontmatter(block: string, entries: Entry[]): string {
   const lines = block.length > 0 ? block.replace(/\r?\n$/, "").split(/\r?\n/) : ["---", "---"];
   const inner = lines.slice(1, -1);
 
-  for (const [key, value] of entries) {
+  for (const [key, value, when] of entries) {
     const at = inner.findIndex((line) => line.startsWith(`${key}:`));
+    if (when === "missing" && at !== -1) continue;
     let end = at + 1;
     if (at !== -1) {
       while (end < inner.length && /^(\s|- )/.test(inner[end] ?? "")) end += 1;

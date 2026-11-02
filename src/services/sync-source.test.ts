@@ -3,8 +3,9 @@ import { setLanguage } from "../i18n";
 import {
   githubApiUrl,
   hasSourceBinding,
+  isDrawingNote,
+  resolveBinding,
   resolveSourceUrl,
-  sourceKindOf,
   SYNC_FRONTMATTER_KEY,
   type SourceTarget
 } from "./sync-source";
@@ -236,10 +237,31 @@ describe("githubApiUrl", () => {
 
 describe("drawings", () => {
   it("binds the Excalidraw plugin's own note, and nothing else, to a drawing", () => {
-    expect(sourceKindOf("Projekte/Atlas.excalidraw.md")).toBe("drawing");
-    expect(sourceKindOf("Projekte/Atlas.Excalidraw.MD")).toBe("drawing");
-    expect(sourceKindOf("Projekte/Atlas.excalidraw")).toBe("markdown");
-    expect(sourceKindOf("Projekte/Atlas.md")).toBe("markdown");
+    expect(isDrawingNote("Projekte/Atlas.excalidraw.md")).toBe(true);
+    expect(isDrawingNote("Projekte/Atlas.Excalidraw.MD")).toBe(true);
+    expect(isDrawingNote("Projekte/Atlas.excalidraw")).toBe(false);
+    expect(isDrawingNote("Projekte/Atlas.md")).toBe(false);
+  });
+
+  it("lets a drawing note keep a document it was bound to before", () => {
+    const drawing = "https://example.com/a.excalidraw";
+    const document = "https://example.com/a.md";
+    expect(resolveBinding("A.excalidraw.md", drawing)).toMatchObject({
+      kind: "drawing",
+      result: { ok: true }
+    });
+    expect(resolveBinding("A.excalidraw.md", document)).toMatchObject({
+      kind: "markdown",
+      result: { ok: true, url: document }
+    });
+    expect(resolveBinding("A.md", drawing)).toMatchObject({
+      kind: "markdown",
+      result: { ok: false, reason: "The source is not a Markdown file (.md)." }
+    });
+    expect(resolveBinding("A.excalidraw.md", "https://example.com/a.pdf")).toEqual({
+      kind: "drawing",
+      result: { ok: false, reason: "The source is not an Excalidraw drawing (.excalidraw)." }
+    });
   });
 
   it("takes a drawing's JSON, page links rewritten as for a document", () => {

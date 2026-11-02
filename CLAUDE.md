@@ -59,7 +59,11 @@ asks for the sentence.
   satisfy it. Frontmatter keys Schreibstube defines are prefixed `schreibstube`,
   without exception. The plain ones are not its own: publishing's, which a
   person maps to their vault's names, and those another app owns that it only
-  reads — Nimbus's `nimbusProject`, a report's `type: summary`.
+  reads — Nimbus's `nimbusProject`, a report's `type: summary`. Two kinds are
+  written plain on purpose: document sync's `title` and `updatedAt`, which
+  other tools read, and the one key another app needs to open a note as its
+  own — Excalidraw's `excalidraw-plugin`, written only when a mirrored
+  drawing has lost it.
 - Comments explain why, never what. A commit message says what changed for the
   user and why, in prose; `CHANGELOG.md` gets an entry for every user-visible
   change under `## Unreleased`.

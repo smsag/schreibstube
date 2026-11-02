@@ -44,6 +44,11 @@ const LINK = /\[([^\]\n]*)\]\([^)\n]*\)/g;
 // start of a sentence was taken for one and the sentence dropped.
 const URL = /\b(?:https?|obsidian|file|data):[^\s)>\]]+/g;
 const LONG_RUN = new RegExp(`[A-Za-z0-9+/=_%.\\-]{${MAX_WORD_CHARS},}`, "g");
+// An Excalidraw drawing's list of its pictures, one `<id>: [[file]]` a line:
+// file ids and file names, which a drawing of a hundred screenshots turned
+// into some forty passages of hex in the index. Up to the next heading or
+// the comment the drawing's JSON sits in.
+const DRAWING_FILES = /^## Embedded Files[ \t]*\n[\s\S]*?(?=^#{1,6}\s|^%%|(?![\s\S]))/gm;
 
 /** Drop fenced code blocks, line by line. An unclosed fence runs to the end of
  *  the note, the way Obsidian draws it. */
@@ -76,6 +81,7 @@ export function plainNoteText(markdown: unknown, maxChars = MAX_NOTE_CHARS): str
   text = splitFrontmatter(text).body;
   text = withoutFences(text);
   return text
+    .replace(DRAWING_FILES, " ")
     .replace(CODE_SPAN, (span) => span.replace(/%%/g, "% %").replace(/<!--/g, "< !--"))
     .replace(OBSIDIAN_COMMENT, " ")
     .replace(HTML_COMMENT, " ")

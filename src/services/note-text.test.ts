@@ -87,3 +87,31 @@ describe("plainNoteText — code that looks like markup", () => {
     expect(plainNoteText(note)).toBe("1. Schritt\n2. Weiter Jahresabrechnung");
   });
 });
+
+describe("plainNoteText and drawings", () => {
+  it("leaves out a drawing's list of pictures, and keeps its texts", () => {
+    const id = "4fbd449dac2f855f9d9d439f836ef61544b9bdba";
+    const note = [
+      "# Excalidraw Data",
+      "",
+      "## Text Elements",
+      "Panel · Heute ^t1",
+      "",
+      "## Embedded Files",
+      `${id}: [[Atlas/${id}.webp]]`,
+      "",
+      "a1b2c3: [[logo.png]]",
+      "",
+      "## After",
+      "kept",
+      "%%",
+      "## Drawing",
+      "%%"
+    ].join("\n");
+    const text = plainNoteText(note);
+    expect(text).toContain("Panel · Heute");
+    expect(text).toContain("kept");
+    expect(text).not.toContain(id);
+    expect(text).not.toContain("logo");
+  });
+});

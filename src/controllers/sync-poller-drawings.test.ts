@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS } from "../services/plugin-settings";
 import { createLogger } from "../services/logger";
 import { setLanguage } from "../i18n";
 import { hashText } from "../services/sync-document";
-import { DRAWING_HASH_KEY } from "../services/drawing-mirror";
+import { DRAWING_HASH_KEY, decodeBase64 } from "../services/drawing-mirror";
 import type { SyncRecord } from "../services/sync-document";
 import type { FetchOptions, FetchOutcome } from "../platform/sync-fetcher";
 import type { SyncStore } from "./proofread-controller";
@@ -57,14 +57,40 @@ function memoryStore(): SyncStore & { records: () => Record<string, SyncRecord> 
   };
 }
 
+const BOUND = `---\nschreibstubeSyncedFrom: ${SOURCE}\n---\n`;
+
+/** A note the mirror wrote before, listing the pictures it put where. */
+function mirrored(pictures: Record<string, string>): string {
+  const listed = Object.entries(pictures).map(([id, path]) => `${id}: [[${path}]]\n`);
+  return [
+    `---\nschreibstubeSyncedFrom: ${SOURCE}\nschreibstubeSourceHash: "0a1b2c3d"\n---\n`,
+    "## Embedded Files\n",
+    ...listed,
+    "%%\n## Drawing\n%%\n"
+  ].join("\n");
+}
+
 /** The fake vault, with the folders, pictures and trash a drawing reaches for. */
-function vault() {
+function vault({
+  content = BOUND,
+  files = {},
+  binding = SOURCE
+}: {
+  content?: string;
+  /** Files already in the vault, by path, as base64. */
+  files?: Record<string, string>;
+  binding?: string;
+} = {}) {
+  const hash = /schreibstubeSourceHash: "([0-9a-f]+)"/.exec(content)?.[1];
   const fake = fakeVault({
     notes: [
       {
         path: NOTE,
-        content: `---\nschreibstubeSyncedFrom: ${SOURCE}\n---\n`,
-        frontmatter: { schreibstubeSyncedFrom: SOURCE }
+        content,
+        frontmatter: {
+          schreibstubeSyncedFrom: binding,
+          ...(hash ? { [DRAWING_HASH_KEY]: hash } : {})
+        }
       }
     ]
   });
@@ -73,6 +99,28 @@ function vault() {
   const trashed: string[] = [];
   const writes: string[] = [];
 
+  const folderOf = (path: string): TFolder => {
+    const at = path.slice(0, path.lastIndexOf("/"));
+    let folder = folders.get(at);
+    if (!folder) {
+      folder = new TFolder(at);
+      folders.set(at, folder);
+    }
+    return folder;
+  };
+  const put = (path: string, bytes: Uint8Array): TFile => {
+    const file = pictures.get(path)?.file ?? new TFile(path);
+    file.stat.size = bytes.byteLength;
+    if (!pictures.has(path)) {
+      const folder = folderOf(path);
+      file.parent = folder;
+      folder.children.push(file);
+    }
+    pictures.set(path, { file, bytes });
+    return file;
+  };
+  for (const [path, data] of Object.entries(files)) put(path, decodeBase64(data));
+
   const base = fake.app.vault;
   const vault = {
     ...base,
@@ -80,13 +128,11 @@ function vault() {
       folders.get(path) ?? pictures.get(path)?.file ?? base.getAbstractFileByPath(path),
     createFolder: async (path: string) => void folders.set(path, new TFolder(path)),
     createBinary: async (path: string, data: ArrayBuffer) => {
-      const file = new TFile(path);
-      pictures.set(path, { file, bytes: new Uint8Array(data) });
-      folders.get(path.slice(0, path.lastIndexOf("/")))?.children.push(file);
+      put(path, new Uint8Array(data));
       writes.push(path);
     },
     modifyBinary: async (file: TFile, data: ArrayBuffer) => {
-      pictures.set(file.path, { file, bytes: new Uint8Array(data) });
+      put(file.path, new Uint8Array(data));
       writes.push(file.path);
     },
     readBinary: async (file: TFile) => pictures.get(file.path)?.bytes.slice().buffer,
@@ -95,13 +141,21 @@ function vault() {
       return base.process(file, apply);
     }
   };
+  const metadataCache = {
+    ...fake.app.metadataCache,
+    getFirstLinkpathDest: (link: string, from: string) =>
+      pictures.get(link)?.file ?? fake.app.metadataCache.getFirstLinkpathDest(link, from)
+  };
   const fileManager = {
     ...fake.app.fileManager,
-    trashFile: async (file: TFile) => {
+    trashFile: async (file: TFile | TFolder) => {
       trashed.push(file.path);
+      if (file instanceof TFolder) {
+        folders.delete(file.path);
+        return;
+      }
       pictures.delete(file.path);
-      const folder = folders.get(file.path.slice(0, file.path.lastIndexOf("/")));
-      if (folder) folder.children = folder.children.filter((child) => child !== file);
+      if (file.parent) file.parent.children = file.parent.children.filter((c) => c !== file);
     }
   };
   // A tab showing the drawing, as the Excalidraw plugin opens one.
@@ -115,7 +169,7 @@ function vault() {
   const workspace = {
     getLeavesOfType: (type: string) => (type === "excalidraw" ? open : [])
   };
-  const app = { ...fake.app, vault, fileManager, workspace } as unknown as App;
+  const app = { ...fake.app, vault, metadataCache, fileManager, workspace } as unknown as App;
   return { fake, app, pictures, trashed, writes, openTab: () => open.push(leaf) };
 }
 
@@ -131,9 +185,13 @@ function poller(app: App, store = memoryStore()) {
 }
 
 /** What the metadata cache would say once Obsidian has read the note again. */
-function cacheCatchesUp(fake: ReturnType<typeof vault>["fake"], text: string): void {
+function cacheCatchesUp(env: ReturnType<typeof vault>): void {
+  const text = env.fake.contentOf(NOTE);
+  const frontmatter = env.fake.frontmatterOf(NOTE);
   const hash = /schreibstubeSourceHash: "([0-9a-f]+)"/.exec(text)?.[1];
-  if (hash !== undefined) fake.frontmatterOf(NOTE)[DRAWING_HASH_KEY] = hash;
+  const etag = /schreibstubeSourceEtag: (".*")/.exec(text)?.[1];
+  if (hash !== undefined) frontmatter[DRAWING_HASH_KEY] = hash;
+  if (etag !== undefined) frontmatter.schreibstubeSourceEtag = JSON.parse(etag) as string;
 }
 
 describe("SyncPoller and drawings", () => {
@@ -163,47 +221,106 @@ describe("SyncPoller and drawings", () => {
     expect(store.records()).toEqual({});
   });
 
-  it("sends the validator it wrote, and writes nothing for the same board", async () => {
+  it("sends the validator it wrote, and writes nothing for the same board on a poll", async () => {
     const env = vault();
     const body = board({ abc: PIXEL });
     fetchSource.mockResolvedValue({ status: "updated", body, etag: '"v1"' });
     await poller(env.app).checkFile(env.fake.file(NOTE) as never);
-    cacheCatchesUp(env.fake, env.fake.contentOf(NOTE));
-    env.fake.frontmatterOf(NOTE).schreibstubeSourceEtag = '"v1"';
+    cacheCatchesUp(env);
     env.writes.length = 0;
 
     fetchSource.mockResolvedValue({ status: "unchanged", etag: '"v1"' });
-    const unchanged = await poller(env.app).checkFile(env.fake.file(NOTE) as never);
+    const unchanged = await poller(env.app).pollAllSources("manual");
     expect(fetchSource.mock.calls[1]?.[0].etag).toBe('"v1"');
     expect(unchanged).toMatchObject({ checked: 1, failed: 0 });
     expect(unchanged.updated).toBeUndefined();
 
     fetchSource.mockResolvedValue({ status: "updated", body, etag: '"v1"' });
-    await poller(env.app).checkFile(env.fake.file(NOTE) as never);
+    await poller(env.app).pollAllSources("manual");
     expect(env.writes).toEqual([]);
   });
 
-  it("rewrites only the pictures that changed, and trashes the ones the board dropped", async () => {
+  it("fetches the board whole when asked by hand, and writes it again keeping its date", async () => {
     const env = vault();
-    fetchSource.mockResolvedValue({
-      status: "updated",
-      body: board({ keep: PIXEL, gone: PIXEL }),
-      etag: ""
-    });
+    const body = board({ abc: PIXEL });
+    fetchSource.mockResolvedValue({ status: "updated", body, etag: '"v1"' });
     await poller(env.app).checkFile(env.fake.file(NOTE) as never);
-    cacheCatchesUp(env.fake, env.fake.contentOf(NOTE));
-    env.writes.length = 0;
+    cacheCatchesUp(env);
+    const dated = /updatedAt: .*/.exec(env.fake.contentOf(NOTE))?.[0];
+    // Damaged here, while the source stayed as it was.
+    await env.app.vault.process(env.fake.file(NOTE) as never, (text) =>
+      text.replace(/## Drawing[\s\S]*/, "")
+    );
 
+    const asked = await poller(env.app).checkFile(env.fake.file(NOTE) as never);
+
+    expect(fetchSource.mock.calls[1]?.[0].etag).toBeUndefined();
+    expect(asked).toMatchObject({ checked: 1, failed: 0 });
+    expect(asked.updated).toBeUndefined();
+    expect(env.fake.contentOf(NOTE)).toContain("## Drawing");
+    expect(/updatedAt: .*/.exec(env.fake.contentOf(NOTE))?.[0]).toBe(dated);
+  });
+
+  it("rewrites only the pictures that changed, and trashes the ones the board dropped", async () => {
+    const env = vault({
+      content: mirrored({ keep: "Projekte/Atlas/keep.webp", gone: "Projekte/Atlas/gone.webp" }),
+      files: { "Projekte/Atlas/keep.webp": PIXEL, "Projekte/Atlas/gone.webp": PIXEL }
+    });
     fetchSource.mockResolvedValue({
       status: "updated",
       body: board({ keep: PIXEL, new: OTHER }),
       etag: ""
     });
+
     const summary = await poller(env.app).checkFile(env.fake.file(NOTE) as never);
 
     expect(summary.updated).toBe(1);
     expect(env.writes).toEqual(["Projekte/Atlas/new.webp", NOTE]);
     expect(env.trashed).toEqual(["Projekte/Atlas/gone.webp"]);
+  });
+
+  it("never trashes a person's own picture in the folder, nor one they pasted into the drawing", async () => {
+    const env = vault({
+      content: `${BOUND}## Embedded Files\npasted: [[Projekte/pasted.png]]\n\n%%\n## Drawing\n%%\n`,
+      files: { "Projekte/Atlas/logo.png": OTHER, "Projekte/pasted.png": OTHER }
+    });
+    fetchSource.mockResolvedValue({ status: "updated", body: board({ abc: PIXEL }), etag: "" });
+
+    const summary = await poller(env.app).checkFile(env.fake.file(NOTE) as never);
+
+    expect(summary.updated).toBe(1);
+    expect(env.trashed).toEqual([]);
+    expect(env.pictures.has("Projekte/Atlas/logo.png")).toBe(true);
+  });
+
+  it("stops before writing anything when a file it did not write is in a picture's way", async () => {
+    const env = vault({ files: { "Projekte/Atlas/abc.webp": OTHER } });
+    const before = env.fake.contentOf(NOTE);
+    fetchSource.mockResolvedValue({
+      status: "updated",
+      body: board({ new: PIXEL, abc: PIXEL }),
+      etag: ""
+    });
+
+    const summary = await poller(env.app).checkFile(env.fake.file(NOTE) as never);
+
+    expect(summary.failed).toBe(1);
+    expect(summary.reason).toMatch(/Projekte\/Atlas\/abc\.webp is in the way/);
+    expect(env.writes).toEqual([]);
+    expect(env.fake.contentOf(NOTE)).toBe(before);
+  });
+
+  it("takes a drawing's pictures along from where they were, and clears the folder they left", async () => {
+    const env = vault({
+      content: mirrored({ abc: "Projekte/Alt/abc.webp" }),
+      files: { "Projekte/Alt/abc.webp": PIXEL }
+    });
+    fetchSource.mockResolvedValue({ status: "updated", body: board({ abc: PIXEL }), etag: "" });
+
+    await poller(env.app).checkFile(env.fake.file(NOTE) as never);
+
+    expect([...env.pictures.keys()]).toEqual(["Projekte/Atlas/abc.webp"]);
+    expect(env.trashed).toEqual(["Projekte/Alt/abc.webp", "Projekte/Alt"]);
   });
 
   it("takes an open drawing out of its tab for the write, and gives it back after", async () => {
@@ -214,6 +331,20 @@ describe("SyncPoller and drawings", () => {
     await poller(env.app).checkFile(env.fake.file(NOTE) as never);
 
     expect(env.writes).toEqual(["view:empty", NOTE, `open:${NOTE}`]);
+  });
+
+  it("takes an open drawing out of its tab for a new validator as well", async () => {
+    const body = board({});
+    const env = vault({
+      content: `---\nschreibstubeSyncedFrom: ${SOURCE}\nschreibstubeSourceHash: "${hashText(body)}"\n---\n`
+    });
+    env.openTab();
+    fetchSource.mockResolvedValue({ status: "updated", body, etag: '"api"' });
+
+    await poller(env.app).pollAllSources("manual");
+
+    expect(env.writes).toEqual(["view:empty", NOTE, `open:${NOTE}`]);
+    expect(env.fake.contentOf(NOTE)).toContain('schreibstubeSourceEtag: "\\"api\\""');
   });
 
   it("leaves the note as it was when the source is not a drawing", async () => {
@@ -228,12 +359,31 @@ describe("SyncPoller and drawings", () => {
     expect(env.fake.contentOf(NOTE)).toBe(before);
   });
 
-  it("does not fetch on a phone, and says why when asked", async () => {
+  it("keeps a drawing note that was bound to a document checking that document", async () => {
+    const document = "https://raw.githubusercontent.com/o/r/main/notes.md";
+    const env = vault({
+      binding: document,
+      content: `---\nschreibstubeSyncedFrom: ${document}\n---\n`
+    });
+    const store = memoryStore();
+    fetchSource.mockResolvedValue({ status: "unchanged", etag: "" });
+
+    await poller(env.app, store).pollAllSources("manual");
+
+    expect(fetchSource.mock.calls[0]?.[0]).toMatchObject({ url: document });
+    expect(fetchSource.mock.calls[0]?.[0].kind).toBeUndefined();
+    expect(Object.keys(store.records())).toEqual([NOTE]);
+  });
+
+  it("does not fetch on a phone, and says why only for a drawing asked about by name", async () => {
     (Platform as { isMobile?: boolean }).isMobile = true;
     const env = vault();
 
     const scheduled = await poller(env.app).pollAllSources("schedule");
     expect(scheduled).toMatchObject({ checked: 0, failed: 0 });
+
+    const folder = await poller(env.app).pollFolder("Projekte");
+    expect(folder).toMatchObject({ checked: 0, failed: 0 });
 
     const asked = await poller(env.app).checkFile(env.fake.file(NOTE) as never);
     expect(asked.reason).toMatch(/updated on the desktop/);
