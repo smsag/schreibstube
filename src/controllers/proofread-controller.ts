@@ -58,11 +58,13 @@ import {
   type SyncRecord
 } from "../services/sync-document";
 import {
+  isDrawingNote,
+  resolveBinding,
   resolveSourceUrl,
-  sourceKindOf,
   sourceUrlFromNote,
   SYNC_FRONTMATTER_KEY
 } from "../services/sync-source";
+import { fileNameParts } from "../services/file-glyph";
 import { pathAfterMove } from "../services/path-follow";
 import { recordForSource } from "../services/sync-reconcile";
 import { SyncPoller, githubToken } from "./sync-poller";
@@ -661,13 +663,15 @@ export class ProofreadController {
 
     // A drawing has no cards to show: it is replaced whole, by the same check
     // the explorer's menu runs, and only when someone asked for it.
-    if (sourceKindOf(file.path) === "drawing") {
-      if (!manual) return;
-      const summary = await this.poller.checkFile(file);
-      new Notice(
-        t().common.notice(describePollSummary(summary, { scope: "note", name: file.basename }))
-      );
-      return;
+    if (isDrawingNote(file.path)) {
+      const binding = resolveBinding(file.path, await this.readBinding(file));
+      if (binding.kind === "drawing") {
+        if (!manual) return;
+        const summary = await this.poller.checkFile(file);
+        const name = fileNameParts(file.name, file.extension).stem;
+        new Notice(t().common.notice(describePollSummary(summary, { scope: "note", name })));
+        return;
+      }
     }
 
     // Against this note, not against any check at all: another note's fetch
@@ -681,14 +685,7 @@ export class ProofreadController {
     this.checking.add(file.path);
 
     try {
-      // The cache is updated after a write, not during one, so a check made
-      // in the same breath as the binding asks it a question it cannot answer
-      // yet.
-      const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
-      const raw =
-        typeof cached === "string" && cached.trim().length > 0
-          ? cached
-          : sourceUrlFromNote(await this.app.vault.read(file));
+      const raw = await this.readBinding(file);
 
       if (typeof raw !== "string" || raw.trim().length === 0) {
         if (manual) new Notice(t().common.notice(t().sync.notBound));
@@ -994,6 +991,22 @@ export class ProofreadController {
   }
 
   /** Reflect the binding in the panel without fetching anything. */
+  /**
+   * The source a note names. The cache is updated after a write, not during
+   * one, so a check made in the same breath as the binding asks it a question
+   * it cannot answer yet, and the note itself is read instead.
+   */
+  private async readBinding(file: TFile): Promise<unknown> {
+    const cached = this.app.metadataCache.getFileCache(file)?.frontmatter?.[SYNC_FRONTMATTER_KEY];
+    if (typeof cached === "string" && cached.trim().length > 0) return cached;
+    try {
+      return sourceUrlFromNote(await this.app.vault.read(file));
+    } catch (err) {
+      this.logger.warn(`Could not read ${file.path} for its binding:`, err);
+      return cached;
+    }
+  }
+
   private refreshSyncBinding(file: TFile | null): void {
     if (!file) {
       this.sync = EMPTY_REVIEW_STATE.sync;
@@ -1007,7 +1020,7 @@ export class ProofreadController {
     if (
       typeof raw !== "string" ||
       raw.trim().length === 0 ||
-      sourceKindOf(file.path) === "drawing"
+      resolveBinding(file.path, raw).kind === "drawing"
     ) {
       this.sync = EMPTY_REVIEW_STATE.sync;
       return;

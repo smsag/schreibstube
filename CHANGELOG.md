@@ -30,13 +30,23 @@ explorer, and each check that finds the file changed replaces the drawing. A
 drawing is not reviewed: there are no cards, it is taken whole. Its pictures
 are written as files into a folder beside it rather than kept inside it, so a
 board of a hundred screenshots, 7 MB as JSON, becomes a note of a few hundred
-kilobytes, and only the pictures that changed are written again; pictures the
-board no longer shows go to the trash. Nothing about a drawing's checks is
-kept in the plugin's data: the drawing's own properties say which version of
-its source it holds (`schreibstubeSourceHash`, `schreibstubeSourceEtag`,
-`updatedAt`), and they change only when the source did. Drawings are updated
-on the desktop; a phone gets them through the vault's sync, and checking one
+kilobytes, and only the pictures that changed are written again. Pictures the
+board no longer shows go to the trash, and only those: the mirror gives up
+only what it wrote itself, never a picture someone else put into the folder
+or pasted into the drawing before binding it; a file of someone else's in the
+way of a picture stops the update with its name. Moved or renamed, the
+drawing takes its pictures along on its next update. A drawing open in a tab
+is closed for each write and opened again after it, since the Excalidraw
+plugin would otherwise merge the old board into the new one. **Update note**
+on a drawing fetches it whole and writes it again, which mends one damaged
+here. Nothing about a drawing's checks is kept in the plugin's data: the
+drawing's own properties say which version of its source it holds
+(`schreibstubeSourceHash`, `schreibstubeSourceEtag`, `updatedAt`), and they
+change only when the source did; unbinding removes them. A drawing note bound
+to a Markdown file keeps mirroring it as a document. Drawings are updated on
+the desktop; a phone gets them through the vault's sync, and checking one
 there says so. Private GitHub repositories work with the same token as notes.
+The search index reads a drawing's texts, not its list of pictures.
 
 ## 1.89.0 - 2026-10-26
 

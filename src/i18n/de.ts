@@ -1045,6 +1045,8 @@ export const de: Messages = {
     drawingTooMany: "Die Zeichnung hat mehr Elemente oder Bilder, als ein Spiegel aufnimmt.",
     drawingImage: (id: string) =>
       `Das Bild ${id} der Zeichnung ist kein Bild, das sie tragen kann.`,
+    drawingPathTaken: (path: string) =>
+      `${path} steht einem Bild der Zeichnung im Weg, und die Zeichnung hat es nicht dorthin gelegt. Verschieben und erneut prüfen.`,
     notText: "Die Quelle ist kein Text: Sie enthält Binärdaten.",
     tooLarge: "Quelle überschreitet die Größengrenze.",
     timeout: (seconds: number) => `Quelle antwortete nicht innerhalb von ${seconds}s.`,

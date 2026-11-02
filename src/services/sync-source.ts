@@ -9,6 +9,7 @@
 
 import { splitFrontmatter } from "./frontmatter-block";
 import { t } from "../i18n";
+import { isDrawing } from "./file-glyph";
 
 export const SYNC_FRONTMATTER_KEY = "schreibstubeSyncedFrom";
 
@@ -30,14 +31,42 @@ const MARKDOWN_EXTENSIONS = [".md", ".markdown", ".mdown", ".mkd"];
 const DRAWING_EXTENSIONS = [".excalidraw", ".excalidraw.json"];
 
 /**
- * Which kind of source a note at this path can be bound to.
+ * Whether a note at this path can mirror a drawing.
  *
  * Only the Excalidraw plugin's own wrapper, `Name.excalidraw.md`: it has the
  * frontmatter a binding lives in, where the older `Name.excalidraw` is JSON
- * with nowhere to write one.
+ * with nowhere to write one. Asked of the explorer's own rule, so the icon
+ * and the binding cannot disagree about what a drawing is.
  */
-export function sourceKindOf(path: string): SourceKind {
-  return path.toLowerCase().endsWith(".excalidraw.md") ? "drawing" : "markdown";
+export function isDrawingNote(path: string): boolean {
+  const name = path.slice(path.lastIndexOf("/") + 1);
+  const dot = name.lastIndexOf(".");
+  const extension = dot === -1 ? "" : name.slice(dot + 1);
+  return extension.toLowerCase() === "md" && isDrawing(name, extension);
+}
+
+export interface Binding {
+  kind: SourceKind;
+  result: SourceResult;
+}
+
+/**
+ * What a note's binding names, and which kind of source that is.
+ *
+ * A drawing note takes a drawing first, and a Markdown file as well: an
+ * `.excalidraw.md` bound to a document before drawings could be mirrored
+ * keeps the binding it had. Any other note takes a document only. When
+ * nothing fits, the reason given is the one for the kind the note is.
+ */
+export function resolveBinding(path: string, raw: unknown): Binding {
+  if (!isDrawingNote(path)) return { kind: "markdown", result: resolveSourceUrl(raw) };
+
+  const drawing = resolveSourceUrl(raw, "drawing");
+  if (drawing.ok) return { kind: "drawing", result: drawing };
+  const markdown = resolveSourceUrl(raw);
+  return markdown.ok
+    ? { kind: "markdown", result: markdown }
+    : { kind: "drawing", result: drawing };
 }
 
 /**

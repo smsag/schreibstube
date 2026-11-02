@@ -10,10 +10,13 @@ import {
   drawingImagePath,
   drawingStateOf,
   isDrawingChange,
+  isMirroredNote,
+  listedImageLinks,
   MAX_DRAWING_ELEMENTS,
   retiredImages,
   sameBytes,
   withDrawingEtag,
+  withoutBinding,
   type Drawing
 } from "./drawing-mirror";
 import { hashText } from "./sync-document";
@@ -125,9 +128,24 @@ describe("the state a drawing keeps in its frontmatter", () => {
   });
 
   it("counts a board as changed when its text is not the one written", () => {
-    expect(isDrawingChange({ hash: hashText("a"), etag: "" }, "a")).toBe(false);
-    expect(isDrawingChange({ hash: hashText("a"), etag: "" }, "b")).toBe(true);
-    expect(isDrawingChange({ hash: null, etag: "" }, "a")).toBe(true);
+    expect(isDrawingChange({ hash: hashText("a"), etag: "" }, hashText("a"))).toBe(false);
+    expect(isDrawingChange({ hash: hashText("a"), etag: "" }, hashText("b"))).toBe(true);
+    expect(isDrawingChange({ hash: null, etag: "" }, hashText("a"))).toBe(true);
+  });
+
+  it("knows a note the mirror wrote from one a person drew", () => {
+    expect(isMirroredNote('---\nschreibstubeSourceHash: "0a1b2c3d"\n---\n')).toBe(true);
+    expect(isMirroredNote("---\nexcalidraw-plugin: parsed\n---\n")).toBe(false);
+    expect(isMirroredNote("no frontmatter")).toBe(false);
+  });
+
+  it("forgets what it kept when the note no longer names a source", () => {
+    const text =
+      "---\nschreibstubeSyncedFrom: https://x/a.excalidraw\n" +
+      'schreibstubeSourceHash: "0a1b2c3d"\nschreibstubeSourceEtag: "x"\ntags: [a]\n---\nbody\n';
+    expect(withoutBinding(text)).toBe("---\ntags: [a]\n---\nbody\n");
+    expect(withoutBinding("---\ntags: [a]\n---\nbody\n")).toBeNull();
+    expect(withoutBinding("body")).toBeNull();
   });
 });
 
@@ -135,23 +153,33 @@ describe("pictures", () => {
   it("live in a folder beside the drawing, named as its row reads", () => {
     expect(drawingImageFolder("Projekte/Nimbus/Atlas.excalidraw.md")).toBe("Projekte/Nimbus/Atlas");
     expect(drawingImageFolder("Atlas.excalidraw.md")).toBe("Atlas");
+    expect(drawingImageFolder("P/Atlas.Excalidraw.MD")).toBe("P/Atlas");
     expect(drawingImagePath("Atlas", { id: "4fbd", extension: "webp", base64: "" })).toBe(
       "Atlas/4fbd.webp"
     );
   });
 
-  it("are given up only when the mirror named them and the board dropped them", () => {
-    const paths = [
-      "Atlas/keep.webp",
-      "Atlas/gone.webp",
-      "Atlas/Notizen.md",
-      "Atlas/mein bild.png",
-      "Atlas/sub/gone.png",
-      "Other/gone.webp"
-    ];
-    expect(retiredImages(paths, "Atlas", new Set(["Atlas/keep.webp"]))).toEqual([
-      "Atlas/gone.webp"
-    ]);
+  it("are the ones the note lists under Embedded Files, however the link is spelled", () => {
+    const text = [
+      "## Text Elements",
+      "abc: [[not/a/picture.png]] ^t1",
+      "",
+      "## Embedded Files",
+      "4fbd: [[Atlas/4fbd.webp]]",
+      "",
+      "a1b2: [[a1b2.png|100]]",
+      "",
+      "formula: $$x^2$$",
+      "%%",
+      "## Drawing",
+      "zz: [[Atlas/zz.png]]"
+    ].join("\n");
+    expect(listedImageLinks(text)).toEqual(["Atlas/4fbd.webp", "a1b2.png"]);
+  });
+
+  it("are given up only when the mirror wrote them and the board dropped them", () => {
+    const owned = ["Atlas/keep.webp", "Atlas/gone.webp", "Atlas/gone.webp"];
+    expect(retiredImages(owned, new Set(["Atlas/keep.webp"]))).toEqual(["Atlas/gone.webp"]);
   });
 
   it("are decoded to their bytes and compared byte for byte", () => {
@@ -165,13 +193,14 @@ describe("pictures", () => {
 
 describe("buildDrawingNote", () => {
   const source = JSON.stringify(board());
-  const note = (noteText: string, etag = '"v1"'): string =>
+  const note = (noteText: string, etag = '"v1"', changed = true): string =>
     buildDrawingNote({
       noteText,
       drawing: read(board()),
       imagePaths: new Map([["4fbd449d", "Atlas/4fbd449d.webp"]]),
-      sourceText: source,
+      sourceHash: hashText(source),
       etag,
+      changed,
       now: new Date(2026, 10, 2, 9, 5, 0)
     });
 
@@ -231,6 +260,13 @@ describe("buildDrawingNote", () => {
     );
   });
 
+  it("keeps the date the source last changed when the board is written again unchanged", () => {
+    const before = "---\nexcalidraw-plugin: parsed\nupdatedAt: 2026-10-01T08:00:00\n---\n";
+    const text = note(before, "", false);
+    expect(text).toContain("updatedAt: 2026-10-01T08:00:00\n");
+    expect(text).not.toContain("2026-11-02");
+  });
+
   it("leaves out a text that would end its section or the comment around the drawing", () => {
     const elements = [
       { id: "a", type: "text", text: "50 %% done" },
@@ -241,8 +277,9 @@ describe("buildDrawingNote", () => {
       noteText: "---\n---\n",
       drawing: read(board({ elements, files: {} })),
       imagePaths: new Map(),
-      sourceText: "x",
+      sourceHash: hashText("x"),
       etag: "",
+      changed: true,
       now: new Date(0)
     });
     expect(text).toContain("## Text Elements\nfine ^c\n\n%%");
@@ -254,6 +291,7 @@ describe("buildDrawingNote", () => {
     expect(plainNoteText(text)).not.toContain("viewBackgroundColor");
     expect(vaultNoteChunks(text).join("\n")).toContain("Panel · Heute");
     expect(vaultNoteChunks(text).join("\n")).not.toContain("excalidraw.com");
+    expect(vaultNoteChunks(text).join("\n")).not.toContain("4fbd449d");
   });
 });
 
