@@ -67,6 +67,7 @@ import { PropertyWidgetControls } from "./controllers/property-widget-controls";
 import { PictureArticleLinker } from "./controllers/picture-articles";
 import { BaseReadingFlags, isBaseFile } from "./controllers/base-reading-flags";
 import { BasesReadingView } from "./controllers/bases-reading";
+import { CoverBackdrops } from "./controllers/cover-backdrops";
 import { PassagesController } from "./controllers/passages";
 import { commandIcon } from "./services/command-icons";
 import { hasApiKey } from "./services/secret";
@@ -205,6 +206,7 @@ export default class SchreibstubePlugin extends Plugin {
   private propertyControls: PropertyWidgetControls | null = null;
   private pictureActions: PictureEmbedActions | null = null;
   private pictureArticles: PictureArticleLinker | null = null;
+  private coverBackdrops: CoverBackdrops | null = null;
   /** When the new-note link last made a note, for `linkCallAllowed`. */
   private newDocLinkActedAt: number | null = null;
   private baseReading: BaseReadingFlags | null = null;
@@ -444,6 +446,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.startPictureActions(this.explorer);
     this.startPictureArticles(this.explorer);
     this.startBasesReadingView();
+    this.startCoverBackdrops();
     this.registerPassagesView();
     this.recommendedFooter = new RecommendedFooter(
       this,
@@ -759,6 +762,26 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   /**
+   * Cards that fit their pictures whole fill the bands beside them with the
+   * colour of the picture's edge. A base's results are drawn when its tab
+   * opens and when a note embeds one; each is a moment to start watching.
+   */
+  private startCoverBackdrops(): void {
+    const backdrops = new CoverBackdrops();
+    this.coverBackdrops = backdrops;
+    backdrops.attach(window);
+    this.registerEvent(
+      this.app.workspace.on("window-open", (_workspaceWindow, win) => backdrops.attach(win))
+    );
+    this.registerEvent(
+      this.app.workspace.on("window-close", (_workspaceWindow, win) => backdrops.detach(win))
+    );
+    this.registerEvent(this.app.workspace.on("file-open", () => backdrops.watchSoon()));
+    this.registerEvent(this.app.workspace.on("layout-change", () => backdrops.watchSoon()));
+    this.registerEvent(this.app.workspace.on("active-leaf-change", () => backdrops.watchSoon()));
+  }
+
+  /**
    * The "Callouts & highlights" layout for Bases. Bases may be switched off
    * in a vault, and then there is no layout menu to join.
    */
@@ -868,6 +891,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.linkMode?.stop();
     this.properties?.stop();
     this.propertyControls?.stop();
+    this.coverBackdrops?.stop();
     this.pictureActions?.stop();
     this.pictureArticles?.stop();
     this.draftWidth.stop();

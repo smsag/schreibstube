@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Cards that fit their pictures whole fill the space around them in the picture's own colour.** A base's cards or kanban view with "Image fit" set to contain left a grey band above, below or beside every picture that did not match the card's shape, so a diagram on white paper sat in a grey frame it does not have. The band now takes the colour most of the picture's edge shares — white for a page, the paper's tone for a scan. A picture with a clear edge keeps the theme's colour, and so does a card whose image property is a colour of its own.
+
 ## 1.90.0 - 2026-11-02
 
 An Excalidraw drawing can follow a source, as a note can follow a Markdown
