@@ -933,6 +933,41 @@ export function basePressed(target: EventTarget | null): BasePress | null {
   return link ? { kind: "embed", link } : { kind: "block" };
 }
 
+/** Every base's results in a document, open in a tab or embedded alike. */
+export function basesResultsIn(root: ParentNode): HTMLElement[] {
+  return Array.from(root.querySelectorAll(BASES_RESULTS)).filter(isElementLike);
+}
+
+/**
+ * A card's picture in the cards and kanban views, drawn as the element's
+ * background, fitted whole when `background-size` is `contain`. The band
+ * beside it takes its colour from the variable named here, unless the
+ * card's own property gave a colour inline. Not API: a build that renames
+ * either leaves the bands in the theme's grey.
+ */
+const BASES_COVERS: Record<string, string> = {
+  "bases-cards-cover": "--bases-cards-cover-background",
+  "bases-kanban-card-cover": "--bases-kanban-cover-background"
+};
+
+const BASES_COVER_SELECTOR = Object.keys(BASES_COVERS)
+  .map((cls) => `.${cls}`)
+  .join(", ");
+
+/** The variable a card's picture takes its band colour from; null for any other element. */
+export function coverBackdropProperty(el: HTMLElement): string | null {
+  for (const [cls, property] of Object.entries(BASES_COVERS)) {
+    if (el.classList.contains(cls)) return property;
+  }
+  return null;
+}
+
+/** Every card picture at or under `root`. */
+export function basesCoversIn(root: HTMLElement | Document): HTMLElement[] {
+  const below = Array.from(root.querySelectorAll(BASES_COVER_SELECTOR)).filter(isElementLike);
+  return isElementLike(root) && coverBackdropProperty(root) ? [root, ...below] : below;
+}
+
 /**
  * The title of a callout that folds, as Obsidian's renderer draws it: a press
  * there folds the callout, and is not a press on the passage. Not API: a

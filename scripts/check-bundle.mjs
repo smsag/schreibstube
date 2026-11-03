@@ -190,8 +190,15 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * path for drawings, and their words in two languages. The 1590 ceiling had
  * been spent to 1.7 KB on main; the raise is in the change that needs it, for
  * the plugin's owner to agree to.
+ *
+ * Raised to 1610 KB at 1603 KB, for card pictures framed in their own colour
+ * (+3.9 KB on 1599): the reading of a picture's edge into the colour most of
+ * it shares, the watch on a base's results that paints each card again as
+ * Obsidian reuses it, and the bounds on what it reads and remembers. The
+ * 1600 ceiling had been spent to 1 KB on main, so no feature fitted under
+ * it; the owner agreed to the raise in this change.
  */
-const MAX_BUNDLE_KB = 1600;
+const MAX_BUNDLE_KB = 1610;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.
