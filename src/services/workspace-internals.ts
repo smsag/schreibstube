@@ -325,7 +325,42 @@ function positive(value: unknown): number | null {
 }
 
 interface CommandsInternals {
-  commands?: { commands?: Record<string, unknown> };
+  commands?: {
+    commands?: Record<string, unknown>;
+    executeCommandById?: (id: string) => unknown;
+  };
+}
+
+/**
+ * Whether a command is registered right now: a core plugin turned off takes
+ * its commands with it. Read off the same undocumented registry as the icons.
+ */
+export function hasCommand(app: App, id: string): boolean {
+  try {
+    const registry = (app as unknown as CommandsInternals).commands?.commands;
+    return (
+      !!registry &&
+      typeof registry === "object" &&
+      Object.prototype.hasOwnProperty.call(registry, id)
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Run a command by id, as the palette would. `app.commands` has no public
+ * way in; when its shape is not the one expected, nothing runs and the
+ * answer is false, so the caller can say so instead of doing nothing quietly.
+ */
+export function runCommand(app: App, id: string): boolean {
+  try {
+    const run = (app as unknown as CommandsInternals).commands?.executeCommandById;
+    if (typeof run !== "function") return false;
+    return run.call((app as unknown as CommandsInternals).commands, id) !== false;
+  } catch {
+    return false;
+  }
 }
 
 interface RibbonInternals {

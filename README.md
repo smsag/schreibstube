@@ -882,6 +882,23 @@ The notes whose Document sync source changed and whose update is still to be tak
 
 Icons and the two marks live in `explorer.json` inside the plugin folder, deliberately not in `data.json`: that file is rewritten whole on every save, so a second device would clobber it. Each entry carries its own timestamp and every write re-reads and merges per entry, so two devices editing different files both keep their change. The pane also watches the file for writes delivered by iCloud, Obsidian Sync or Git while it is open. A file that moves keeps its icon; one that disappears keeps it for thirty days, in case it turns up somewhere else under the same name.
 
+### Start page
+
+Name a note, base or canvas under **Start page** in the settings, and every empty tab opens it instead of Obsidian's four buttons: at launch with nothing open, after the last tab closes, and for a new tab. A note opens in Reading view. The setting lives in `data.json`, so every device starts on the same page. **Create** writes a starter note when the file is not there yet; **Open start page** goes back to it from anywhere.
+
+The page is arranged by editing it. Embed your bases as usual (`![[Zuletzt geändert.base]]`), and add a block for what a base cannot list:
+
+````markdown
+```schreibstube-home
+actions
+bookmarks
+updated 5
+due 10
+```
+````
+
+One section per line, drawn in that order: `actions` (New note, Go to file, New base, New canvas — name some to show only those, as in `actions new-note go-to-file`), `bookmarks` (the bookmarks file the pane reads), `updated` (the notes a Document sync source changed) and `due` (notes with a due day, earliest first). A number caps a section's rows (8 unless given, 50 at most). An empty block shows all four, and a line the block does not understand is named under it. A button whose core plugin is turned off is not drawn.
+
 ### Search by meaning
 
 A small language model (multilingual MiniLM, the same one Pythia uses) runs on the device and reads each note once into an index kept in the plugin's folder; no note and no query leaves the device, and the model itself is downloaded the first time, about 120 MB on a desktop and 75 MB on a phone, where a Latin-script cut of it is used. Switch it on under **Search by meaning** in the settings. The first build starts when the Explorer search is first used, or with **Build now**, and takes a few minutes on a desktop; the status line there says how far it is. **Most notes to index** caps it at the newest notes, 5 000 by default.

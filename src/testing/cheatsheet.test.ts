@@ -20,6 +20,7 @@ import { REQUESTED_LAYOUTS, SLIDE_ALIGNS, SLIDE_DIRECTIVES } from "../services/p
 import { SLIDESHOW_LANGUAGE, SLIDESHOW_LAYOUTS } from "../services/slideshow";
 import { TASK_SUMMARY_LANGUAGE } from "../services/task-summary";
 import { NOTE_INDEX_LANGUAGE } from "../services/note-index";
+import { HOME_ACTIONS, HOME_LANGUAGE, HOME_SECTION_KINDS } from "../services/home-block";
 
 /** The page's length limit: past it, a model reads it less carefully and a person not at all. */
 export const MAX_CHEATSHEET_LINES = 500;
@@ -109,5 +110,10 @@ describe("the cheatsheet", () => {
       expect(sheet).toContain(`\`\`\`${language}`);
     }
     for (const template of EXAMPLE_TEMPLATES) expect(mentions(template.name)).toBe(true);
+  });
+
+  it("names the start page block, each of its sections and buttons", () => {
+    expect(sheet).toContain(`\`\`\`${HOME_LANGUAGE}`);
+    for (const name of [...HOME_SECTION_KINDS, ...HOME_ACTIONS]) expect(mentions(name)).toBe(true);
   });
 });

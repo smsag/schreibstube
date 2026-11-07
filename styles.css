@@ -4535,3 +4535,98 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+/* The ```schreibstube-home``` block on the start page. Each section is a
+   heading in the type of Obsidian's own pane headers and a list of rows a
+   finger can hit on a phone; the actions are the empty tab's four buttons
+   in a row that wraps. Only theme variables, so a theme recolours it. */
+.schreibstube-home {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-4);
+  font-family: var(--font-interface);
+  margin: var(--size-4-2) 0;
+}
+
+.schreibstube-home-heading {
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--size-2-2);
+}
+
+.schreibstube-home-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* At least 44px tall on a phone: the size a thumb is promised by both
+   platforms' guidelines, and the row's whole width is the target. */
+.schreibstube-home-row {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-height: 36px;
+  padding: var(--size-2-2) var(--size-4-2);
+  border-radius: var(--radius-s);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.is-mobile .schreibstube-home-row {
+  min-height: 44px;
+}
+
+.schreibstube-home-row:hover,
+.schreibstube-home-row:focus-visible {
+  background: var(--background-modifier-hover);
+}
+
+.schreibstube-home-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.schreibstube-home-icon {
+  display: flex;
+  flex: 0 0 auto;
+  color: var(--icon-color);
+}
+
+.schreibstube-home-icon svg.svg-icon {
+  width: var(--icon-s);
+  height: var(--icon-s);
+}
+
+.schreibstube-home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-2);
+}
+
+.schreibstube-home-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  min-height: 36px;
+}
+
+.is-mobile .schreibstube-home-action {
+  min-height: 44px;
+}
+
+.schreibstube-home-empty,
+.schreibstube-home-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  padding: var(--size-2-2) var(--size-4-2);
+}
+
+.schreibstube-home-hint {
+  color: var(--text-error);
+}

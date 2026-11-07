@@ -1644,5 +1644,40 @@ export const enExtra = {
     describe: "Describe picture",
     favorite: "Mark as favourite",
     unfavorite: "Remove from favourites"
+  },
+
+  /** The start page an empty tab shows, and the block that lists what waits. */
+  startPage: {
+    heading: "Start page",
+    intro:
+      "Instead of Obsidian's empty tab, open a note of your own: at launch, after the last tab closes, and in every new tab. " +
+      "Embed your bases in it, and add a schreibstube-home block for what a base cannot list.",
+    file: "Start page",
+    fileDesc:
+      "The note, base or canvas an empty tab opens. Leave empty to keep Obsidian's empty tab. Applies on every device.",
+    missing: (path: string) => `There is no file at ${path} yet.`,
+    create: "Create",
+    createDesc: (path: string) =>
+      `Writes ${path} with every section of the block, ready to arrange.`,
+    created: (path: string) => `${path} created.`,
+    createFailed: (path: string) => `${path} could not be created.`,
+    openFailed: (path: string) => `the start page ${path} could not be opened.`,
+    starterHint:
+      "Embed a base above or below the block with ![[Name.base]], and delete the sections you do not need.",
+    sections: {
+      actions: "Start",
+      due: "Due"
+    },
+    actions: {
+      "new-note": "New note",
+      "go-to-file": "Go to file",
+      "new-base": "New base",
+      "new-canvas": "New canvas"
+    },
+    actionFailed: (name: string) => `${name} is not available right now.`,
+    noDue: "Nothing is due.",
+    unreadable: (lines: readonly number[]) =>
+      `${lines.length === 1 ? "Line" : "Lines"} ${lines.join(", ")} of this block ${lines.length === 1 ? "was" : "were"} not understood. ` +
+      "Sections: actions, bookmarks, updated, due — each optionally followed by a number."
   }
 };

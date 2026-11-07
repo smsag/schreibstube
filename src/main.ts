@@ -104,6 +104,8 @@ import { EXPLORER_RIBBON_ICON, EXPLORER_VIEW_TYPE, ExplorerPaneView } from "./ui
 import { TAG_NOTES_VIEW_TYPE, TagNotesView } from "./ui/tag-notes-view";
 import { RELATED_NOTES_VIEW_TYPE, RelatedNotesView } from "./ui/related-notes-view";
 import { FOLDER_TILES_VIEW_TYPE, FolderTilesView } from "./ui/folder-tiles-view";
+import { StartPageController } from "./controllers/start-page";
+import { registerHomeBlock } from "./processors/home-block";
 import { CSV_EXTENSIONS, CSV_VIEW_TYPE, CsvView } from "./ui/csv-view";
 import { registerSchreibstubeIcon } from "./ui/schreibstube-icon";
 import { uninstallIconFont } from "./ui/icon-font";
@@ -217,6 +219,8 @@ export default class SchreibstubePlugin extends Plugin {
   private reading: ReadingHistoryController | null = null;
   private explorer: ExplorerController | null = null;
   private sections: PaneSectionsController | null = null;
+  /** The settings tab creates the start page through it. */
+  startPage: StartPageController | null = null;
   private recommendedFooter: RecommendedFooter | null = null;
   semantic: SemanticEngine | null = null;
   api: SchreibstubeSemanticApi | null = null;
@@ -476,6 +480,7 @@ export default class SchreibstubePlugin extends Plugin {
       (path) => this.revealInExplorerPanes(path)
     );
     await this.sections.start();
+    this.startStartPage();
 
     this.registerView(REVIEW_VIEW_TYPE, (leaf) => this.createReviewView(leaf));
     this.registerView(EXPLORER_VIEW_TYPE, (leaf) => this.createExplorerView(leaf));
@@ -674,6 +679,24 @@ export default class SchreibstubePlugin extends Plugin {
         );
       })
     );
+  }
+
+  /**
+   * The start page and the block it is made of. The block lends the pane's
+   * own bookmarks and updates, so both surfaces read one copy of each.
+   */
+  private startStartPage(): void {
+    this.startPage = new StartPageController(this.app, () => this.settings, this.logger);
+    this.startPage.start(this);
+    registerHomeBlock(this, {
+      sources: () => this.sections,
+      dueKeys: () => ({
+        property: this.settings.dueProperty,
+        synonyms: this.settings.dueSynonyms
+      }),
+      newNote: () => this.newDoc(),
+      logger: this.logger
+    });
   }
 
   /**
@@ -2012,6 +2035,17 @@ export default class SchreibstubePlugin extends Plugin {
       id: "create-untitled-note",
       name: t().commands.newNote,
       callback: () => this.newDoc()
+    });
+
+    this.addCommand({
+      id: "open-start-page",
+      name: t().commands.openStartPage,
+      checkCallback: (checking) => {
+        const startPage = this.startPage;
+        if (!startPage?.file()) return false;
+        if (!checking) void startPage.open();
+        return true;
+      }
     });
 
     this.addCommand({

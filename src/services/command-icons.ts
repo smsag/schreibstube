@@ -11,6 +11,7 @@
  */
 export const COMMAND_ICONS: Readonly<Record<string, string>> = {
   "create-untitled-note": "file-plus",
+  "open-start-page": "home",
   "set-focus-sentence-mode": "text-cursor",
   "set-focus-paragraph-mode": "pilcrow",
   "switch-reading-editing": "book-open",

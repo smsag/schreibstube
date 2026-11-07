@@ -63,6 +63,15 @@ describe("normalizeSettings", () => {
     });
   });
 
+  it("keeps the start page off unless a usable path is named", () => {
+    expect(normalizeSettings(undefined).startPageFile).toBe("");
+    expect(normalizeSettings({ startPageFile: "/Home/Start.md" }).startPageFile).toBe(
+      "Home/Start.md"
+    );
+    expect(normalizeSettings({ startPageFile: ".obsidian/x.md" }).startPageFile).toBe("");
+    expect(normalizeSettings({ startPageFile: 7 as never }).startPageFile).toBe("");
+  });
+
   it("shows the Suggest tags control unless it was switched off", () => {
     expect(normalizeSettings({}).tagSuggestControl).toBe(true);
     expect(normalizeSettings({ tagSuggestControl: "no" as never }).tagSuggestControl).toBe(true);
