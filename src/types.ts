@@ -121,6 +121,12 @@ export interface SchreibstubeSettings {
   dueProperty: string;
   /** Other keys read for the due day when `dueProperty` names none, in order. */
   dueSynonyms: string[];
+  /**
+   * Vault path of the file an empty tab shows instead of Obsidian's four
+   * buttons; "" when the start page is off. Synced, so every device starts
+   * on the same page.
+   */
+  startPageFile: string;
   /** Draw `:folder:` in a note as the icon, and offer the icons while one is typed. */
   iconShortcodes: boolean;
   /** Secret-storage name of a GitHub token, for private repositories. */

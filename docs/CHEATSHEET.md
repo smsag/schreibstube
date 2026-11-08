@@ -2,12 +2,9 @@
 
 Checked against Schreibstube 1.90.0
 
-**For the person:** paste this whole file into a conversation with a language
-model, then ask for what you need — a presentation, a letter, a mail, a cost
-table. The model answers with a note you paste into Obsidian.
+**For the person:** paste this whole file into a conversation with a language model, then ask for what you need — a presentation, a letter, a mail, a cost table. The model answers with a note you paste into Obsidian.
 
-**For the model:** Schreibstube is an Obsidian plugin. Everything it reads is
-plain Obsidian Markdown plus what this file lists. Write only what is here.
+**For the model:** Schreibstube is an Obsidian plugin. Everything it reads is plain Obsidian Markdown plus what this file lists. Write only what is here.
 
 ## 1. Rules
 
@@ -359,8 +356,7 @@ and published as pictures. A diagram that cannot be drawn prints as its source.
 
 ## 8. Mail
 
-**Send note as mail** (`Notiz als Mail senden`) sends the note as plain text after a
-confirmation; **Fetch replies into note** (`Antworten ins Doc holen`) appends answers.
+**Send note as mail** (`Notiz als Mail senden`) sends the note as plain text after a confirmation; **Fetch replies into note** (`Antworten ins Doc holen`) appends answers.
 
 ```markdown
 ---
@@ -395,8 +391,7 @@ slug: hallo-welt
 
 - All but `published` are optional; slideshows, diagrams, index and totals carry over. Never `slug: s`
   (shared links). `schreibstubeHome: marketing` (note alone) or `list` (note, then the list): start page; `schreibstubeFooter: true`: footer of every page; `schreibstubePageLanguage: en`: page language. A video whose only words are `loop`, `autoplay` or `muted` plays that way: `![[clip.mp4|autoplay|muted|640]]`; any other words are a caption.
-- Leave `description` out rather than guess: an empty one may be written by
-  the AI when the note is published.
+- Leave `description` out rather than guess: an empty one may be written by the AI when the note is published.
 - **Share note as a link** (`Notiz als Link teilen`) needs no key: any note, as written. On the
   shared page, links to other notes are plain text, pictures stay, videos are left out,
   diagrams show as their source, and raw HTML runs no script.
@@ -440,7 +435,7 @@ schreibstubeDefaultSeverity: error
 - Match: `word` (default, tolerates German endings), `exact`, `prefix`.
 - German headers work too (`Konzept`, `Benennung`, `Treffer`, `Hinweis`).
 
-## 12. Bookmarks file
+## 12. Bookmarks file and start page
 
 `bookmarks.md` feeds the bookmark list in Schreibstube Explorer.
 
@@ -454,6 +449,9 @@ schreibstubeDefaultSeverity: error
 
 - `#` headings are folders, nested by level; linked list items are bookmarks; the rest is ignored.
 - Schemes: `https://`, `obsidian://`, `vault://folder`, `note://path`.
+- A ` ```schreibstube-home ` block on the start page (settings) lists one section per line, in
+  order: `actions`, `bookmarks`, `updated` (changed by a source), `due` (earliest first). `due 5`
+  caps rows; `actions new-note go-to-file` picks buttons, also `new-base`, `new-canvas`. Empty: all.
 
 ## 13. Print templates of your own
 
@@ -485,6 +483,7 @@ template's folder; a missing one is left out with a warning.
 | "Cost overview with total"             | a table with `=sum`; `=sum(fixed)` if it goes out      |
 | "Checklist for the handover"           | a `schreibstube-tasks` block, tasks under headings     |
 | "Exposé with a table of contents"      | a `schreibstube-index` block under the title           |
+| "A start page for my vault"            | a `schreibstube-home` block, bases embedded around it  |
 | "Publish this as a blog post"          | the note with `published: true`, `description`, `slug` |
 | "Something to share with a client"     | any note; the person shares it with a link             |
 | "Our house terms"                      | a glossary note                                        |

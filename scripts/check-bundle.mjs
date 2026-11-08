@@ -197,8 +197,14 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * Obsidian reuses it, and the bounds on what it reads and remembers. The
  * 1600 ceiling had been spent to 1 KB on main, so no feature fitted under
  * it; the owner agreed to the raise in this change.
+ *
+ * Raised to 1620 KB at 1615 KB, for the start page (+12.1 KB on 1603): the
+ * empty tab turned into a note of one's own, the schreibstube-home block
+ * with its four sections, its settings, and their words in two languages.
+ * The 1610 ceiling had 7 KB left on main, under what the feature costs; the
+ * raise is in the change that needs it, for the plugin's owner to agree to.
  */
-const MAX_BUNDLE_KB = 1610;
+const MAX_BUNDLE_KB = 1620;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

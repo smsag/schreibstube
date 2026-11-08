@@ -16,6 +16,7 @@ export const de: Messages = {
     focusParagraph: "Fokus: Absatz",
     switchReadingEditing: "Lesen/Bearbeiten wechseln",
     newNote: "Neue Notiz",
+    openStartPage: "Startseite öffnen",
     nextSection: "Überschriften-Stapel: nächster Abschnitt",
     previousSection: "Überschriften-Stapel: voriger Abschnitt",
     parentSection: "Überschriften-Stapel: übergeordneter Abschnitt",
@@ -2181,5 +2182,39 @@ export const de: Messages = {
     describe: "Bild beschreiben",
     favorite: "Als Favorit markieren",
     unfavorite: "Nicht mehr Favorit"
+  },
+
+  startPage: {
+    heading: "Startseite",
+    intro:
+      "Statt Obsidians leerem Tab eine eigene Notiz öffnen: beim Start, nachdem der letzte Tab geschlossen wurde, und in jedem neuen Tab. " +
+      "Bette deine Bases darin ein und ergänze einen schreibstube-home-Block für das, was eine Base nicht auflisten kann.",
+    file: "Startseite",
+    fileDesc:
+      "Die Notiz, Base oder Canvas, die ein leerer Tab öffnet. Leer lassen, um Obsidians leeren Tab zu behalten. Gilt auf allen Geräten.",
+    missing: (path: string) => `Unter ${path} gibt es noch keine Datei.`,
+    create: "Anlegen",
+    createDesc: (path: string) =>
+      `Schreibt ${path} mit allen Abschnitten des Blocks, bereit zum Anordnen.`,
+    created: (path: string) => `${path} angelegt.`,
+    createFailed: (path: string) => `${path} konnte nicht angelegt werden.`,
+    openFailed: (path: string) => `die Startseite ${path} konnte nicht geöffnet werden.`,
+    starterHint:
+      "Bette über oder unter dem Block eine Base mit ![[Name.base]] ein und lösche die Abschnitte, die du nicht brauchst.",
+    sections: {
+      actions: "Start",
+      due: "Fällig"
+    },
+    actions: {
+      "new-note": "Neue Notiz",
+      "go-to-file": "Gehe zu Datei",
+      "new-base": "Neue Base",
+      "new-canvas": "Neuer Canvas"
+    },
+    actionFailed: (name: string) => `${name} ist gerade nicht verfügbar.`,
+    noDue: "Nichts ist fällig.",
+    unreadable: (lines: readonly number[]) =>
+      `${lines.length === 1 ? "Zeile" : "Zeilen"} ${lines.join(", ")} dieses Blocks ${lines.length === 1 ? "wurde" : "wurden"} nicht verstanden. ` +
+      "Abschnitte: actions, bookmarks, updated, due – jeweils optional mit einer Zahl dahinter."
   }
 };

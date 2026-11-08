@@ -6,6 +6,7 @@ import { block, renderIndex } from "./layout";
 import { renderHelpers } from "./editor";
 import { renderSums } from "./sums";
 import { renderExplorer } from "./explorer";
+import { renderStartPage } from "./start-page";
 import { renderSemantic } from "./semantic";
 import { renderAiModel, renderDescriptions, renderRename, renderSummarize } from "./ai";
 import { renderProofreading } from "./proofreading";
@@ -60,6 +61,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
 
     block(ctx, blocks.features);
     renderExplorer(ctx);
+    renderStartPage(ctx);
     renderSemantic(ctx);
     renderDescriptions(ctx);
     renderRename(ctx);
