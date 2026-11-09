@@ -7,10 +7,13 @@ import {
   watchViewMode
 } from "../services/workspace-internals";
 import { RecommendedPanel, type RecommendedHost } from "../ui/recommended-panel";
+import { RecentPanel, type RecentHost } from "../ui/recent-panel";
 
 interface Footer {
   el: HTMLElement;
   panel: RecommendedPanel;
+  /** The files opened last, drawn above the recommendations. */
+  recent: RecentPanel | null;
   path: string | null;
   /** Stops listening for the view's switch between editing and reading. */
   unwatch: () => void;
@@ -25,6 +28,9 @@ interface Footer {
  * editing and in Reading view alike, moved across when the view switches.
  * Being read there, it ranks from the end of the note rather than its
  * opening. Switched back to the sidebar, every footer goes.
+ *
+ * Above the list, the files opened last (`RecentPanel`): read where a note
+ * ends, the next thing is often the note before.
  */
 export class RecommendedFooter {
   private readonly footers = new Map<MarkdownView, Footer>();
@@ -33,7 +39,9 @@ export class RecommendedFooter {
   constructor(
     private readonly plugin: Plugin,
     private readonly host: () => RecommendedHost | null,
-    private readonly placement: () => "sidebar" | "footer"
+    private readonly placement: () => "sidebar" | "footer",
+    /** What the "Recently opened" section above the list reads; null draws none. */
+    private readonly recentHost: () => RecentHost | null = () => null
   ) {}
 
   start(): void {
@@ -56,6 +64,12 @@ export class RecommendedFooter {
         for (const footer of this.footers.values()) footer.panel.measureGround();
       })
     );
+    // A file renamed or deleted is listed under its new name, or not at all.
+    const relist = () => {
+      for (const footer of this.footers.values()) footer.recent?.refresh();
+    };
+    this.plugin.registerEvent(this.plugin.app.vault.on("rename", relist));
+    this.plugin.registerEvent(this.plugin.app.vault.on("delete", relist));
     workspace.onLayoutReady(() => this.sync());
     this.plugin.register(() => this.clear());
   }
@@ -116,9 +130,11 @@ export class RecommendedFooter {
         placeAfterNote(target, el);
         // Inside the editor's content: a press here must not place the cursor.
         el.setAttr("contenteditable", "false");
+        const recentHost = this.recentHost();
+        const recent = recentHost ? new RecentPanel(el.createDiv(), recentHost) : null;
         const panel = new RecommendedPanel(el.createDiv(), host, { heading: false, place: "end" });
         const unwatch = watchViewMode(view.containerEl, () => this.sync());
-        footer = { el, panel, path: null, unwatch, tail: null };
+        footer = { el, panel, recent, path: null, unwatch, tail: null };
         this.footers.set(view, footer);
       }
       // In editing, the footer comes after the editor's own end-of-note
@@ -136,6 +152,10 @@ export class RecommendedFooter {
       if (footer.path !== path) {
         footer.path = path;
         footer.panel.show(path);
+        footer.recent?.show(path);
+      } else {
+        // Another pane opened a file: this note's list of the files before it moved.
+        footer.recent?.refresh();
       }
     }
   }

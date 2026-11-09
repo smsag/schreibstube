@@ -2679,6 +2679,34 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* "Recently opened", above Recommended under the note: the same heading and
+   entries, set apart from the list below by the space the footer keeps
+   between headings and what they head. Gone when nothing was opened before. */
+.schreibstube-recent:not(.is-empty) {
+  margin-bottom: 28px;
+}
+
+/* "Show 4 more": a quiet line under the entries, starting on their titles'
+   edge. Text only, no fill in any state; the pointer darkens it. */
+.schreibstube-recent-more {
+  margin-top: 10px;
+  padding-left: var(--schreibstube-related-rank);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .schreibstube-recent-more:hover {
+    color: var(--text-normal);
+  }
+}
+
+.schreibstube-recent-more:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 2px;
+}
+
 .schreibstube-related-list {
   display: flex;
   flex-direction: column;

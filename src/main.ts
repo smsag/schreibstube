@@ -141,6 +141,8 @@ import type {
   RecommendedHost,
   RecommendedItem
 } from "./ui/recommended-panel";
+import type { RecentHost } from "./ui/recent-panel";
+import { folderOfPath } from "./services/ensure-folder";
 import { fileGlyph } from "./services/file-glyph";
 import { obsidianFileUrl } from "./services/obsidian-url";
 import { splitItemKey, type SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
@@ -455,7 +457,8 @@ export default class SchreibstubePlugin extends Plugin {
     this.recommendedFooter = new RecommendedFooter(
       this,
       () => this.recommendedHost(),
-      () => this.settings.recommendedPlacement
+      () => this.settings.recommendedPlacement,
+      () => this.recentHost()
     );
     this.recommendedFooter.start();
     // A picture renamed outside Obsidian, or deleted while it was closed, left
@@ -1047,6 +1050,22 @@ export default class SchreibstubePlugin extends Plugin {
     const host = this.recommendedHost();
     if (host) view.connect(host);
     return view;
+  }
+
+  /** What the "Recently opened" section above Recommended asks. */
+  private recentHost(): RecentHost | null {
+    const explorer = this.explorer;
+    const host = this.recommendedHost();
+    if (!explorer || !host) return null;
+    return {
+      lastOpened: () => this.app.workspace.getLastOpenFiles(),
+      // Trashed files are still in the vault, but not anywhere a person looks.
+      titleOf: (path) => (explorer.isTrashed(path) ? null : explorer.displayTitle(path)),
+      folderOf: (path) => folderOfPath(path),
+      glyphOf: (path) => host.glyphOf(path),
+      open: (path, where) => host.open(path, where),
+      showMenu: (path, event) => host.showMenu(path, event)
+    };
   }
 
   /** What the Recommended panel asks, wherever it is drawn. */
