@@ -216,14 +216,51 @@ export const en = {
     tokenDesc:
       "The bridge's PUBLISH_TOKEN — deliberately a different token from the mail one, so a " +
       "leaked token cannot open both. Stored in Obsidian's secret storage.",
-    accounts: "Accounts",
+    accounts: "Sites",
+    accountsSummary: (count: number) =>
+      count === 0
+        ? "No site yet. A site is a folder of the vault and the target on the bridge it is published to — add one below."
+        : `${count === 1 ? "1 site" : `${count} sites`}. A note is published to the site whose folder holds it. Open a site to change it.`,
     accountName: "Name",
+    accountNameDesc:
+      "What the site is called here, in the list the publish command offers, and as the title the bridge configuration below suggests.",
     accountFolder: "Folder",
-    accountTarget: "Target",
-    accountDesc: "The site's name, the folder in the vault, and the target the bridge knows.",
-    addAccount: "Add account",
+    accountFolderDesc:
+      "The folder of the vault the site is made from, subfolders included. Only its notes marked for publication are transferred.",
+    accountTarget: "Target on the bridge",
+    accountTargetDesc:
+      "The target's name in the bridge's PUBLISH_TARGETS: lowercase letters, digits and dashes. Each site needs its own. Load the targets above to choose from the bridge's list.",
+    statusOk: "ready",
+    statusProblems: (count: number) =>
+      count === 1 ? "1 thing to check" : `${count} things to check`,
+    statusNotKept: "not saved yet",
+    problemNoFolder: "No folder yet.",
+    problemNoTarget: "No target yet.",
+    problemNotKept:
+      "A site without a folder and a target is not kept: it is gone the next time Obsidian starts.",
+    problemFolderMissing: (folder: string) =>
+      `There is no folder ${folder} in this vault, so publishing would find no notes.`,
+    problemBadTarget: (target: string) =>
+      `${target} cannot be a target: the bridge takes only lowercase letters, digits and dashes, and does not start with this name.`,
+    problemSameTarget: (other: string) =>
+      `${other} publishes to the same target. Each publication would take the other's pages down — give each site its own target.`,
+    problemSameFolder: (other: string) =>
+      `${other} publishes the same folder, so the same notes go to both sites.`,
+    problemInsideFolder: (other: string) =>
+      `This folder lies inside the folder of ${other}, so its notes are published there as well.`,
+    problemHoldsFolder: (other: string) =>
+      `The folder of ${other} lies inside this one, so its notes are published here as well.`,
+    loadTargets: "Load targets",
+    targetsLoaded: (names: readonly string[]) =>
+      names.length === 0
+        ? "the bridge offers no target — set PUBLISH_TARGETS in its configuration."
+        : `the bridge offers: ${names.join(", ")}.`,
+    checkSite: "Check this site",
+    checkSiteDesc:
+      "Tries the whole way to the web host — token, target, login, host key and folder — without writing anything. Remove takes the site out of Schreibstube; its pages on the web host stay.",
+    addAccount: "Add site",
     addAccountDesc:
-      "Another site to publish to: its own name, its own folder in the vault and its own target on the bridge. A note is published to the site whose folder it is in.",
+      "Another site to publish to: its own folder in the vault and its own target on the bridge.",
     writeBack: "Record the publication in the note",
     writeBackDesc: "Writes the time and the address into the frontmatter after publishing.",
     aiDescription: "Write missing descriptions with AI",
@@ -259,8 +296,9 @@ export const en = {
     keyPublishedUrl: "Published to (written)",
     setup: "Bridge configuration",
     setupDesc:
-      "Generates the environment block for this account, ready to paste into the bridge's " +
-      "deployment. Fill in the host, the user and the credentials there.",
+      "Generates the environment block for every site above, ready to paste into the bridge's " +
+      "deployment as one piece: the bridge reads a single list of targets. Fill in the host, " +
+      "the user and the credentials there.",
     setupCopy: "Copy configuration",
     lastRun: "Last publication",
     lastRunNever: "Not published from this vault yet.",
@@ -282,7 +320,7 @@ export const en = {
     planConflictsHelp:
       "Remove them from the host, or let the bridge take them over by setting PUBLISH_<TARGET>_ADOPT_EXISTING=true in its configuration.",
     planConfirm: "Publish",
-    chooseAccount: "Choose an account",
+    chooseAccount: "Choose a site",
 
     running: "publishing …",
     uploading: (done: number, total: number) => `transferring ${done}/${total} …`,
@@ -295,7 +333,7 @@ export const en = {
         : "."),
     failed: (reason: string) => `publication failed — ${reason}`,
     busy: "a publication is already running.",
-    noAccount: "no publishing account configured — see Settings.",
+    noAccount: "no site to publish to is set up — see Settings › Publishing.",
     noNotes: (folder: string) =>
       `no note in ${folder} is marked for publication, and nothing published is left to take down.`,
     emptyFolder: (folder: string) =>

@@ -95,7 +95,7 @@ beforeEach(() => {
   vi.mocked(checkTarget).mockClear();
 });
 
-function mount(): SettingsContext {
+function mount(extra: SchreibstubeSettings["publishAccounts"] = []): SettingsContext {
   const plugin = {
     settings: {
       ...DEFAULT_SETTINGS,
@@ -110,14 +110,18 @@ function mount(): SettingsContext {
           writeBack: true,
           aiDescription: false,
           headerTags: []
-        }
+        },
+        ...extra
       ]
     } as SchreibstubeSettings,
     saveSettings: async () => undefined,
     aiReady: () => false
   };
   const ctx = {
-    app: { secretStorage: { getSecret: () => "token" } },
+    app: {
+      secretStorage: { getSecret: () => "token" },
+      vault: { getAbstractFileByPath: () => null }
+    },
     plugin,
     containerEl: document.body.createDiv(),
     update: async () => undefined,
@@ -138,7 +142,7 @@ const find = (match: (control: (typeof drawn.controls)[number]) => boolean) => {
 describe("an account's target, just typed", () => {
   it("is the one the connection test asks about", async () => {
     mount();
-    await find((c) => c.placeholder === t().publish.accountTarget).change?.("neu");
+    await find((c) => c.placeholder === t().publish.targetPlaceholder).change?.("neu");
     await find((c) => c.label === t().common.testConnection).click?.();
     expect(vi.mocked(checkTarget).mock.calls[0]?.[1]).toBe("neu");
   });
@@ -150,8 +154,47 @@ describe("an account's target, just typed", () => {
       value: { writeText: async (text: string) => void copied.push(text) }
     });
     mount();
-    await find((c) => c.placeholder === t().publish.accountTarget).change?.("neu");
+    await find((c) => c.placeholder === t().publish.targetPlaceholder).change?.("neu");
     await find((c) => c.label === t().publish.setupCopy).click?.();
     expect(copied[0]).toContain("PUBLISH_TARGETS=neu");
+  });
+});
+
+describe("a site's card", () => {
+  const site = (id: string, name: string, folder: string, target: string) => ({
+    id,
+    name,
+    folder,
+    target,
+    writeBack: true,
+    aiDescription: false,
+    headerTags: []
+  });
+
+  it("opens on what to check, naming the other site", () => {
+    const ctx = mount([site("b", "Notes", "Notes", "alt")]);
+    const cards = [...ctx.containerEl.querySelectorAll("details")].filter((el) =>
+      el.classList.contains("schreibstube-publish-site")
+    );
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.open).toBe(true);
+    expect(cards[0]?.textContent).toContain(t().publish.problemSameTarget("Notes"));
+    expect(cards[0]?.textContent).toContain("Blog → alt");
+  });
+
+  it("says a half-filled site is not saved, and stops saying so once it is complete", async () => {
+    const ctx = mount([site("b", "Notes", "", "")]);
+    const card = [...ctx.containerEl.querySelectorAll("details")][1];
+    expect(card?.textContent).toContain(t().publish.problemNotKept);
+    expect(card?.textContent).toContain(t().publish.statusNotKept);
+
+    await drawn.controls
+      .filter((c) => c.placeholder === t().publish.accountFolder)[1]
+      ?.change?.("Notes");
+    await drawn.controls
+      .filter((c) => c.placeholder === t().publish.targetPlaceholder)[1]
+      ?.change?.("notes");
+    expect(card?.textContent).not.toContain(t().publish.problemNotKept);
+    expect(card?.textContent).toContain(t().publish.problemFolderMissing("Notes"));
   });
 });

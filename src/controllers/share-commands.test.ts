@@ -240,7 +240,7 @@ describe("sharing the open note", () => {
     expect(Notice.shown.filter((message) => message.includes("open a note"))).toHaveLength(2);
 
     await setup({ accounts: [] }).shareActiveNote();
-    expect(Notice.shown.some((message) => message.includes("no publishing account"))).toBe(true);
+    expect(Notice.shown.some((message) => message.includes("no site to publish to"))).toBe(true);
 
     client.list.mockRejectedValueOnce(new Error("bridge down"));
     await setup().shareActiveNote();

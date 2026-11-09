@@ -466,13 +466,24 @@ with no signal.
 A **Publish** section holding the bridge URL, defaulting to the mail bridge
 URL with an override for the case where the services are ever split; the
 publish token in Obsidian's secret storage, resolved through the existing
-`resolveApiKey` helper; and a list of accounts. Each account has a display
-name, a vault folder, a bridge target chosen from `/publish/targets`, a
-write-back toggle, and a toggle for descriptions written by the AI.
+`resolveApiKey` helper, with a **Ziele laden** button that asks
+`/publish/targets`; and a list of accounts, shown as sites. Each site is a
+card folded under its name, its folder → target and whether it is ready, and
+holds a display name, a vault folder, a bridge target chosen from
+`/publish/targets`, a write-back toggle, and a toggle for descriptions written
+by the AI.
 
-A **Verbindung testen** button per account calls `/diagnostics`, which proves
+The card opens on what to check, from `accountProblems` in
+`src/services/publish-accounts.ts`: no folder or no target (the account is
+dropped on the next load), a folder not in the vault, a target name the
+bridge refuses at startup, a target another site also publishes to, and a
+folder equal to, inside or holding another site's.
+
+A **Verbindung testen** button per site calls `/diagnostics`, which proves
 the token, the target, the SFTP login, the fingerprint and the root path in one
-request without writing anything.
+request without writing anything. **Konfiguration kopieren** writes one
+environment block for every site, with all targets in a single
+`PUBLISH_TARGETS`.
 
 ### Commands
 

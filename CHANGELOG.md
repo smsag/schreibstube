@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Changed
+
+- **Setting up a site to publish to says what it is and whether it will work.** Under Settings → Publishing each site is now a card of its own, folded under its name, its folder → target and a word on whether it is ready, so two sites no longer run together into one list of equal rows. Name, folder and target are labelled fields, each saying what it is for. The card opens by itself and says what to check when the site has no folder or target yet — such a site used to vanish without a word the next time Obsidian started, and now the card says so while there is still time — when its folder is not in the vault, when the target is a name the bridge would refuse, when another site publishes to the same target (each publication would take the other's pages down) or when one site's folder lies inside another's, whose site then publishes those notes too. **Load targets**, beside the publish token, asks the bridge which targets it has and turns every target field into a list, before the first site rather than after its connection test. "Accounts" are called sites throughout, in the settings and in the notices.
+
+### Fixed
+
+- **The bridge configuration works for more than one site.** **Copy configuration** wrote a block per account, each with its own `PUBLISH_TARGETS` line, so pasting two left the bridge with only the second site. It now sits once under the sites and writes one block for all of them, with every target in a single `PUBLISH_TARGETS` list.
+
 ## 1.91.0 - 2026-11-09
 
 An empty tab opens a start page of your own: a note, base or canvas named in
