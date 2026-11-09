@@ -698,6 +698,21 @@ describe("startup", () => {
     expect(stderr).toContain("openssl rand -base64 32");
   }, 15_000);
 
+  it("says in one line why it does not start, rather than in a stack trace", async () => {
+    const { code, stderr } = await attempt({
+      PORT: "0",
+      PUBLISH_TOKEN: "publish-token-for-the-test-0123",
+      PUBLISH_TARGETS: "blog",
+      ...target("blog", { PUBLISH_BLOG_STATE_ROOT: "" })
+    });
+    expect(code).toBe(1);
+    const lines = stderr.trim().split("\n");
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("error configuration: PUBLISH_BLOG_STATE_ROOT");
+    expect(lines[0]).toContain("does not start until this is fixed");
+    expect(stderr).not.toContain("config.mjs");
+  }, 15_000);
+
   it("refuses to start with no capability configured at all", async () => {
     const bare = { PATH: process.env.PATH, PORT: "0" };
     const { code, stderr } = await new Promise((resolve) => {

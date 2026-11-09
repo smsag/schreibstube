@@ -282,8 +282,9 @@ export const de: Messages = {
     setup: "Bridge-Konfiguration",
     setupDesc:
       "Erzeugt den Umgebungsblock für alle Websites oben, fertig zum Einfügen in die Bridge, " +
-      "und zwar als ein Stück: Die Bridge liest eine einzige Liste von Zielen. Host, " +
-      "Benutzer und Zugangsdaten werden dort ergänzt.",
+      "und zwar als ein Stück: Die Bridge liest eine einzige Liste von Zielen. Dort jeden " +
+      "leeren Wert ausfüllen — ein Passwort oder einen KEY, und STATE_ROOT als Ordner außerhalb " +
+      "von ROOT. Fehlt einer, startet die Bridge nicht, und ihr Log nennt die Variable.",
     setupCopy: "Konfiguration kopieren",
     lastRun: "Letzte Veröffentlichung",
     lastRunNever: "Aus diesem Vault noch nicht veröffentlicht.",

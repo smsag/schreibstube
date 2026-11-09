@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - **The bridge configuration works for more than one site.** **Copy configuration** wrote a block per account, each with its own `PUBLISH_TARGETS` line, so pasting two left the bridge with only the second site. It now sits once under the sites and writes one block for all of them, with every target in a single `PUBLISH_TARGETS` list.
+- **A bridge that cannot start says why in one line.** A configuration error — a variable missing, a fingerprint pasted whole, a state directory inside the web root — used to end the bridge with a stack trace before it opened its port, so a hosting platform reported only a failing health check and the sentence naming the variable was buried in file paths. The bridge now prints one line, `error configuration: …`, naming the variable and what to set it to, and exits. The copied bridge configuration says which of its empty values must be filled in: leaving `STATE_ROOT` empty puts the state inside the web root, which the bridge refuses.
 
 ## 1.91.0 - 2026-11-09
 

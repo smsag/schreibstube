@@ -173,7 +173,7 @@ describe("a site's card", () => {
 
   it("opens on what to check, naming the other site", () => {
     const ctx = mount([site("b", "Notes", "Notes", "alt")]);
-    const cards = [...ctx.containerEl.querySelectorAll("details")].filter((el) =>
+    const cards = Array.from(ctx.containerEl.querySelectorAll("details")).filter((el) =>
       el.classList.contains("schreibstube-publish-site")
     );
     expect(cards).toHaveLength(2);
@@ -184,7 +184,7 @@ describe("a site's card", () => {
 
   it("says a half-filled site is not saved, and stops saying so once it is complete", async () => {
     const ctx = mount([site("b", "Notes", "", "")]);
-    const card = [...ctx.containerEl.querySelectorAll("details")][1];
+    const card = Array.from(ctx.containerEl.querySelectorAll("details"))[1];
     expect(card?.textContent).toContain(t().publish.problemNotKept);
     expect(card?.textContent).toContain(t().publish.statusNotKept);
 

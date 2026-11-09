@@ -297,8 +297,9 @@ export const en = {
     setup: "Bridge configuration",
     setupDesc:
       "Generates the environment block for every site above, ready to paste into the bridge's " +
-      "deployment as one piece: the bridge reads a single list of targets. Fill in the host, " +
-      "the user and the credentials there.",
+      "deployment as one piece: the bridge reads a single list of targets. Fill in every empty " +
+      "value there — a password or a KEY, and STATE_ROOT as a directory outside ROOT. The " +
+      "bridge refuses to start with one missing, and its log names the variable.",
     setupCopy: "Copy configuration",
     lastRun: "Last publication",
     lastRunNever: "Not published from this vault yet.",
