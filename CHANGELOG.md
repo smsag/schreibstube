@@ -2,13 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.91.0 - 2026-11-09
+
+An empty tab opens a start page of your own: a note, base or canvas named in
+the settings, with a `schreibstube-home` block for the actions, bookmarks,
+updated notes and due notes a base cannot list. Under each note, the files
+opened last now sit above Recommended, three of them until more are asked
+for, so going back to the draft or the source is one press. And a card that
+fits its picture whole fills the band around it in the picture's own colour.
+
+Mobile checklist: not run. The recently opened list was tried in a second
+Obsidian on the desktop, in editing and Reading view; the start page and the
+card bands have not been tried in a running Obsidian at all. What to try
+first: on the phone, set a start page, press **Create**, then open a new tab
+and close the last one; press a row of each section and the **New base**
+button, whose command id is not confirmed on a live Obsidian (if it is
+wrong, the button is not drawn). Then open a note with Recommended under it
+and tap an entry of "Zuletzt geöffnet". And a base's cards view with "Image
+fit" set to contain, with diagrams on white: the bands should turn white.
+
+The bridge moves from 3.5.1 to 3.5.2 for updated dependencies — imapflow,
+mailparser and nodemailer. Nothing it does changes, and the protocol is
+unchanged. Search by meaning runs on transformers.js 4.3.2, whose vectors
+match 4.3.1's exactly, so no index is rebuilt.
 
 ### Added
 
 - **A start page of your own instead of the empty tab.** Name a note, base or canvas under Settings → Start page, and every empty tab opens it: at launch with nothing open, after the last tab closes, and for a new tab. A note opens in Reading view, so a tap opens what it lists rather than bringing up the keyboard. The setting syncs, so every device starts on the same page; **Create** writes a starter note when the file is not there yet, and **Open start page** goes back to it from anywhere.
 - **A `schreibstube-home` block for what a base cannot list.** One section per line, in the order drawn: `actions` (the empty tab's New note, Go to file, New base and New canvas), `bookmarks` (the bookmarks file), `updated` (notes a source changed, as in the pane) and `due` (notes with a due day, earliest first). A number after a section caps its rows, an empty block shows all four, and a line the block does not understand is named under it. Embed your bases above or below it; they keep doing what they do.
-
 - **The files you opened last, above Recommended under each note.** With Recommended set to show under the note, a "Recently opened" section now sits above it: the files opened before this one on this device, newest first, three of them until **Show more** brings out the rest. A press switches back; Cmd/Ctrl or a middle click opens a new tab, and a right click brings the file's menu. The list is Obsidian's own, so nothing new is stored; a file since deleted or moved to the trash is left out, and the section is not drawn when there is nothing to go back to.
 
 ### Changed
