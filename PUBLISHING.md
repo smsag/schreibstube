@@ -481,9 +481,12 @@ folder equal to, inside or holding another site's.
 
 A **Verbindung testen** button per site calls `/diagnostics`, which proves
 the token, the target, the SFTP login, the fingerprint and the root path in one
-request without writing anything. **Konfiguration kopieren** writes one
-environment block for every site, with all targets in a single
-`PUBLISH_TARGETS`.
+request without writing anything. **Startpaket kopieren** writes what a new
+bridge needs — `PORT=8080`, `TRUST_PROXY=true`, `PUBLISH_TOKEN` and every
+site — with the token this device holds, or a new one (64 hex characters)
+saved to secret storage first; a stored token is never replaced. **Nur
+Websites kopieren** writes the site blocks alone, with all targets in a
+single `PUBLISH_TARGETS`.
 
 ### Commands
 

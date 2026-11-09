@@ -208,7 +208,7 @@ export const de: Messages = {
         : `${count === 1 ? "1 Website" : `${count} Websites`}. Eine Notiz geht an die Website, in deren Ordner sie liegt. Eine Website aufklappen, um sie zu ändern.`,
     accountName: "Name",
     accountNameDesc:
-      "Wie die Website hier heißt, in der Auswahl des Befehls zum Veröffentlichen und als Titel, den die Bridge-Konfiguration unten vorschlägt.",
+      "Wie die Website hier und beim Veröffentlichen heißt, und der Titel, den die Konfiguration unten vorschlägt.",
     accountFolder: "Ordner",
     accountFolderDesc:
       "Der Ordner des Vaults, aus dem die Website entsteht, samt Unterordnern. Übertragen werden nur seine Notizen, die zur Veröffentlichung markiert sind.",
@@ -281,11 +281,15 @@ export const de: Messages = {
     keyPublishedUrl: "Veröffentlicht unter (wird geschrieben)",
     setup: "Bridge-Konfiguration",
     setupDesc:
-      "Erzeugt den Umgebungsblock für alle Websites oben, fertig zum Einfügen in die Bridge, " +
-      "und zwar als ein Stück: Die Bridge liest eine einzige Liste von Zielen. Dort jeden " +
-      "leeren Wert ausfüllen — ein Passwort oder einen KEY, und STATE_ROOT als Ordner außerhalb " +
-      "von ROOT. Fehlt einer, startet die Bridge nicht, und ihr Log nennt die Variable.",
-    setupCopy: "Konfiguration kopieren",
+      "Startpaket: was eine neue Bridge braucht — Port 8080, Vertrauen in den Proxy einer " +
+      "Plattform wie Sliplane, das hier gespeicherte Publish-Token (oder ein neues, hier " +
+      "gespeichert) und alle Websites. Nur Websites: deren Blöcke, für eine laufende Bridge. " +
+      "Jeden leeren Wert ausfüllen; STATE_ROOT liegt außerhalb von ROOT. Fehlt einer, startet " +
+      "die Bridge nicht, und ihr Log sagt, welcher.",
+    setupCopy: "Nur Websites kopieren",
+    setupStarter: "Startpaket kopieren",
+    starterCopied: (secret: string, created: boolean) =>
+      `Startpaket kopiert mit ${created ? "einem neuen" : "dem"} Publish-Token, hier gespeichert als „${secret}“. Die leeren Werte ausfüllen, dann die Zwischenablage leeren: Sie enthält das Token.`,
     lastRun: "Letzte Veröffentlichung",
     lastRunNever: "Aus diesem Vault noch nicht veröffentlicht.",
     lastRunSummary: (when: string, written: number, deleted: number) =>

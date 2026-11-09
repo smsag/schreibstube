@@ -24,6 +24,9 @@ import {
   accountProblems,
   bridgeEnvironment,
   isKept,
+  STARTER_TOKEN_BYTES,
+  starterEnvironment,
+  tokenFromBytes,
   type AccountProblem
 } from "../services/publish-accounts";
 import { normalizeVaultFolder } from "../services/file-name";
@@ -381,27 +384,80 @@ function renderLastRun(ctx: SettingsContext, account: PublishAccount): void {
     );
 }
 
-/** The environment block for every site, ready to paste into the bridge. */
+/** The secret a starter set saves a new token under, when none is named yet. */
+const STARTER_SECRET = "schreibstube-publish-token";
+
+/**
+ * The bridge's configuration, ready to paste: the starter set for a new
+ * deployment, or the site blocks alone for one already running.
+ */
 function renderSetup(ctx: SettingsContext): void {
   new Setting(ctx.containerEl)
     .setName(t().publish.setup)
     .setDesc(t().publish.setupDesc)
     .addButton((button) =>
+      button
+        .setButtonText(t().publish.setupStarter)
+        .setCta()
+        .onClick(async () => {
+          const { secret, token, created } = await starterToken(ctx);
+          const copied = await copy(
+            ctx,
+            starterEnvironment(
+              ctx.plugin.settings.publishAccounts,
+              t().publish.newAccountName,
+              token
+            )
+          );
+          if (copied) new Notice(t().common.notice(t().publish.starterCopied(secret, created)));
+          if (created) ctx.refresh();
+        })
+    )
+    .addButton((button) =>
       button.setButtonText(t().publish.setupCopy).onClick(async () => {
-        try {
-          await navigator.clipboard.writeText(
-            bridgeEnvironment(ctx.plugin.settings.publishAccounts, t().publish.newAccountName)
-          );
-          new Notice(t().common.notice(t().common.copied));
-        } catch (error) {
-          createLogger(() => ctx.plugin.settings.debugLogging).warn(
-            "Could not copy the bridge setup to the clipboard:",
-            error
-          );
-          new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
-        }
+        const copied = await copy(
+          ctx,
+          bridgeEnvironment(ctx.plugin.settings.publishAccounts, t().publish.newAccountName)
+        );
+        if (copied) new Notice(t().common.notice(t().common.copied));
       })
     );
+}
+
+/**
+ * The publish token for a starter set: the one this device holds, or a new
+ * one saved before it is copied, so the plugin and the bridge it is pasted
+ * into hold the same token without a second step. A token already stored is
+ * never replaced: the bridge running with it would stop answering.
+ */
+async function starterToken(
+  ctx: SettingsContext
+): Promise<{ secret: string; token: string; created: boolean }> {
+  const storage = ctx.app.secretStorage;
+  const secret = ctx.plugin.settings.publishTokenSecretName || STARTER_SECRET;
+  const stored = storage.getSecret(secret)?.trim();
+  if (!ctx.plugin.settings.publishTokenSecretName) {
+    await ctx.update({ publishTokenSecretName: secret });
+  }
+  if (stored) return { secret, token: stored, created: false };
+
+  const token = tokenFromBytes(crypto.getRandomValues(new Uint8Array(STARTER_TOKEN_BYTES)));
+  storage.setSecret(secret, token);
+  return { secret, token, created: true };
+}
+
+async function copy(ctx: SettingsContext, text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    createLogger(() => ctx.plugin.settings.debugLogging).warn(
+      "Could not copy the bridge setup to the clipboard:",
+      error
+    );
+    new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+    return false;
+  }
 }
 
 /**

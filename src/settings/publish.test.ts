@@ -33,6 +33,7 @@ vi.mock("obsidian", async (importOriginal) => {
       onClick: (click: () => unknown) => ((entry.click = click), self),
       setDisabled: () => self,
       setWarning: () => self,
+      setCta: () => self,
       addOption: () => self
     };
     return self;
@@ -95,12 +96,16 @@ beforeEach(() => {
   vi.mocked(checkTarget).mockClear();
 });
 
-function mount(extra: SchreibstubeSettings["publishAccounts"] = []): SettingsContext {
+function mount(
+  extra: SchreibstubeSettings["publishAccounts"] = [],
+  secrets: Record<string, string> = { publish: "token" },
+  secretName = "publish"
+): SettingsContext {
   const plugin = {
     settings: {
       ...DEFAULT_SETTINGS,
       publishBridgeUrl: "https://bridge.example",
-      publishTokenSecretName: "publish",
+      publishTokenSecretName: secretName,
       publishAccounts: [
         {
           id: "a",
@@ -119,12 +124,17 @@ function mount(extra: SchreibstubeSettings["publishAccounts"] = []): SettingsCon
   };
   const ctx = {
     app: {
-      secretStorage: { getSecret: () => "token" },
+      secretStorage: {
+        getSecret: (name: string) => secrets[name] ?? null,
+        setSecret: (name: string, value: string) => void (secrets[name] = value)
+      },
       vault: { getAbstractFileByPath: () => null }
     },
     plugin,
     containerEl: document.body.createDiv(),
-    update: async () => undefined,
+    update: async (patch: Partial<SchreibstubeSettings>) => {
+      plugin.settings = { ...plugin.settings, ...patch };
+    },
     refresh: () => undefined,
     index: [],
     onClose: () => undefined
@@ -196,5 +206,38 @@ describe("a site's card", () => {
       ?.change?.("notes");
     expect(card?.textContent).not.toContain(t().publish.problemNotKept);
     expect(card?.textContent).toContain(t().publish.problemFolderMissing("Notes"));
+  });
+});
+
+describe("the starter set", () => {
+  function clipboard(): string[] {
+    const copied: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (text: string) => void copied.push(text) }
+    });
+    return copied;
+  }
+
+  it("carries the token this device already holds, and leaves it as it is", async () => {
+    const copied = clipboard();
+    const secrets = { publish: "the-running-bridges-token" };
+    mount([], secrets);
+    await find((c) => c.label === t().publish.setupStarter).click?.();
+    expect(copied[0]).toContain("PUBLISH_TOKEN=the-running-bridges-token");
+    expect(copied[0]).toContain("PORT=8080");
+    expect(copied[0]).toContain("PUBLISH_TARGETS=alt");
+    expect(secrets.publish).toBe("the-running-bridges-token");
+  });
+
+  it("makes a token when there is none, and saves it before copying it", async () => {
+    const copied = clipboard();
+    const secrets: Record<string, string> = {};
+    const ctx = mount([], secrets, "");
+    await find((c) => c.label === t().publish.setupStarter).click?.();
+    const token = secrets["schreibstube-publish-token"];
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+    expect(copied[0]).toContain(`PUBLISH_TOKEN=${token}`);
+    expect(ctx.plugin.settings.publishTokenSecretName).toBe("schreibstube-publish-token");
   });
 });

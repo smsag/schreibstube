@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { PublishAccount } from "../types";
-import { accountProblems, bridgeEnvironment, isKept } from "./publish-accounts";
+import {
+  accountProblems,
+  bridgeEnvironment,
+  isKept,
+  STARTER_TOKEN_BYTES,
+  starterEnvironment,
+  tokenFromBytes
+} from "./publish-accounts";
 
 function account(changes: Partial<PublishAccount>): PublishAccount {
   return {
@@ -110,5 +117,35 @@ describe("bridgeEnvironment", () => {
     const block = bridgeEnvironment([], "Website");
     expect(block).toContain("PUBLISH_TARGETS=blog");
     expect(block).toContain("PUBLISH_BLOG_SITE_TITLE=Website");
+  });
+});
+
+describe("starterEnvironment", () => {
+  it("adds the port, the proxy and the token in front of every site", () => {
+    const block = starterEnvironment(
+      [account({ name: "Blog", target: "blog" }), account({ name: "Team", target: "team" })],
+      "Website",
+      "abc123"
+    );
+    expect(block.startsWith("PORT=8080\nTRUST_PROXY=true\nPUBLISH_TOKEN=abc123\n\n")).toBe(true);
+    expect(block).toContain("PUBLISH_TARGETS=blog,team");
+    expect(block.match(/PUBLISH_TOKEN=/g)).toHaveLength(1);
+  });
+
+  it("keeps a line break in the token from starting a variable", () => {
+    expect(starterEnvironment([], "Website", "a\nPORT=1")).not.toMatch(/^PORT=1$/m);
+  });
+});
+
+describe("tokenFromBytes", () => {
+  it("writes every byte as two hex digits", () => {
+    expect(tokenFromBytes(new Uint8Array([0, 15, 255]))).toBe("000fff");
+  });
+
+  it("makes a token the bridge accepts from the starter's bytes", () => {
+    const bytes = new Uint8Array(STARTER_TOKEN_BYTES).map((_, index) => index * 7);
+    const token = tokenFromBytes(bytes);
+    expect(token).toHaveLength(64);
+    expect(new Set(token).size).toBeGreaterThanOrEqual(10);
   });
 });

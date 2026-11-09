@@ -223,7 +223,7 @@ export const en = {
         : `${count === 1 ? "1 site" : `${count} sites`}. A note is published to the site whose folder holds it. Open a site to change it.`,
     accountName: "Name",
     accountNameDesc:
-      "What the site is called here, in the list the publish command offers, and as the title the bridge configuration below suggests.",
+      "What the site is called here and when publishing, and the title the configuration below suggests.",
     accountFolder: "Folder",
     accountFolderDesc:
       "The folder of the vault the site is made from, subfolders included. Only its notes marked for publication are transferred.",
@@ -296,11 +296,14 @@ export const en = {
     keyPublishedUrl: "Published to (written)",
     setup: "Bridge configuration",
     setupDesc:
-      "Generates the environment block for every site above, ready to paste into the bridge's " +
-      "deployment as one piece: the bridge reads a single list of targets. Fill in every empty " +
-      "value there — a password or a KEY, and STATE_ROOT as a directory outside ROOT. The " +
-      "bridge refuses to start with one missing, and its log names the variable.",
-    setupCopy: "Copy configuration",
+      "Starter set: what a new bridge needs — port 8080, trust in a platform's proxy such as " +
+      "Sliplane's, the publish token stored here (or a new one, saved here) and every site. " +
+      "Sites only: the site blocks, for a running bridge. Fill in every empty value; STATE_ROOT " +
+      "lies outside ROOT. With one missing the bridge does not start, and its log says which.",
+    setupCopy: "Copy sites only",
+    setupStarter: "Copy starter set",
+    starterCopied: (secret: string, created: boolean) =>
+      `starter set copied with ${created ? "a new" : "the"} publish token, stored here as "${secret}". Fill in the empty values, then clear the clipboard: it holds the token.`,
     lastRun: "Last publication",
     lastRunNever: "Not published from this vault yet.",
     lastRunSummary: (when: string, written: number, deleted: number) =>

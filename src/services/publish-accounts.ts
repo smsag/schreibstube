@@ -132,3 +132,34 @@ export function bridgeEnvironment(
 function oneLine(value: string): string {
   return value.replace(/[\r\n]+/g, " ").trim();
 }
+
+/** Bytes in a generated token: 64 hex characters, past every rule the bridge checks. */
+export const STARTER_TOKEN_BYTES = 32;
+
+/**
+ * A publish token from random bytes, written in hex: no character a shell, an
+ * env file or a hosting dashboard reads as anything but itself.
+ */
+export function tokenFromBytes(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Everything a fresh bridge needs to offer publishing, short of the hosting
+ * credentials: the port a platform's health check expects, trust in the
+ * platform's proxy, the token the plugin holds, and every site.
+ *
+ * The token goes in written out, because the copy is pasted into the
+ * deployment the plugin will send it to; a placeholder here was a bridge that
+ * refused to start, or a token that did not match.
+ */
+export function starterEnvironment(
+  accounts: readonly PublishAccount[],
+  fallbackName: string,
+  token: string
+): string {
+  return [
+    ["PORT=8080", "TRUST_PROXY=true", `PUBLISH_TOKEN=${oneLine(token)}`].join("\n"),
+    bridgeEnvironment(accounts, fallbackName)
+  ].join("\n\n");
+}
