@@ -203,8 +203,14 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * with its four sections, its settings, and their words in two languages.
  * The 1610 ceiling had 7 KB left on main, under what the feature costs; the
  * raise is in the change that needs it, for the plugin's owner to agree to.
+ *
+ * Raised to 1630 KB at 1621 KB, for transformers.js 4.3.2 (1619 KB before it):
+ * no code of the plugin's own, but the model families the release added, which
+ * its registry bundles whether or not a family is used. The recently opened
+ * list had already spent the 1620 ceiling to under 1 KB, so a dependency
+ * update could not land under it; the owner asked for the update.
  */
-const MAX_BUNDLE_KB = 1620;
+const MAX_BUNDLE_KB = 1630;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

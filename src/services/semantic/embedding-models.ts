@@ -155,7 +155,9 @@ export const SELECTABLE_EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] =
  *
  * transformers 4.3.1 only added a model family; with onnxruntime-web unchanged,
  * ten notes embedded bit-identically on the English and the multilingual model,
- * so it kept generation 2.
+ * so it kept generation 2. 4.3.2 likewise: a model family, a download fix, the
+ * same onnxruntime-web build, and the same ten notes bit-identical on both
+ * models through the plugin's own WASM bundle.
  *
  * Generation 1 is every row written before this existed; its hashes carry no mark.
  * `tests` compare `transformers` and `onnxruntimeWeb` against the lockfile, so a
@@ -164,7 +166,7 @@ export const SELECTABLE_EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] =
  */
 export const EMBEDDING_RUNTIME = {
   generation: 2,
-  transformers: "4.3.1",
+  transformers: "4.3.2",
   onnxruntimeWeb: "1.31.0-dev.20260914-8d85527a0"
 } as const;
 
