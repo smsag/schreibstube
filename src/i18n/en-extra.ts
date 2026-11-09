@@ -847,6 +847,16 @@ export const enExtra = {
     pinnedFewer: "Show three again",
     folderCount: (count: string) => (count === "1" ? "1 file" : `${count} files`),
 
+    recent: {
+      viewTitle: "Recently opened",
+      summary: (count: number) =>
+        count === 1 ? "1 file opened before" : `${count} files opened before`,
+      collapse: "Collapse Recently opened",
+      expand: "Expand Recently opened",
+      more: (count: number) => `Show ${count} more`,
+      fewer: "Show three again"
+    },
+
     related: {
       viewTitle: "Recommended",
       viewNoNote: "Open a note to see what belongs with it.",

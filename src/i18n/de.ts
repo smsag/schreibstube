@@ -1348,6 +1348,16 @@ export const de: Messages = {
     pinnedFewer: "Wieder drei zeigen",
     folderCount: (count: string) => (count === "1" ? "1 Datei" : `${count} Dateien`),
 
+    recent: {
+      viewTitle: "Zuletzt geöffnet",
+      summary: (count: number) =>
+        count === 1 ? "1 zuvor geöffnete Datei" : `${count} zuvor geöffnete Dateien`,
+      collapse: "Zuletzt geöffnet einklappen",
+      expand: "Zuletzt geöffnet ausklappen",
+      more: (count: number) => `${count} weitere zeigen`,
+      fewer: "Wieder drei zeigen"
+    },
+
     related: {
       viewTitle: "Empfohlen",
       viewNoNote: "Eine Notiz öffnen, um zu sehen, was zu ihr gehört.",
