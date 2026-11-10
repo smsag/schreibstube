@@ -79,6 +79,25 @@ describe("accountProblems", () => {
     expect(accountProblems(sibling, all, everyFolder)).toEqual([]);
   });
 
+  it("counts a folder the settings refuse as one the next load drops", () => {
+    for (const folder of [".obsidian", "Blog/.private", "Blog\\Posts", "Blog//Posts", "../Blog"]) {
+      const site = account({ folder, target: "blog" });
+      const problems = accountProblems(site, [site], everyFolder);
+      expect(problems).toEqual([{ kind: "badFolder" }]);
+      expect(isKept(problems)).toBe(false);
+    }
+  });
+
+  it("compares folders as the settings will keep them", () => {
+    const one = account({ id: "1", name: "One", folder: "Sites / Blog", target: "one" });
+    const two = account({ id: "2", name: "Two", folder: "/Sites/Blog/", target: "two" });
+    const asked: string[] = [];
+    expect(accountProblems(one, [one, two], (folder) => (asked.push(folder), true))).toEqual([
+      { kind: "sameFolder", other: "Two" }
+    ]);
+    expect(asked).toEqual(["Sites/Blog"]);
+  });
+
   it("calls an unnamed account by its folder", () => {
     const one = account({ id: "1", folder: "Blog", target: "site" });
     const two = account({ id: "2", folder: "Notes", target: "site" });
@@ -111,6 +130,22 @@ describe("bridgeEnvironment", () => {
       "Website"
     );
     expect(block).not.toMatch(/^PUBLISH_TOKEN=/m);
+  });
+
+  it("leaves out a site with no target yet rather than invent one", () => {
+    const block = bridgeEnvironment(
+      [account({ name: "News", target: "news" }), account({ name: "Draft", target: " " })],
+      "Website"
+    );
+    expect(block).toContain("PUBLISH_TARGETS=news\n");
+    expect(block).not.toContain("PUBLISH_BLOG_");
+    expect(block).not.toContain("Draft");
+  });
+
+  it("writes a starting point when no site has a target yet", () => {
+    const block = bridgeEnvironment([account({ name: "Draft" })], "Website");
+    expect(block).toContain("PUBLISH_TARGETS=blog");
+    expect(block).toContain("PUBLISH_BLOG_SITE_TITLE=Draft");
   });
 
   it("writes a starting point when nothing is configured", () => {

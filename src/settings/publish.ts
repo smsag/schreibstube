@@ -89,6 +89,7 @@ export function renderPublish(ctx: SettingsContext): void {
     );
 
   const accounts = ctx.plugin.settings.publishAccounts;
+  statuses.length = 0;
   new Setting(containerEl)
     .setName(t().publish.accounts)
     .setDesc(t().publish.accountsSummary(accounts.length))
@@ -138,6 +139,12 @@ export function renderPublish(ctx: SettingsContext): void {
  * site added — does not fold away the one being filled in.
  */
 const opened = new Set<string>();
+
+/**
+ * Every card's status line, redrawn when any site changes: a target or folder
+ * typed into one is a clash, or the end of one, for another card too.
+ */
+const statuses: (() => boolean)[] = [];
 
 /**
  * One site, folded under a line that says what it is and whether it is ready.
@@ -193,9 +200,10 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     const accounts = [...ctx.plugin.settings.publishAccounts];
     accounts[position] = { ...current(), ...changes };
     await saveAccounts(ctx, accounts, { redraw: false });
-    showStatus();
+    for (const show of statuses) show();
   };
 
+  statuses.push(showStatus);
   const troubled = showStatus();
   // A lone site has nothing to be told apart from, and one with something to
   // check should not wait to be opened.
@@ -340,6 +348,9 @@ function problemText(problem: AccountProblem, site: PublishAccount): string {
       return words.problemNoFolder;
     case "noTarget":
       return words.problemNoTarget;
+    // Obsidian does not index a folder the settings refuse, so to the vault it
+    // is missing; the line under it says the site is not kept.
+    case "badFolder":
     case "folderMissing":
       return words.problemFolderMissing(site.folder.trim());
     case "badTarget":

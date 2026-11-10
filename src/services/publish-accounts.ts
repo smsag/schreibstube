@@ -9,6 +9,7 @@
  * account, while it is being typed, is cheaper than a site that lost its pages.
  */
 import type { PublishAccount } from "../types";
+import { normalizeVaultFolder } from "./file-name";
 import { isInsideFolder } from "./publish-index";
 
 /** The bridge refuses to start with a target named otherwise. */
@@ -19,6 +20,8 @@ export type AccountProblem =
   | { kind: "noFolder" }
   /** No target: dropped likewise. */
   | { kind: "noTarget" }
+  /** A folder the settings refuse — a dot-led part, `..`, a backslash: dropped likewise. */
+  | { kind: "badFolder" }
   /** The folder is not in this vault, so a publication finds no notes. */
   | { kind: "folderMissing" }
   /** A name the bridge would refuse at startup. */
@@ -32,12 +35,16 @@ export type AccountProblem =
   /** Another account's folder lies inside this one, so its notes go to this site too. */
   | { kind: "holdsFolder"; other: string };
 
-function folderOf(account: PublishAccount): string {
-  return account.folder.trim().replace(/^\/+|\/+$/g, "");
+/**
+ * The folder as the settings will keep it, so a card judges the site the next
+ * load sees; null for one the load refuses and drops.
+ */
+function folderOf(account: PublishAccount): string | null {
+  return normalizeVaultFolder(account.folder);
 }
 
 function displayName(account: PublishAccount): string {
-  return account.name.trim() || folderOf(account) || account.target.trim();
+  return account.name.trim() || folderOf(account) || account.folder.trim() || account.target.trim();
 }
 
 /**
@@ -55,7 +62,8 @@ export function accountProblems(
   const folder = folderOf(account);
   const target = account.target.trim();
 
-  if (!folder) problems.push({ kind: "noFolder" });
+  if (folder === null) problems.push({ kind: "badFolder" });
+  else if (!folder) problems.push({ kind: "noFolder" });
   else if (!folderExists(folder)) problems.push({ kind: "folderMissing" });
   if (!target) problems.push({ kind: "noTarget" });
   else if (!TARGET_NAME.test(target)) problems.push({ kind: "badTarget" });
@@ -83,7 +91,10 @@ export function accountProblems(
  * not are kept in the tab only until Obsidian restarts.
  */
 export function isKept(problems: readonly AccountProblem[]): boolean {
-  return !problems.some((problem) => problem.kind === "noFolder" || problem.kind === "noTarget");
+  return !problems.some(
+    (problem) =>
+      problem.kind === "noFolder" || problem.kind === "badFolder" || problem.kind === "noTarget"
+  );
 }
 
 /**
@@ -101,7 +112,10 @@ export function bridgeEnvironment(
 ): string {
   const seen = new Set<string>();
   const sites: { target: string; name: string }[] = [];
-  for (const account of accounts) {
+  // A site with no target yet is left out, not given one: a made-up target is
+  // a block of empty hosting the bridge refuses to start without.
+  const named = accounts.filter((account) => oneLine(account.target));
+  for (const account of named.length > 0 ? named : accounts.slice(0, 1)) {
     // One line each: a name or a target with a line break in it would end its
     // own line early and start another the bridge reads as a variable.
     const target = oneLine(account.target) || "blog";
