@@ -24,7 +24,30 @@ import { createShareRoutes } from "./publish/share-routes.mjs";
 
 const VERSION = createRequire(import.meta.url)("./package.json").version;
 
-const config = loadConfig();
+const config = configOrExit();
+
+/**
+ * The configuration, or one line saying what is wrong with it and an exit.
+ *
+ * A hosting platform shows the last lines a container printed beside a failed
+ * health check, and a stack trace there buried the one sentence that named the
+ * variable to fix under a dozen lines of file paths. The exit is still before
+ * the port opens: a bridge that answered /health with half its configuration
+ * would look healthy while every publish failed.
+ */
+function configOrExit() {
+  try {
+    return loadConfig();
+  } catch (error) {
+    const message = `configuration: ${error instanceof Error ? error.message : String(error)} The bridge does not start until this is fixed.`;
+    console.error(
+      process.env.LOG_FORMAT?.trim() === "json"
+        ? JSON.stringify({ time: new Date().toISOString(), level: "error", message })
+        : `[bridge] ${new Date().toISOString()} error ${message}`
+    );
+    process.exit(1);
+  }
+}
 const capabilities = capabilityNames(config);
 const tokens = Object.fromEntries(
   capabilities.map((name) => [name, config[name].tokens ?? config[name].token])

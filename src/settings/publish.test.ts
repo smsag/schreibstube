@@ -33,6 +33,7 @@ vi.mock("obsidian", async (importOriginal) => {
       onClick: (click: () => unknown) => ((entry.click = click), self),
       setDisabled: () => self,
       setWarning: () => self,
+      setCta: () => self,
       addOption: () => self
     };
     return self;
@@ -95,12 +96,16 @@ beforeEach(() => {
   vi.mocked(checkTarget).mockClear();
 });
 
-function mount(): SettingsContext {
+function mount(
+  extra: SchreibstubeSettings["publishAccounts"] = [],
+  secrets: Record<string, string> = { publish: "token" },
+  secretName = "publish"
+): SettingsContext {
   const plugin = {
     settings: {
       ...DEFAULT_SETTINGS,
       publishBridgeUrl: "https://bridge.example",
-      publishTokenSecretName: "publish",
+      publishTokenSecretName: secretName,
       publishAccounts: [
         {
           id: "a",
@@ -110,17 +115,26 @@ function mount(): SettingsContext {
           writeBack: true,
           aiDescription: false,
           headerTags: []
-        }
+        },
+        ...extra
       ]
     } as SchreibstubeSettings,
     saveSettings: async () => undefined,
     aiReady: () => false
   };
   const ctx = {
-    app: { secretStorage: { getSecret: () => "token" } },
+    app: {
+      secretStorage: {
+        getSecret: (name: string) => secrets[name] ?? null,
+        setSecret: (name: string, value: string) => void (secrets[name] = value)
+      },
+      vault: { getAbstractFileByPath: () => null }
+    },
     plugin,
     containerEl: document.body.createDiv(),
-    update: async () => undefined,
+    update: async (patch: Partial<SchreibstubeSettings>) => {
+      plugin.settings = { ...plugin.settings, ...patch };
+    },
     refresh: () => undefined,
     index: [],
     onClose: () => undefined
@@ -138,7 +152,7 @@ const find = (match: (control: (typeof drawn.controls)[number]) => boolean) => {
 describe("an account's target, just typed", () => {
   it("is the one the connection test asks about", async () => {
     mount();
-    await find((c) => c.placeholder === t().publish.accountTarget).change?.("neu");
+    await find((c) => c.placeholder === t().publish.targetPlaceholder).change?.("neu");
     await find((c) => c.label === t().common.testConnection).click?.();
     expect(vi.mocked(checkTarget).mock.calls[0]?.[1]).toBe("neu");
   });
@@ -150,8 +164,80 @@ describe("an account's target, just typed", () => {
       value: { writeText: async (text: string) => void copied.push(text) }
     });
     mount();
-    await find((c) => c.placeholder === t().publish.accountTarget).change?.("neu");
+    await find((c) => c.placeholder === t().publish.targetPlaceholder).change?.("neu");
     await find((c) => c.label === t().publish.setupCopy).click?.();
     expect(copied[0]).toContain("PUBLISH_TARGETS=neu");
+  });
+});
+
+describe("a site's card", () => {
+  const site = (id: string, name: string, folder: string, target: string) => ({
+    id,
+    name,
+    folder,
+    target,
+    writeBack: true,
+    aiDescription: false,
+    headerTags: []
+  });
+
+  it("opens on what to check, naming the other site", () => {
+    const ctx = mount([site("b", "Notes", "Notes", "alt")]);
+    const cards = Array.from(ctx.containerEl.querySelectorAll("details")).filter((el) =>
+      el.classList.contains("schreibstube-publish-site")
+    );
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.open).toBe(true);
+    expect(cards[0]?.textContent).toContain(t().publish.problemSameTarget("Notes"));
+    expect(cards[0]?.textContent).toContain("Blog → alt");
+  });
+
+  it("says a half-filled site is not saved, and stops saying so once it is complete", async () => {
+    const ctx = mount([site("b", "Notes", "", "")]);
+    const card = Array.from(ctx.containerEl.querySelectorAll("details"))[1];
+    expect(card?.textContent).toContain(t().publish.problemNotKept);
+    expect(card?.textContent).toContain(t().publish.statusNotKept);
+
+    await drawn.controls
+      .filter((c) => c.placeholder === t().publish.accountFolder)[1]
+      ?.change?.("Notes");
+    await drawn.controls
+      .filter((c) => c.placeholder === t().publish.targetPlaceholder)[1]
+      ?.change?.("notes");
+    expect(card?.textContent).not.toContain(t().publish.problemNotKept);
+    expect(card?.textContent).toContain(t().publish.problemFolderMissing("Notes"));
+  });
+});
+
+describe("the starter set", () => {
+  function clipboard(): string[] {
+    const copied: string[] = [];
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: async (text: string) => void copied.push(text) }
+    });
+    return copied;
+  }
+
+  it("carries the token this device already holds, and leaves it as it is", async () => {
+    const copied = clipboard();
+    const secrets = { publish: "the-running-bridges-token" };
+    mount([], secrets);
+    await find((c) => c.label === t().publish.setupStarter).click?.();
+    expect(copied[0]).toContain("PUBLISH_TOKEN=the-running-bridges-token");
+    expect(copied[0]).toContain("PORT=8080");
+    expect(copied[0]).toContain("PUBLISH_TARGETS=alt");
+    expect(secrets.publish).toBe("the-running-bridges-token");
+  });
+
+  it("makes a token when there is none, and saves it before copying it", async () => {
+    const copied = clipboard();
+    const secrets: Record<string, string> = {};
+    const ctx = mount([], secrets, "");
+    await find((c) => c.label === t().publish.setupStarter).click?.();
+    const token = secrets["schreibstube-publish-token"];
+    expect(token).toMatch(/^[0-9a-f]{64}$/);
+    expect(copied[0]).toContain(`PUBLISH_TOKEN=${token}`);
+    expect(ctx.plugin.settings.publishTokenSecretName).toBe("schreibstube-publish-token");
   });
 });

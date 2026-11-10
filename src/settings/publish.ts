@@ -8,7 +8,7 @@
  * key out of the vault — so this section also generates the block to paste
  * there.
  */
-import { Notice, SecretComponent, Setting } from "obsidian";
+import { Notice, SecretComponent, Setting, TFolder } from "obsidian";
 import { t } from "../i18n";
 import type { PublishAccount } from "../types";
 import {
@@ -20,6 +20,16 @@ import {
   type PublishKeyMap
 } from "../services/publish-index";
 import { normalizeBaseUrl } from "../services/bridge-protocol";
+import {
+  accountProblems,
+  bridgeEnvironment,
+  isKept,
+  STARTER_TOKEN_BYTES,
+  starterEnvironment,
+  tokenFromBytes,
+  type AccountProblem
+} from "../services/publish-accounts";
+import { normalizeVaultFolder } from "../services/file-name";
 import { DESCRIPTION_TIMEOUT_MS } from "../services/publish-description";
 import { createLogger } from "../services/logger";
 import { checkTarget, listTargets } from "../platform/publish-client";
@@ -59,6 +69,8 @@ export function renderPublish(ctx: SettingsContext): void {
       });
     });
 
+  // Loading the targets sits with the token, not with a site: it is what a
+  // person needs before the first site, and it proves the token on its own.
   new Setting(containerEl)
     .setName(t().publish.token)
     .setDesc(t().publish.tokenDesc)
@@ -69,9 +81,19 @@ export function renderPublish(ctx: SettingsContext): void {
           // A cleared secret arrives as null; an empty name is how settings say none.
           await ctx.update({ publishTokenSecretName: value ?? "" });
         })
+    )
+    .addButton((button) =>
+      button.setButtonText(t().publish.loadTargets).onClick(async () => {
+        await loadTargets(ctx);
+      })
     );
 
-  for (const [position, account] of ctx.plugin.settings.publishAccounts.entries()) {
+  const accounts = ctx.plugin.settings.publishAccounts;
+  new Setting(containerEl)
+    .setName(t().publish.accounts)
+    .setDesc(t().publish.accountsSummary(accounts.length))
+    .setHeading();
+  for (const [position, account] of accounts.entries()) {
     renderAccount(ctx, position, account);
   }
 
@@ -80,10 +102,12 @@ export function renderPublish(ctx: SettingsContext): void {
     .setDesc(t().publish.addAccountDesc)
     .addButton((button) =>
       button.setButtonText(t().publish.addAccount).onClick(async () => {
+        const id = `account-${Date.now()}`;
+        opened.add(id);
         await saveAccounts(ctx, [
           ...ctx.plugin.settings.publishAccounts,
           {
-            id: `account-${Date.now()}`,
+            id,
             name: t().publish.newAccountName,
             folder: "",
             target: "",
@@ -94,6 +118,8 @@ export function renderPublish(ctx: SettingsContext): void {
         ]);
       })
     );
+
+  renderSetup(ctx);
 
   new Setting(containerEl)
     .setName(t().publish.openSite)
@@ -107,28 +133,92 @@ export function renderPublish(ctx: SettingsContext): void {
   renderKeys(ctx);
 }
 
-function renderAccount(ctx: SettingsContext, position: number, account: PublishAccount): void {
-  const { containerEl } = ctx;
+/**
+ * Sites opened in this settings tab, so a redraw — a test, a removal, another
+ * site added — does not fold away the one being filled in.
+ */
+const opened = new Set<string>();
 
+/**
+ * One site, folded under a line that says what it is and whether it is ready.
+ *
+ * Drawn flat, two sites were twenty rows of equal look with nothing to say
+ * where one ended; and an incomplete one, which the next load drops, looked
+ * the same as a working one.
+ */
+function renderAccount(ctx: SettingsContext, position: number, account: PublishAccount): void {
   // The fields save without redrawing, so `account` is the one the rows were
-  // drawn from: a test or a setup block taken from it went to the target
-  // that was there before the one just typed.
+  // drawn from: a test taken from it went to the target that was there before
+  // the one just typed.
   const current = (): PublishAccount => ctx.plugin.settings.publishAccounts[position] ?? account;
+
+  const details = ctx.containerEl.createEl("details", {
+    cls: "schreibstube-settings-fold schreibstube-publish-site"
+  });
+  const summary = details.createEl("summary", { cls: "schreibstube-settings-fold-summary" });
+  const title = summary.createSpan({ cls: "schreibstube-settings-fold-name" });
+  const route = summary.createSpan({ cls: "schreibstube-settings-fold-desc" });
+  const status = summary.createSpan({ cls: "schreibstube-publish-site-status" });
+  const body = details.createDiv({ cls: "schreibstube-settings-fold-body" });
+  const problemsEl = body.createDiv({
+    cls: "setting-item-description schreibstube-settings-intro schreibstube-publish-site-problems"
+  });
+  const inner: SettingsContext = { ...ctx, containerEl: body };
+
+  const showStatus = (): boolean => {
+    const site = current();
+    const problems = accountProblems(site, ctx.plugin.settings.publishAccounts, (folder) =>
+      folderExists(ctx, folder)
+    );
+    const kept = isKept(problems);
+    title.setText(site.name.trim() || t().publish.newAccountName);
+    route.setText(`${site.folder.trim() || "…"} → ${site.target.trim() || "…"}`);
+    status.setText(
+      !kept
+        ? t().publish.statusNotKept
+        : problems.length > 0
+          ? t().publish.statusProblems(problems.length)
+          : t().publish.statusOk
+    );
+    status.toggleClass("is-warning", problems.length > 0);
+
+    problemsEl.empty();
+    for (const problem of problems) problemsEl.createDiv({ text: problemText(problem, site) });
+    if (!kept) problemsEl.createDiv({ text: t().publish.problemNotKept });
+    problemsEl.toggleClass("is-hidden", problems.length === 0);
+    return problems.length > 0;
+  };
+
   const update = async (changes: Partial<PublishAccount>): Promise<void> => {
     const accounts = [...ctx.plugin.settings.publishAccounts];
     accounts[position] = { ...current(), ...changes };
     await saveAccounts(ctx, accounts, { redraw: false });
+    showStatus();
   };
 
-  const identity = new Setting(containerEl)
-    .setName(account.name || t().publish.accountName)
-    .setDesc(t().publish.accountDesc)
+  const troubled = showStatus();
+  // A lone site has nothing to be told apart from, and one with something to
+  // check should not wait to be opened.
+  details.open =
+    troubled || opened.has(account.id) || ctx.plugin.settings.publishAccounts.length === 1;
+  details.addEventListener("toggle", () => {
+    if (details.open) opened.add(account.id);
+    else opened.delete(account.id);
+  });
+
+  new Setting(body)
+    .setName(t().publish.accountName)
+    .setDesc(t().publish.accountNameDesc)
     .addText((text) =>
       text
-        .setPlaceholder(t().publish.accountName)
+        .setPlaceholder(t().publish.newAccountName)
         .setValue(account.name)
         .onChange((value) => void update({ name: value }))
-    )
+    );
+
+  new Setting(body)
+    .setName(t().publish.accountFolder)
+    .setDesc(t().publish.accountFolderDesc)
     .addText((text) =>
       text
         .setPlaceholder(t().publish.accountFolder)
@@ -138,21 +228,24 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
 
   // A dropdown once the bridge has been asked, a plain field until then, so the
   // section stays usable before a token is configured.
+  const target = new Setting(body)
+    .setName(t().publish.accountTarget)
+    .setDesc(t().publish.accountTargetDesc);
   const targets = knownTargets;
   if (targets && targets.length > 0) {
-    identity.addDropdown((dropdown) => {
-      if (!targets.some((target) => target.name === account.target)) {
+    target.addDropdown((dropdown) => {
+      if (!targets.some((known) => known.name === account.target)) {
         dropdown.addOption(account.target, account.target || t().publish.targetPlaceholder);
       }
-      for (const target of targets) {
-        dropdown.addOption(target.name, `${target.name} — ${target.baseUrl}`);
+      for (const known of targets) {
+        dropdown.addOption(known.name, `${known.name} — ${known.baseUrl}`);
       }
       dropdown.setValue(account.target).onChange((value) => void update({ target: value }));
     });
   } else {
-    identity.addText((text) =>
+    target.addText((text) =>
       text
-        .setPlaceholder(t().publish.accountTarget)
+        .setPlaceholder(t().publish.targetPlaceholder)
         .setValue(account.target)
         .onChange((value) => void update({ target: value }))
     );
@@ -161,7 +254,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
   // Three fields rather than one list to type into: the header holds three,
   // and a field per tag says so without a word of explanation.
   const headerTags = [...account.headerTags];
-  const tagSetting = new Setting(containerEl)
+  const tagSetting = new Setting(body)
     .setName(t().publish.headerTags)
     .setDesc(t().publish.headerTagsDesc);
   for (let slot = 0; slot < MAX_HEADER_TAGS; slot++) {
@@ -176,7 +269,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     );
   }
 
-  new Setting(containerEl)
+  new Setting(body)
     .setName(t().publish.language)
     .setDesc(t().publish.languageDesc)
     .addText((text) => {
@@ -196,7 +289,7 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     });
 
   const ai = ctx.plugin.aiReady();
-  const describe = new Setting(containerEl)
+  const describe = new Setting(body)
     .setName(t().publish.aiDescription)
     .setDesc(
       ai ? t().publish.aiDescriptionDesc(DESCRIPTION_TIMEOUT_MS / 1000) : t().settings.needsAiKey
@@ -209,12 +302,18 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
     );
   markAi(describe, ai);
 
-  new Setting(containerEl)
+  new Setting(body)
     .setName(t().publish.writeBack)
     .setDesc(t().publish.writeBackDesc)
     .addToggle((toggle) =>
       toggle.setValue(account.writeBack).onChange((value) => void update({ writeBack: value }))
-    )
+    );
+
+  renderLastRun(inner, account);
+
+  new Setting(body)
+    .setName(t().publish.checkSite)
+    .setDesc(t().publish.checkSiteDesc)
     .addButton((button) =>
       button.setButtonText(t().common.testConnection).onClick(async () => {
         await testTarget(ctx, current());
@@ -228,12 +327,38 @@ function renderAccount(ctx: SettingsContext, position: number, account: PublishA
           const accounts = ctx.plugin.settings.publishAccounts.filter(
             (_, index) => index !== position
           );
+          opened.delete(account.id);
           await saveAccounts(ctx, accounts);
         })
     );
+}
 
-  renderLastRun(ctx, account);
-  renderSetup(ctx, current);
+function problemText(problem: AccountProblem, site: PublishAccount): string {
+  const words = t().publish;
+  switch (problem.kind) {
+    case "noFolder":
+      return words.problemNoFolder;
+    case "noTarget":
+      return words.problemNoTarget;
+    case "folderMissing":
+      return words.problemFolderMissing(site.folder.trim());
+    case "badTarget":
+      return words.problemBadTarget(site.target.trim());
+    case "sameTarget":
+      return words.problemSameTarget(problem.other);
+    case "sameFolder":
+      return words.problemSameFolder(problem.other);
+    case "insideFolder":
+      return words.problemInsideFolder(problem.other);
+    case "holdsFolder":
+      return words.problemHoldsFolder(problem.other);
+  }
+}
+
+function folderExists(ctx: SettingsContext, folder: string): boolean {
+  const normalized = normalizeVaultFolder(folder);
+  if (!normalized) return false;
+  return ctx.app.vault.getAbstractFileByPath(normalized) instanceof TFolder;
 }
 
 /**
@@ -259,57 +384,80 @@ function renderLastRun(ctx: SettingsContext, account: PublishAccount): void {
     );
 }
 
-/** The environment block for this account, ready to paste into the bridge. */
-function renderSetup(ctx: SettingsContext, account: () => PublishAccount): void {
+/** The secret a starter set saves a new token under, when none is named yet. */
+const STARTER_SECRET = "schreibstube-publish-token";
+
+/**
+ * The bridge's configuration, ready to paste: the starter set for a new
+ * deployment, or the site blocks alone for one already running.
+ */
+function renderSetup(ctx: SettingsContext): void {
   new Setting(ctx.containerEl)
     .setName(t().publish.setup)
     .setDesc(t().publish.setupDesc)
     .addButton((button) =>
-      button.setButtonText(t().publish.setupCopy).onClick(async () => {
-        try {
-          await navigator.clipboard.writeText(environmentBlock(account()));
-          new Notice(t().common.notice(t().common.copied));
-        } catch (error) {
-          createLogger(() => ctx.plugin.settings.debugLogging).warn(
-            "Could not copy the bridge setup to the clipboard:",
-            error
+      button
+        .setButtonText(t().publish.setupStarter)
+        .setCta()
+        .onClick(async () => {
+          const { secret, token, created } = await starterToken(ctx);
+          const copied = await copy(
+            ctx,
+            starterEnvironment(
+              ctx.plugin.settings.publishAccounts,
+              t().publish.newAccountName,
+              token
+            )
           );
-          new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
-        }
+          if (copied) new Notice(t().common.notice(t().publish.starterCopied(secret, created)));
+          if (created) ctx.refresh();
+        })
+    )
+    .addButton((button) =>
+      button.setButtonText(t().publish.setupCopy).onClick(async () => {
+        const copied = await copy(
+          ctx,
+          bridgeEnvironment(ctx.plugin.settings.publishAccounts, t().publish.newAccountName)
+        );
+        if (copied) new Notice(t().common.notice(t().common.copied));
       })
     );
 }
 
 /**
- * The half of the bridge's configuration the vault knows.
- *
- * Host, user and credentials are left blank on purpose: they belong to whoever
- * deploys the bridge, and a plausible-looking placeholder would be worse than
- * an obviously empty one.
+ * The publish token for a starter set: the one this device holds, or a new
+ * one saved before it is copied, so the plugin and the bridge it is pasted
+ * into hold the same token without a second step. A token already stored is
+ * never replaced: the bridge running with it would stop answering.
  */
-export function environmentBlock(account: PublishAccount): string {
-  // One line each: a name or a target with a line break in it would end its
-  // own line early and start another the bridge reads as a variable.
-  const target = oneLine(account.target) || "blog";
-  const name = oneLine(account.name) || t().publish.newAccountName;
-  const prefix = `PUBLISH_${target.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+async function starterToken(
+  ctx: SettingsContext
+): Promise<{ secret: string; token: string; created: boolean }> {
+  const storage = ctx.app.secretStorage;
+  const secret = ctx.plugin.settings.publishTokenSecretName || STARTER_SECRET;
+  const stored = storage.getSecret(secret)?.trim();
+  if (!ctx.plugin.settings.publishTokenSecretName) {
+    await ctx.update({ publishTokenSecretName: secret });
+  }
+  if (stored) return { secret, token: stored, created: false };
 
-  return [
-    `PUBLISH_TARGETS=${target}`,
-    `${prefix}_HOST=`,
-    `${prefix}_PORT=22`,
-    `${prefix}_USER=`,
-    `${prefix}_PASSWORD=`,
-    `${prefix}_HOST_FINGERPRINT=`,
-    `${prefix}_ROOT=`,
-    `${prefix}_STATE_ROOT=`,
-    `${prefix}_BASE_URL=`,
-    `${prefix}_SITE_TITLE=${name}`
-  ].join("\n");
+  const token = tokenFromBytes(crypto.getRandomValues(new Uint8Array(STARTER_TOKEN_BYTES)));
+  storage.setSecret(secret, token);
+  return { secret, token, created: true };
 }
 
-function oneLine(value: string): string {
-  return value.replace(/[\r\n]+/g, " ").trim();
+async function copy(ctx: SettingsContext, text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch (error) {
+    createLogger(() => ctx.plugin.settings.debugLogging).warn(
+      "Could not copy the bridge setup to the clipboard:",
+      error
+    );
+    new Notice(t().common.notice(t().explorer.bookmarks.copyFailed));
+    return false;
+  }
 }
 
 /**
@@ -363,6 +511,22 @@ async function saveAccounts(
   ctx.plugin.settings = { ...ctx.plugin.settings, publishAccounts: accounts };
   await ctx.plugin.saveSettings();
   if (redraw) ctx.refresh();
+}
+
+/** Ask the bridge which targets it has, and turn every target field into a list of them. */
+async function loadTargets(ctx: SettingsContext): Promise<void> {
+  const bridge = await resolveBridge(ctx);
+  if (!bridge) return;
+
+  try {
+    knownTargets = await listTargets(bridge);
+    new Notice(
+      t().common.notice(t().publish.targetsLoaded(knownTargets.map((target) => target.name)))
+    );
+    ctx.refresh();
+  } catch (error) {
+    new Notice(t().common.notice(error instanceof Error ? error.message : String(error)));
+  }
 }
 
 /**

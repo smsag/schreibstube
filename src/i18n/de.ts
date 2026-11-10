@@ -201,14 +201,50 @@ export const de: Messages = {
     tokenDesc:
       "Der PUBLISH_TOKEN der Bridge — bewusst ein anderer als der Mail-Token, damit ein " +
       "verlorenes Token nicht beides öffnet. Liegt in Obsidians Secret Storage.",
-    accounts: "Konten",
+    accounts: "Websites",
+    accountsSummary: (count: number) =>
+      count === 0
+        ? "Noch keine Website. Eine Website ist ein Ordner des Vaults und das Ziel auf der Bridge, an das er veröffentlicht wird — unten eine hinzufügen."
+        : `${count === 1 ? "1 Website" : `${count} Websites`}. Eine Notiz geht an die Website, in deren Ordner sie liegt. Eine Website aufklappen, um sie zu ändern.`,
     accountName: "Name",
+    accountNameDesc:
+      "Wie die Website hier und beim Veröffentlichen heißt, und der Titel, den die Konfiguration unten vorschlägt.",
     accountFolder: "Ordner",
-    accountTarget: "Ziel",
-    accountDesc: "Name der Website, Ordner im Vault und Ziel auf der Bridge.",
-    addAccount: "Konto hinzufügen",
+    accountFolderDesc:
+      "Der Ordner des Vaults, aus dem die Website entsteht, samt Unterordnern. Übertragen werden nur seine Notizen, die zur Veröffentlichung markiert sind.",
+    accountTarget: "Ziel auf der Bridge",
+    accountTargetDesc:
+      "Der Name des Ziels in PUBLISH_TARGETS der Bridge: Kleinbuchstaben, Ziffern und Bindestriche. Jede Website braucht ihr eigenes. Oben die Ziele laden, um aus der Liste der Bridge zu wählen.",
+    statusOk: "bereit",
+    statusProblems: (count: number) => (count === 1 ? "1 Hinweis" : `${count} Hinweise`),
+    statusNotKept: "noch nicht gespeichert",
+    problemNoFolder: "Noch kein Ordner.",
+    problemNoTarget: "Noch kein Ziel.",
+    problemNotKept:
+      "Eine Website ohne Ordner und Ziel wird nicht behalten: Beim nächsten Start von Obsidian ist sie weg.",
+    problemFolderMissing: (folder: string) =>
+      `Einen Ordner ${folder} gibt es in diesem Vault nicht, das Veröffentlichen fände also keine Notizen.`,
+    problemBadTarget: (target: string) =>
+      `${target} kann kein Ziel sein: Die Bridge nimmt nur Kleinbuchstaben, Ziffern und Bindestriche und startet mit diesem Namen nicht.`,
+    problemSameTarget: (other: string) =>
+      `${other} veröffentlicht an dasselbe Ziel. Jede Veröffentlichung nähme die Seiten der anderen vom Netz — jeder Website ein eigenes Ziel geben.`,
+    problemSameFolder: (other: string) =>
+      `${other} veröffentlicht denselben Ordner, dieselben Notizen gehen also an beide Websites.`,
+    problemInsideFolder: (other: string) =>
+      `Dieser Ordner liegt im Ordner von ${other}, seine Notizen werden also auch dort veröffentlicht.`,
+    problemHoldsFolder: (other: string) =>
+      `Der Ordner von ${other} liegt in diesem, seine Notizen werden also auch hier veröffentlicht.`,
+    loadTargets: "Ziele laden",
+    targetsLoaded: (names: readonly string[]) =>
+      names.length === 0
+        ? "die Bridge bietet kein Ziel an — PUBLISH_TARGETS in ihrer Konfiguration setzen."
+        : `die Bridge bietet an: ${names.join(", ")}.`,
+    checkSite: "Diese Website prüfen",
+    checkSiteDesc:
+      "Probiert den ganzen Weg zum Webspace — Token, Ziel, Anmeldung, Host-Schlüssel und Ordner — ohne etwas zu schreiben. Entfernen nimmt die Website aus Schreibstube; ihre Seiten auf dem Webspace bleiben.",
+    addAccount: "Website hinzufügen",
     addAccountDesc:
-      "Eine weitere Website zum Veröffentlichen: eigener Name, eigener Ordner im Vault und eigenes Ziel auf der Bridge. Eine Notiz geht an die Website, in deren Ordner sie liegt.",
+      "Eine weitere Website zum Veröffentlichen: eigener Ordner im Vault und eigenes Ziel auf der Bridge.",
     writeBack: "Veröffentlichung in die Notiz schreiben",
     writeBackDesc: "Trägt Zeitpunkt und Adresse nach dem Veröffentlichen ins Frontmatter ein.",
     aiDescription: "Fehlende Beschreibungen per KI schreiben",
@@ -245,9 +281,15 @@ export const de: Messages = {
     keyPublishedUrl: "Veröffentlicht unter (wird geschrieben)",
     setup: "Bridge-Konfiguration",
     setupDesc:
-      "Erzeugt den Umgebungsblock für dieses Konto, fertig zum Einfügen in die Bridge. Host, " +
-      "Benutzer und Zugangsdaten werden dort ergänzt.",
-    setupCopy: "Konfiguration kopieren",
+      "Startpaket: was eine neue Bridge braucht — Port 8080, Vertrauen in den Proxy einer " +
+      "Plattform wie Sliplane, das hier gespeicherte Publish-Token (oder ein neues, hier " +
+      "gespeichert) und alle Websites. Nur Websites: deren Blöcke, für eine laufende Bridge. " +
+      "Jeden leeren Wert ausfüllen; STATE_ROOT liegt außerhalb von ROOT. Fehlt einer, startet " +
+      "die Bridge nicht, und ihr Log sagt, welcher.",
+    setupCopy: "Nur Websites kopieren",
+    setupStarter: "Startpaket kopieren",
+    starterCopied: (secret: string, created: boolean) =>
+      `Startpaket kopiert mit ${created ? "einem neuen" : "dem"} Publish-Token, hier gespeichert als „${secret}“. Die leeren Werte ausfüllen, dann die Zwischenablage leeren: Sie enthält das Token.`,
     lastRun: "Letzte Veröffentlichung",
     lastRunNever: "Aus diesem Vault noch nicht veröffentlicht.",
     lastRunSummary: (when: string, written: number, deleted: number) =>
@@ -268,7 +310,7 @@ export const de: Messages = {
     planConflictsHelp:
       "Entferne sie vom Webspace oder lass die Bridge sie übernehmen, indem du in ihrer Konfiguration PUBLISH_<ZIEL>_ADOPT_EXISTING=true setzt.",
     planConfirm: "Veröffentlichen",
-    chooseAccount: "Konto wählen",
+    chooseAccount: "Website wählen",
 
     running: "Veröffentlichung läuft …",
     uploading: (done: number, total: number) => `überträgt ${done}/${total} …`,
@@ -281,7 +323,8 @@ export const de: Messages = {
         : "."),
     failed: (reason: string) => `Veröffentlichung fehlgeschlagen — ${reason}`,
     busy: "eine Veröffentlichung läuft bereits.",
-    noAccount: "kein Veröffentlichungs-Konto eingerichtet — siehe Einstellungen.",
+    noAccount:
+      "keine Website zum Veröffentlichen eingerichtet — siehe Einstellungen › Veröffentlichen.",
     noNotes: (folder: string) =>
       `keine Notiz in ${folder} ist zur Veröffentlichung markiert, und nichts Veröffentlichtes ist mehr zu entfernen.`,
     emptyFolder: (folder: string) =>
