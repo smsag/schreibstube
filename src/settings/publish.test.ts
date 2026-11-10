@@ -192,6 +192,26 @@ describe("a site's card", () => {
     expect(cards[0]?.textContent).toContain("Blog → alt");
   });
 
+  it("stops naming a clash on the other card once one side has moved", async () => {
+    const ctx = mount([site("b", "Notes", "Notes", "alt")]);
+    const [first] = Array.from(ctx.containerEl.querySelectorAll("details"));
+    expect(first?.textContent).toContain(t().publish.problemSameTarget("Notes"));
+
+    await drawn.controls
+      .filter((c) => c.placeholder === t().publish.targetPlaceholder)[1]
+      ?.change?.("notes");
+    // The field saves without being awaited; the cards are redrawn after the save.
+    await new Promise((resolve) => setTimeout(resolve));
+    expect(first?.textContent).not.toContain(t().publish.problemSameTarget("Notes"));
+  });
+
+  it("says a site whose folder the settings refuse is not kept", () => {
+    const ctx = mount([site("b", "Config", ".obsidian", "config")]);
+    const card = Array.from(ctx.containerEl.querySelectorAll("details"))[1];
+    expect(card?.textContent).toContain(t().publish.statusNotKept);
+    expect(card?.textContent).toContain(t().publish.problemNotKept);
+  });
+
   it("says a half-filled site is not saved, and stops saying so once it is complete", async () => {
     const ctx = mount([site("b", "Notes", "", "")]);
     const card = Array.from(ctx.containerEl.querySelectorAll("details"))[1];

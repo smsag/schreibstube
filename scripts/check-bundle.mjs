@@ -209,8 +209,16 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * its registry bundles whether or not a family is used. The recently opened
  * list had already spent the 1620 ceiling to under 1 KB, so a dependency
  * update could not land under it; the owner asked for the update.
+ *
+ * Raised to 1640 KB at 1630.14 KB, for the fixes to the publishing sites'
+ * cards before release (+164 bytes on 1629.98): a folder the settings refuse is
+ * named as not kept, a site with no target yet no longer puts an empty "blog"
+ * block into the bridge's configuration, and every card's warning is redrawn
+ * when another site changes. The cards had left 19 bytes under 1630, so no
+ * fix fitted; the raise is in its own change, and the owner agreed to it
+ * before the release.
  */
-const MAX_BUNDLE_KB = 1630;
+const MAX_BUNDLE_KB = 1640;
 
 /**
  * Whether the bundle was built from the tree the lockfile pins.

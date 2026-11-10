@@ -2,7 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 1.92.0 - 2026-11-10
+
+Setting up a site to publish to now says what each site is and whether it
+will work. Every site is a card of its own that opens on what to check: a
+missing folder or target, a folder not in the vault, a target the bridge
+would refuse, or two sites publishing over each other. **Copy starter set**
+copies everything a new bridge needs, the token included. The copied
+configuration finally works for more than one site, and a bridge that cannot
+start says why in one line.
+
+Mobile checklist: not run. The cards, both copies and the bridge's startup
+line are covered by the suite, and the bridge's whole publish path (SFTP
+upload, index, revoke) passes against its test server. Neither the cards
+nor the starter set has been tried in a running Obsidian, on the desktop or
+on a phone. What to try first: with two sites, one half-filled, check that
+the cards fold and that the warning colour reads in both themes. Then press
+**Copy starter set** on a phone and paste it somewhere. On a second device
+whose synced settings name a token it does not hold, the starter set makes
+a new token, which will not match a bridge already running; the notice says
+"new publish token".
+
+The bridge moves from 3.5.2 to 3.5.3 for its one-line startup error. The
+protocol is unchanged.
 
 ### Changed
 
