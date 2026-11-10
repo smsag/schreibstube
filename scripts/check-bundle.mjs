@@ -215,8 +215,8 @@ import { CODE_CDNS } from "./embedding-bundle.mjs";
  * named as not kept, a site with no target yet no longer puts an empty "blog"
  * block into the bridge's configuration, and every card's warning is redrawn
  * when another site changes. The cards had left 19 bytes under 1630, so no
- * fix fitted; the raise is in its own change, for the plugin's owner to agree
- * to before the release.
+ * fix fitted; the raise is in its own change, and the owner agreed to it
+ * before the release.
  */
 const MAX_BUNDLE_KB = 1640;
 
