@@ -40,6 +40,7 @@ import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
 import {
   hasSearchWords,
+  highlightWords,
   listingScopesOf,
   type ListingScope,
   matchesText,
@@ -52,6 +53,8 @@ import { folderOf } from "../services/path-follow";
 import { FileSearchIndex } from "../services/search-index";
 import { FilterTimers } from "../services/filter-timers";
 import { BodyIndex, BodyLoader } from "../services/body-index";
+import { HighlightIndex } from "../services/highlight-index";
+import type { HighlightSpan } from "../services/passages";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
 import { ITEM_RESULTS_PER_SOURCE } from "../services/semantic/conversation-search";
 import { sortSiblings, type ExplorerNode } from "../services/explorer-state";
@@ -296,6 +299,8 @@ export class ExplorerPaneView extends ItemView {
   private ranked: SearchHit[] | null = null;
   /** The words of every note's text, read once when the filter is first used. */
   private readonly bodies = new BodyIndex();
+  /** The notes' `==highlights==`, from the same reads, for `markiert:`. */
+  private readonly highlights = new HighlightIndex();
   private readonly bodyLoader = new BodyLoader(this.bodies, {
     paths: () => this.app.vault.getMarkdownFiles().map((file) => file.path),
     read: async (path) => {
@@ -304,7 +309,7 @@ export class ExplorerPaneView extends ItemView {
       return this.app.vault.cachedRead(file);
     },
     exists: (path) => this.app.vault.getAbstractFileByPath(path) instanceof TFile
-  });
+  }).also(this.highlights);
   /**
    * The vault as the filter reads it: names, titles, aliases and tags, read
    * once per file and kept until the vault says that file changed.
@@ -361,7 +366,8 @@ export class ExplorerPaneView extends ItemView {
       due: (file) =>
         dueDateOf(this.markdownCache(file.path)?.frontmatter, this.dueKeys())?.iso ?? null
     },
-    this.bodies
+    this.bodies,
+    this.highlights
   );
   /** How many files the filter matched, so a capped list can say what it is
    *  holding back. */
@@ -1621,6 +1627,8 @@ export class ExplorerPaneView extends ItemView {
   private renderResults(body: HTMLElement, host: HTMLElement): void {
     const controller = this.host?.explorer;
     const results = body.createDiv({ cls: "schreibstube-explorer-results" });
+    // Under `markiert:` each note shows the highlights that answered.
+    const words = highlightWords(this.query);
 
     let drawn = 0;
     for (const hit of this.ranked ?? []) {
@@ -1652,6 +1660,7 @@ export class ExplorerPaneView extends ItemView {
       label.addEventListener("click", (event) => {
         void controller?.open(file, openTargetOf(Keymap.isModEvent(event)));
       });
+      if (words !== null) this.renderHighlightSnippets(result, file, words);
       drawn += 1;
     }
 
@@ -1682,6 +1691,47 @@ export class ExplorerPaneView extends ItemView {
       results.createEl("p", {
         cls: "schreibstube-explorer-empty",
         text: t().explorer.filterMore(held)
+      });
+    }
+  }
+
+  /**
+   * The highlights under a note that `markiert:` found: the ones that answered
+   * the words typed, or its first ones when none were, each a line of its own
+   * that opens the note at it. A note with more says how many more, so a list
+   * cut at three is not taken for all there is.
+   */
+  private renderHighlightSnippets(result: HTMLElement, file: TFile, words: string[]): void {
+    const controller = this.host?.explorer;
+    if (!controller) return;
+    const { shown, more } = this.highlights.snippets(file.path, words);
+    if (shown.length === 0) return;
+    const list = result.createDiv({ cls: "schreibstube-explorer-highlights" });
+    const open = (span: HighlightSpan, event: MouseEvent | KeyboardEvent): void => {
+      void controller.openHighlight(file, span, openTargetOf(Keymap.isModEvent(event)));
+    };
+    for (const span of shown) {
+      const line = list.createDiv({
+        cls: "schreibstube-explorer-highlight",
+        text: span.text,
+        attr: {
+          role: "link",
+          tabindex: "-1",
+          "aria-label": t().explorer.openAtHighlight(span.text)
+        }
+      });
+      line.addEventListener("click", (event) => open(span, event));
+      line.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        event.stopPropagation();
+        open(span, event);
+      });
+    }
+    if (more > 0) {
+      list.createDiv({
+        cls: "schreibstube-explorer-highlight-more",
+        text: t().explorer.moreHighlights(more)
       });
     }
   }

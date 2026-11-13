@@ -20,6 +20,7 @@
  * vault-sized cost per edit.
  */
 import {
+  type HighlightMatcher,
   listingScopesOf,
   rankFiles,
   type BodyMatcher,
@@ -154,7 +155,9 @@ export class FileSearchIndex {
   constructor(
     private readonly source: SearchSource,
     /** The words of the notes' text, when the view keeps them. */
-    private readonly body?: BodyMatcher
+    private readonly body?: BodyMatcher,
+    /** The notes' highlights, when the view keeps them. */
+    private readonly marks?: HighlightMatcher
   ) {}
 
   /** Read one file's fields, from the cache when they are still good. */
@@ -220,10 +223,11 @@ export class FileSearchIndex {
       fields: this.fieldsFor(file),
       ...(wants.has("sync") ? { synced: this.source.synced?.(file) === true } : {}),
       ...(wants.has("tasks") ? { openTasks: this.source.openTasks?.(file) ?? 0 } : {}),
-      ...(wants.has("due") ? { due: this.source.due?.(file) ?? null } : {})
+      ...(wants.has("due") ? { due: this.source.due?.(file) ?? null } : {}),
+      ...(wants.has("highlights") ? { highlights: this.marks?.count(file.path) ?? 0 } : {})
     }));
 
-    const hits = rankFiles(query, candidates, undefined, this.body);
+    const hits = rankFiles(query, candidates, undefined, this.body, this.marks);
     const shown = hits.slice(0, Math.max(0, limit));
     return { hits, shown, held: hits.length - shown.length, searched: candidates.length };
   }

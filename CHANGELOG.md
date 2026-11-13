@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **`markiert:` searches your highlights.** Type `markiert:` (or `highlight:`) into the Explorer's search box and it lists every note with `==highlights==`; words after it are looked for in the highlighted text alone, so `markiert: Kaution` finds the notes where a mention of the deposit was marked, not every note that mentions one. Each note in the list shows up to three of its highlights — the ones that answered, or its first ones — and says how many more it has. A press on a highlight opens the note there and marks it for a moment, as **Show passage** does, without moving the cursor; in Reading view the note opens at its line. A second prefix narrows the list, as after `sync:`: `markiert: pfad:Kunden`. Highlights in code, comments and properties do not count, the same rule as the **Callouts & Markierungen** layout. The highlights are read in the same pass as the notes' text, so this costs no second read of the vault; a note keeps at most 200 highlights, each searched up to 500 characters.
+
 ## 1.92.0 - 2026-11-10
 
 Setting up a site to publish to now says what each site is and whether it
