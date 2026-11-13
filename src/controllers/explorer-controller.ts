@@ -3,6 +3,7 @@ import { copyText } from "../ui/copy-text";
 
 import {
   getAllTags,
+  MarkdownView,
   Menu,
   Notice,
   Platform,
@@ -44,6 +45,9 @@ import {
 import { topLevelOnly } from "../services/explorer-selection";
 import type { PaneTarget } from "../services/pane-target";
 import { openInPane } from "../platform/open-in-pane";
+import { locateHighlight } from "../services/highlight-index";
+import type { HighlightSpan } from "../services/passages";
+import { flashRevealIn } from "../processors/reveal-flash";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
 import {
   entryFor,
@@ -1232,6 +1236,28 @@ export class ExplorerController {
   async open(file: TAbstractFile, where: PaneTarget): Promise<void> {
     if (!(file instanceof TFile)) return;
     await openInPane(this.app, file, where);
+  }
+
+  /**
+   * Open a note at one of its highlights, and mark it for a moment.
+   *
+   * The line is handed to Obsidian, which scrolls there in either mode. In
+   * the editor the highlight is then found in the text as it is now — the
+   * index may have read it before a line was typed above — and marked the way
+   * "Show passage" marks a passage, leaving the cursor where it was. Reading
+   * view has no editor to mark; the line is where it lands.
+   */
+  async openHighlight(file: TFile, span: HighlightSpan, where: PaneTarget): Promise<void> {
+    await openInPane(this.app, file, where, { eState: { line: span.line } });
+    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+    if (view?.file?.path !== file.path || view.getMode() !== "source") return;
+    const range = locateHighlight(view.editor.getValue(), span);
+    if (!range) return;
+    view.editor.scrollIntoView(
+      { from: view.editor.offsetToPos(range.from), to: view.editor.offsetToPos(range.to) },
+      true
+    );
+    flashRevealIn(view.contentEl, { from: range.from, to: range.to, point: null });
   }
 
   /**

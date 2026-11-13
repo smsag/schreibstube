@@ -190,6 +190,17 @@ export interface BodySource {
   exists?(path: string): boolean;
 }
 
+/**
+ * Something else kept from the same reads: the highlights, today. The text is
+ * read once per note and handed to each, so a second index costs no second
+ * pass over the vault. Which notes are read is still the text index's to say.
+ */
+export interface NoteSink {
+  set(path: string, markdown: string): void;
+  delete(path: string): void;
+  deleteUnder(folderPath: string): void;
+}
+
 /** Notes read between two yields, so filling the index never holds the pane. */
 const READ_YIELD_EVERY = 16;
 
@@ -215,6 +226,7 @@ export class BodyLoader {
   /** The stamp of the read in flight for each path; absent when none is. */
   private readonly stamps = new Map<string, number>();
   private stamp = 0;
+  private readonly sinks: NoteSink[] = [];
 
   constructor(
     private readonly index: BodyIndex,
@@ -224,6 +236,12 @@ export class BodyLoader {
     private readonly clock: () => number = () =>
       typeof performance !== "undefined" ? performance.now() : Date.now()
   ) {}
+
+  /** Hand every note read from now on to `sink` as well. */
+  also(sink: NoteSink): this {
+    this.sinks.push(sink);
+    return this;
+  }
 
   /**
    * Read every note the index lacks. Resolves true when it read any.
@@ -271,6 +289,7 @@ export class BodyLoader {
   forget(path: string): void {
     this.stamps.delete(path);
     this.index.delete(path);
+    for (const sink of this.sinks) sink.delete(path);
   }
 
   /** Forget everything under a folder, reads in flight included. */
@@ -279,6 +298,7 @@ export class BodyLoader {
     for (const path of [...this.stamps.keys()])
       if (path.startsWith(prefix)) this.stamps.delete(path);
     this.index.deleteUnder(folderPath);
+    for (const sink of this.sinks) sink.deleteUnder(folderPath);
   }
 
   private async fill(): Promise<boolean> {
@@ -287,7 +307,11 @@ export class BodyLoader {
     // Notes held under a path the vault no longer has — a rename or delete the
     // pane heard only as a folder, a read that landed after its note went.
     const live = new Set(paths);
-    for (const held of this.index.paths()) if (!live.has(held)) this.index.delete(held);
+    for (const held of this.index.paths()) {
+      if (live.has(held)) continue;
+      this.index.delete(held);
+      for (const sink of this.sinks) sink.delete(held);
+    }
     let read = 0;
     for (const path of paths) {
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
@@ -311,6 +335,7 @@ export class BodyLoader {
       // ask again on every keystroke.
       if (this.source.exists?.(path) === false) {
         this.stamps.delete(path);
+        for (const sink of this.sinks) sink.delete(path);
         return;
       }
       text = "";
@@ -318,5 +343,6 @@ export class BodyLoader {
     if (this.cancelled || this.stamps.get(path) !== mine) return;
     this.stamps.delete(path);
     this.index.set(path, text);
+    for (const sink of this.sinks) sink.set(path, text);
   }
 }

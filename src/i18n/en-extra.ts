@@ -838,8 +838,11 @@ export const enExtra = {
     foundByMeaning: "Found by meaning: the words differ, the subject matches.",
     searchingByMeaning: "Searching by meaning…",
     filterHint:
-      "Finds files by name, title, alias, tag and text. Narrow it with tag:, path:, name:, text:, sync:, tasks: or due:, or type #tag.",
+      "Finds files by name, title, alias, tag and text. Narrow it with tag:, path:, name:, text:, sync:, tasks:, due: or highlight:, or type #tag.",
     filterStatus: (count: number) => (count === 1 ? "1 match" : `${count} matches`),
+    openAtHighlight: (text: string) => `Open the note at the highlight “${text}”`,
+    moreHighlights: (count: number) =>
+      count === 1 ? "1 more highlight" : `${count} more highlights`,
     rootFolder: "Vault root",
     collapseAll: "Collapse all",
     expandAll: "Expand all",

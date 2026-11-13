@@ -62,6 +62,46 @@ const INDENTED = /^(?: {4}|\t)/;
 const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 const HIGHLIGHT = /==(?=[^\s=])[^=\n]*?[^\s=]==|==[^\s=]==/;
 
+/** Every highlight on a line, for the spans. */
+const HIGHLIGHTS = new RegExp(HIGHLIGHT.source, "g");
+
+/** One `==highlight==` where it stands, so a search can open the note at it. */
+export interface HighlightSpan {
+  /** Zero-based line. */
+  line: number;
+  /** Column of the opening `==`. */
+  start: number;
+  /** Column just past the closing `==`. */
+  end: number;
+  /** The highlighted words, without the marks. */
+  text: string;
+}
+
+/**
+ * Every highlight of a note, one by one, by the same rules as the highlighted
+ * lines: not in code, the properties or a comment, and not in inline code.
+ * Comments and inline code are blanked to spaces where they stood, so the
+ * columns found in the blanked line are the columns of the text as written.
+ */
+export function findHighlightSpans(source: string): HighlightSpan[] {
+  const original = source.split(/\r?\n/);
+  const lines = maskComments(original);
+  const code = codeLines(lines);
+  const spans: HighlightSpan[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    if (code[index]) continue;
+    const searchable = withoutInlineCode(lines[index] ?? "");
+    if (!searchable.includes("==")) continue;
+    const written = original[index] ?? "";
+    for (const match of searchable.matchAll(HIGHLIGHTS)) {
+      const start = match.index;
+      const end = start + match[0].length;
+      spans.push({ line: index, start, end, text: written.slice(start + 2, end - 2) });
+    }
+  }
+  return spans;
+}
+
 /** Every callout and every highlighted line of a note, in the order they stand. */
 export function findPassages(source: string): NotePassages {
   const original = source.split(/\r?\n/);

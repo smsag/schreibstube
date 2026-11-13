@@ -1382,8 +1382,11 @@ export const de: Messages = {
     foundByMeaning: "Nach Bedeutung gefunden: andere Wörter, gleiches Thema.",
     searchingByMeaning: "Suche nach Bedeutung …",
     filterHint:
-      "Findet Dateien nach Name, Titel, Alias, Tag und Text. Eingrenzen mit tag:, pfad:, name:, inhalt:, sync:, aufgaben: oder fällig:, oder #tag tippen.",
+      "Findet Dateien nach Name, Titel, Alias, Tag und Text. Eingrenzen mit tag:, pfad:, name:, inhalt:, sync:, aufgaben:, fällig: oder markiert:, oder #tag tippen.",
     filterStatus: (count: number) => (count === 1 ? "1 Treffer" : `${count} Treffer`),
+    openAtHighlight: (text: string) => `Notiz bei der Markierung „${text}“ öffnen`,
+    moreHighlights: (count: number) =>
+      count === 1 ? "1 weitere Markierung" : `${count} weitere Markierungen`,
     rootFolder: "Vault-Wurzel",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",

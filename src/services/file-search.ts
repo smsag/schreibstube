@@ -187,6 +187,18 @@ export interface BodyMatcher {
 }
 
 /**
+ * Where the words of the vault's `==highlights==` are looked up, for
+ * `markiert:` (`highlight-index`).
+ */
+export interface HighlightMatcher {
+  /** How many highlights a note has; 0 for one with none, or not read yet. */
+  count(path: string): number;
+  /** The best strength, per path, with which a word of one of that note's
+   *  highlights answers `queryToken`. */
+  strengths(queryToken: string): ReadonlyMap<string, number>;
+}
+
+/**
  * What a hit in a note's text is worth: under every field that names the
  * file except the folders, which every file in them shares. A word written
  * somewhere in a note says less about which note was meant than a tag, and
@@ -222,6 +234,8 @@ export interface SearchCandidate {
   openTasks?: number;
   /** The day the note is due, `YYYY-MM-DD`, for `fällig:`; asked only then. */
   due?: string | null;
+  /** How many highlights the note has, for `markiert:`; asked only then. */
+  highlights?: number;
 }
 
 /**
@@ -294,13 +308,13 @@ export type SearchScope = "all" | "tags" | "path" | "name" | "body" | ListingSco
 
 /**
  * The prefixes that are a question on their own: which notes are synced,
- * which still have work in them, which are due. Alone each lists its notes;
- * whatever follows narrows that list.
+ * which still have work in them, which are due, which have highlights. Alone
+ * each lists its notes; whatever follows narrows that list.
  */
-export type ListingScope = "sync" | "tasks" | "due";
+export type ListingScope = "sync" | "tasks" | "due" | "highlights";
 
 export function isListingScope(scope: SearchScope): scope is ListingScope {
-  return scope === "sync" || scope === "tasks" || scope === "due";
+  return scope === "sync" || scope === "tasks" || scope === "due" || scope === "highlights";
 }
 
 export interface ParsedQuery {
@@ -345,6 +359,11 @@ const SCOPE_PREFIXES: Record<string, SearchScope> = {
   faellig: "due",
   due: "due",
   deadline: "due",
+  markiert: "highlights",
+  markierung: "highlights",
+  markierungen: "highlights",
+  highlight: "highlights",
+  highlights: "highlights",
   all: "all",
   alle: "all"
 };
@@ -380,8 +399,8 @@ export function parseSearchScope(raw: string): ParsedQuery {
  * everything, so treating it as a filter emptied the tree and left every
  * bookmark standing — two answers to one question. It is no filter yet.
  *
- * The listing prefixes are the exception: `sync:`, `aufgaben:` and `fällig:`
- * alone are each a whole question, answered by listing the notes.
+ * The listing prefixes are the exception: `sync:`, `aufgaben:`, `fällig:` and
+ * `markiert:` alone are each a whole question, answered by listing the notes.
  */
 export function hasSearchWords(raw: string): boolean {
   const { scope, query } = parseSearchScope(raw);
@@ -402,7 +421,8 @@ function listNotes(
   rest: string,
   candidates: readonly SearchCandidate[],
   limit: number | undefined,
-  body: BodyMatcher | undefined
+  body: BodyMatcher | undefined,
+  marks: HighlightMatcher | undefined
 ): SearchHit[] {
   const listed =
     scope === "tasks"
@@ -417,13 +437,88 @@ function listNotes(
 
   // A second prefix with no word yet is still being typed; the list stands.
   const narrowed = hasSearchWords(rest)
-    ? new Set(rankFiles(rest, listed, undefined, body).map((hit) => hit.path))
+    ? new Set(rankFiles(rest, listed, undefined, body, marks).map((hit) => hit.path))
     : null;
   const hits = listed
     .filter((candidate) => narrowed === null || narrowed.has(candidate.path))
     .sort(order)
     .map((candidate) => ({ path: candidate.path, score: 1 }));
   return typeof limit === "number" ? hits.slice(0, limit) : hits;
+}
+
+/**
+ * The notes with highlights, searched in their highlights alone.
+ *
+ * Alone, every note that has one, in reading order. A word after the prefix
+ * is looked for in the highlighted text and nowhere else — that is the whole
+ * point of asking — and every word has to be answered by some highlight of
+ * the note, the best answers first. A second prefix narrows the list instead,
+ * as after `sync:`: `markiert: pfad:Kunden` is the marked notes in that folder,
+ * still in reading order.
+ */
+function listHighlighted(
+  rest: string,
+  candidates: readonly SearchCandidate[],
+  limit: number | undefined,
+  body: BodyMatcher | undefined,
+  marks: HighlightMatcher | undefined
+): SearchHit[] {
+  const listed = candidates.filter((candidate) => (candidate.highlights ?? 0) > 0);
+  const cap = (hits: SearchHit[]): SearchHit[] =>
+    typeof limit === "number" ? hits.slice(0, limit) : hits;
+  const inOrder = (kept: readonly SearchCandidate[]): SearchHit[] =>
+    [...kept]
+      .sort((a, b) => comparePaths(a.path, b.path))
+      .map((candidate) => ({ path: candidate.path, score: 1 }));
+
+  if (!hasSearchWords(rest)) return cap(inOrder(listed));
+  if (parseSearchScope(rest).explicit) {
+    const narrowed = new Set(
+      rankFiles(rest, listed, undefined, body, marks).map((hit) => hit.path)
+    );
+    return cap(inOrder(listed.filter((candidate) => narrowed.has(candidate.path))));
+  }
+
+  const words = queryTokens(rest);
+  if (!marks || listed.length === 0) return [];
+  const answers = words.map((word) => marks.strengths(word));
+  // A word's rarity among the marked notes, as under `sync:`.
+  const weights = answers.map((answer) =>
+    idf(listed.filter((candidate) => answer.has(candidate.path)).length, listed.length)
+  );
+  const hits: SearchHit[] = [];
+  for (const candidate of listed) {
+    let score = 0;
+    let answered = 0;
+    for (let column = 0; column < answers.length; column++) {
+      const strength = answers[column]?.get(candidate.path) ?? 0;
+      if (strength > 0) answered += 1;
+      score += strength * (weights[column] ?? 1);
+    }
+    if (answered === answers.length) hits.push({ path: candidate.path, score });
+  }
+  hits.sort((a, b) => b.score - a.score || comparePaths(a.path, b.path));
+  return cap(hits);
+}
+
+/**
+ * The words to pick a note's highlights by, for the snippets under each
+ * result: the words after `markiert:`, wherever in a chain of listing prefixes
+ * it stands; none when it is alone or followed by another prefix, which shows
+ * each note's first highlights; null when the query does not ask for
+ * highlights at all.
+ */
+export function highlightWords(raw: string): string[] | null {
+  let rest = raw;
+  for (let depth = 0; depth < 4; depth++) {
+    const { scope, query } = parseSearchScope(rest);
+    if (!isListingScope(scope)) return null;
+    if (scope === "highlights") {
+      return parseSearchScope(query).explicit ? [] : queryTokens(query);
+    }
+    rest = query;
+  }
+  return null;
 }
 
 /** The fields a scope searches, in the order they are weighted. */
@@ -476,12 +571,16 @@ export function rankFiles(
   raw: string,
   candidates: readonly SearchCandidate[],
   limit?: number,
-  body?: BodyMatcher
+  body?: BodyMatcher,
+  marks?: HighlightMatcher
 ): SearchHit[] {
   const { scope, query } = parseSearchScope(raw);
   const words = queryTokens(query);
 
-  if (scope === "tasks" || scope === "due") return listNotes(scope, query, candidates, limit, body);
+  if (scope === "tasks" || scope === "due") {
+    return listNotes(scope, query, candidates, limit, body, marks);
+  }
+  if (scope === "highlights") return listHighlighted(query, candidates, limit, body, marks);
 
   // `sync:` narrows to the notes bound to a source before anything is scored,
   // so a word's rarity is measured among the synced notes a person is looking
@@ -492,7 +591,7 @@ export function rankFiles(
     // What follows is a query of its own, prefix and all — `sync: pfad:Kunden`.
     // A second prefix with no word yet is still being typed, and the synced
     // notes stay listed until it has one.
-    if (hasSearchWords(query)) return rankFiles(query, synced, limit, body);
+    if (hasSearchWords(query)) return rankFiles(query, synced, limit, body, marks);
 
     const listed = synced
       .map((candidate) => ({ path: candidate.path, score: 1 }))
