@@ -4,6 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 1.93.0 - 2026-11-13
+
+Two things are easier to find again. `markiert:` in the Explorer's search
+box lists the notes that hold highlights and looks for words in the
+highlighted text alone, so what was marked as worth keeping can be found
+without every note that merely mentions it. And a picture among the
+suggestions after `[[` or `![[` shows itself as a thumbnail beside its
+name, so `IMG_2041.jpeg` is picked by looking and not by guessing.
+
+Mobile checklist: not run. The thumbnails were tried in Obsidian 1.15.1 on
+the desktop, in a scratch vault: picture rows show theirs after `[[` and
+`![[`, the rows keep their height, a file that is no picture despite its
+name leaves no broken frame, the arrow keys and Enter still choose a row,
+and switching the plugin off leaves Obsidian's list as it was. They have
+not been seen on a phone, where the square is larger and the 16 MB bound
+is what protects memory. `markiert:` is covered by the suite and has not
+been tried in a running Obsidian, on the desktop or on a phone. What to
+try first: on a phone, type `![[` in a vault with photos and scroll the
+list; then `markiert:` alone in a vault with highlights, a press on a
+highlight in Live Preview (it should mark the passage for a moment) and in
+Reading view (the note should open at its line).
+
+The bridge is unchanged, and so is the protocol.
+
 ### Added
 
 - **`markiert:` searches your highlights.** Type `markiert:` (or `highlight:`) into the Explorer's search box and it lists every note with `==highlights==`; words after it are looked for in the highlighted text alone, so `markiert: Kaution` finds the notes where a mention of the deposit was marked, not every note that mentions one. Each note in the list shows up to three of its highlights — the ones that answered, or its first ones — and says how many more it has. A press on a highlight opens the note there and marks it for a moment, as **Show passage** does, without moving the cursor; in Reading view the note opens at its line. A second prefix narrows the list, as after `sync:`: `markiert: pfad:Kunden`. Highlights in code, comments and properties do not count, the same rule as the **Callouts & Markierungen** layout. The highlights are read in the same pass as the notes' text, so this costs no second read of the vault; a note keeps at most 200 highlights, each searched up to 500 characters.
