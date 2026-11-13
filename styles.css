@@ -4136,6 +4136,29 @@
   padding-top: 0.75rem;
 }
 
+/* A picture among Obsidian's link suggestions, in the row's right-hand slot.
+   The square is no taller than a row with a path under its name, so the list
+   keeps its rhythm; on a phone the rows are taller and so is the picture. */
+.schreibstube-link-suggest-thumb {
+  display: block;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-s);
+  background: var(--background-secondary);
+  object-fit: cover;
+}
+
+/* A drawing is shown whole: cropped, a logo is a corner of a logo. */
+.schreibstube-link-suggest-thumb-contain {
+  object-fit: contain;
+}
+
+.is-phone .schreibstube-link-suggest-thumb {
+  width: 40px;
+  height: 40px;
+}
+
 /* "Add set" and "Suggest tags" beside Obsidian's "Add property" wear that
    control's own class for their look; only the spacing between them is ours,
    matching the inset Obsidian gives its own. */

@@ -462,6 +462,12 @@ The controls are icons standing on the page, drawn from the plugin's own icon fo
 
 A published note keeps its slideshows: the site shows the same layout, with the alt text, the controls, the arrow keys and the fullscreen view, from a small script of its own. Where scripts do not run the pictures still read — the stage swipes, the tiles stand in a grid, a comparison sets its two pictures side by side. Only pictures that were published are shown, and a block with a mistake in it is left off the page rather than printed as code.
 
+### Pictures in the link suggestions
+
+Type `[[` or `![[` and Obsidian lists the files that match. For a note the name is enough; for a picture it says almost nothing, `IMG_2041.jpeg` beside `IMG_2042.jpeg`. A row that stands for a picture carries a small thumbnail at its right edge, so the right one is picked by looking: a photo fills the square, a drawing (SVG) is shown whole. Notes and other files look as they always did, and a picture over 16 MB gets no thumbnail, so a list of posters does not cost a phone its memory.
+
+The list is Obsidian's own, and the plugin reaches it by a route Obsidian does not document. Should an Obsidian update change it, the thumbnails are gone and the list works as before.
+
 ### Icons in the text
 
 Type a colon and the first two letters of an icon's name — `:fo` — and a picker lists the icons that match, glyph beside name; Enter writes `:folder: ` and you keep typing. In Live Preview and Reading view the shortcode is drawn as the glyph, sized to the text and sitting on its baseline; put the cursor on it and it shows its colons again for editing. Any of the plugin's icons can be written this way, the same set the Explorer's icon picker offers.

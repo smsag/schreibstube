@@ -1060,3 +1060,93 @@ export function livePreviewCellContent(
   if (!content) return null;
   return { content, editing: wrappers.length > 1 || cell.querySelector(CELL_EDITOR) !== null };
 }
+
+/** What Obsidian's link suggester hands over for a row: its own record of the suggestion, undeclared. */
+export type LinkSuggestionRowHook = (item: unknown, slot: HTMLElement) => void;
+
+type RenderSuggestion = (this: unknown, item: unknown, row: HTMLElement) => unknown;
+
+interface LinkSuggestLike {
+  renderSuggestion: RenderSuggestion;
+  suggestManager: object;
+}
+
+const SUGGESTION_AUX = "suggestion-aux";
+
+/**
+ * The suggester behind `[[`: among the editor's suggesters it is the one
+ * that keeps a `suggestManager`, in 1.11 as in 1.15. Looked up by that and
+ * not by its place in the list, which another plugin's suggester can change.
+ */
+function isLinkSuggest(value: unknown): value is LinkSuggestLike {
+  if (typeof value !== "object" || value === null) return false;
+  const suggest = value as { renderSuggestion?: unknown; suggestManager?: unknown };
+  return (
+    typeof suggest.renderSuggestion === "function" &&
+    typeof suggest.suggestManager === "object" &&
+    suggest.suggestManager !== null
+  );
+}
+
+/**
+ * Let the plugin add to a row of Obsidian's link suggestions, the list after
+ * `[[` and `![[`, once Obsidian has drawn it.
+ *
+ * The suggester is Obsidian's own and no API reaches it, so its
+ * `renderSuggestion` is wrapped on the instance: Obsidian draws the row as it
+ * always did, then `afterRender` gets the suggestion and the row's right-hand
+ * slot, where Obsidian puts its own marks (the row itself when a build has
+ * no such slot). A mistake in `afterRender` never costs the row; it is
+ * reported once and the list stays as Obsidian drew it. The suggester gone or
+ * reshaped: a warning, and a list without additions.
+ */
+export function installLinkSuggestRowHook(
+  workspace: Workspace,
+  afterRender: LinkSuggestionRowHook,
+  logger: Logger
+): () => void {
+  const suggests = (workspace as unknown as { editorSuggest?: { suggests?: unknown } })
+    .editorSuggest?.suggests;
+  const targets = Array.isArray(suggests) ? suggests.filter(isLinkSuggest) : [];
+  if (targets.length === 0) {
+    logger.warn("The link suggester is unavailable; its rows show no thumbnails.");
+    return () => {};
+  }
+
+  let live = true;
+  let reported = false;
+  const restores = targets.map((suggest) => {
+    const own = Object.prototype.hasOwnProperty.call(suggest, "renderSuggestion");
+    const original = suggest.renderSuggestion;
+    const wrapped: RenderSuggestion = function (this: unknown, item, row) {
+      const result = original.call(this, item, row);
+      if (!live || !isElementLike(row)) return result;
+      try {
+        const slot = Array.from(row.children).find(
+          (child): child is HTMLElement =>
+            isElementLike(child) && child.classList.contains(SUGGESTION_AUX)
+        );
+        afterRender(item, slot ?? row);
+      } catch (error) {
+        if (!reported) logger.warn("Adding to a link suggestion failed.", error);
+        reported = true;
+      }
+      return result;
+    };
+    suggest.renderSuggestion = wrapped;
+
+    return () => {
+      // Another plugin may have wrapped the row after this one did. Taking
+      // its wrapper off with ours would break it, so ours stays in the chain
+      // and does nothing from here on.
+      if (suggest.renderSuggestion !== wrapped) return;
+      if (own) suggest.renderSuggestion = original;
+      else delete (suggest as Partial<LinkSuggestLike>).renderSuggestion;
+    };
+  });
+
+  return () => {
+    live = false;
+    for (const restore of restores) restore();
+  };
+}
