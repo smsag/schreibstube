@@ -59,6 +59,7 @@ import {
 import { PdfCommands } from "./controllers/pdf-commands";
 import { PdfHighlightCommands } from "./controllers/pdf-highlights-commands";
 import { LinkModeController } from "./controllers/link-mode-controller";
+import { LinkSuggestThumbnails } from "./controllers/link-suggest-thumbnails";
 import { switchReadingEditing } from "./controllers/view-mode-switch";
 import { LlmCommands } from "./controllers/llm-commands";
 import { PropertyController } from "./controllers/property-controller";
@@ -202,6 +203,7 @@ export default class SchreibstubePlugin extends Plugin {
   private overlayCoordinator = new OverlayCoordinator();
   private refreshScheduler: RefreshScheduler | null = null;
   private linkMode: LinkModeController | null = null;
+  private linkSuggestThumbnails: LinkSuggestThumbnails | null = null;
   private llm: LlmCommands | null = null;
   private properties: PropertyController | null = null;
   private folderDescriberInstance: FolderDescriber | null = null;
@@ -263,6 +265,7 @@ export default class SchreibstubePlugin extends Plugin {
     );
 
     this.linkMode = new LinkModeController(this.app, this.logger);
+    this.linkSuggestThumbnails = new LinkSuggestThumbnails(this.app, this.logger);
     this.llm = new LlmCommands(this.app, () => this.settings, this.logger);
     this.properties = new PropertyController(
       this.app,
@@ -550,6 +553,8 @@ export default class SchreibstubePlugin extends Plugin {
     this.doneTaskVisibility.start(this);
 
     this.linkMode.start(this.addStatusBarItem());
+    // A picture among the suggestions after `[[` shows itself beside its name.
+    this.linkSuggestThumbnails.start();
     // The total of the selected amounts, and a formula's result in Reading view and Live Preview.
     const sums = this.sums;
     sums.startStatusBar(this.addStatusBarItem());
@@ -915,6 +920,7 @@ export default class SchreibstubePlugin extends Plugin {
     this.unloaded = true;
     uninstallIconFont();
     this.linkMode?.stop();
+    this.linkSuggestThumbnails?.stop();
     this.properties?.stop();
     this.propertyControls?.stop();
     this.coverBackdrops?.stop();
