@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { findExecutableCode } from "./executable-code";
+import { splitFrontmatter } from "./frontmatter-block";
 import {
   DESCRIPTION_KEYS,
   MAX_DESCRIPTION_CHARS,
@@ -555,5 +556,27 @@ describe("keepForeignFrontmatter — a person's own properties survive a new des
     expect(keepForeignFrontmatter("--- \nprojekt: Buch\n--- \nText", fresh)).toContain(
       "projekt: Buch"
     );
+  });
+});
+
+describe("keepForeignFrontmatter fences", () => {
+  it("edits a block closed with `...` or fenced with trailing spaces in place, with one block out", () => {
+    const image = { path: "a.png", hash: "h", size: 1, describedAt: "2026-10-03T00:00:00Z" };
+    const desc: ImageDescription = {
+      title: "T",
+      summary: "",
+      description: "D.",
+      keywords: [],
+      visibleText: "",
+      source: "",
+      author: ""
+    };
+    const fresh = renderDescriptionNote(image, desc);
+    for (const previous of ["---  \nrating: 5\n...\nalt", "---\nrating: 5\n---  \nalt"]) {
+      const merged = keepForeignFrontmatter(previous, fresh);
+      expect(merged).toContain("rating: 5");
+      expect(merged.match(/^---$/gm)).toHaveLength(2);
+      expect(splitFrontmatter(merged).body).toBe(splitFrontmatter(fresh).body);
+    }
   });
 });

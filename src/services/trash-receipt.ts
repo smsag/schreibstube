@@ -11,6 +11,8 @@
  * says so.
  */
 
+import { basename } from "./file-name";
+
 /** The folder the vault's own trash lives in. Hidden from the vault API,
  *  reachable through the adapter, which is how a deleted file comes back. */
 export const LOCAL_TRASH = ".trash";
@@ -36,7 +38,7 @@ export function arrivedReceipt(
   // was looked for along the whole listing before.
   const held = new Set(before);
   const arrived = after.filter((entry) => !held.has(entry));
-  return arrived.find((entry) => basenameOf(entry) === name) ?? arrived[0] ?? null;
+  return arrived.find((entry) => basename(entry) === name) ?? arrived[0] ?? null;
 }
 
 /** What the trash call was handed, as far as a look in the trash can tell. */
@@ -68,9 +70,4 @@ export function isTrashedEntry(shape: TrashedShape, found: TrashEntryStat | null
   if (found === null || found.type !== shape.type) return false;
   if (shape.type === "folder") return true;
   return found.size === shape.size && found.mtime === shape.mtime;
-}
-
-function basenameOf(path: string): string {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? path : path.slice(cut + 1);
 }

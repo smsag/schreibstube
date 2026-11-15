@@ -8,7 +8,8 @@ import {
   normalizeManifest,
   orphanSources,
   plannedOutputs,
-  planUploads
+  planUploads,
+  withInFlight
 } from "./manifest.mjs";
 
 /**
@@ -326,5 +327,57 @@ describe("buildManifest and a deletion that failed", () => {
     // A file this build wrote is recorded as written, whatever it was before.
     expect(manifest.files["a/index.html"]).toEqual({ sha256: "hash:a", bytes: 1 });
     expect(manifest.files).not.toHaveProperty("weg/index.html");
+  });
+});
+
+describe("a commit that stopped halfway", () => {
+  const before = {
+    ...emptyManifest("blog"),
+    files: { "a/index.html": { sha256: fakeHash(content("a")), bytes: 1 } }
+  };
+  const claimed = withInFlight(before, ["a/index.html", "neu/index.html"]);
+
+  it("claims what it is about to write, without a hash, and keeps what was known", () => {
+    expect(claimed.files["a/index.html"]).toEqual(before.files["a/index.html"]);
+    expect(claimed.files["neu/index.html"]).toEqual({ inFlight: true });
+    expect(before.files).not.toHaveProperty("neu/index.html");
+  });
+
+  it("is read back from the host with its claims, as the bridge's own paths", () => {
+    const known = { "a/index.html": { sha256: "ab".repeat(32), bytes: 1 } };
+    const stored = withInFlight({ ...emptyManifest("blog"), files: known }, ["neu/index.html"]);
+    expect(normalizeManifest(JSON.parse(JSON.stringify(stored)), "blog").files).toEqual({
+      ...known,
+      "neu/index.html": { inFlight: true }
+    });
+  });
+
+  it("leaves a claimed page to be written again, whatever it holds", () => {
+    const files = new Map([["neu/index.html", content("neu")]]);
+    const difference = diffOutputs(files, claimed, fakeHash);
+    expect(difference.write).toContain("neu/index.html");
+    expect(difference.unchanged).not.toContain("neu/index.html");
+  });
+
+  it("takes a claimed page down once no note has it, in the plan and at commit", () => {
+    const plan = planUploads({
+      index: index({ notes: [note("a")] }),
+      manifest: claimed,
+      storedSourceHashes: [hash("a")]
+    });
+    expect(plan.willDelete).toEqual(["neu/index.html"]);
+    const files = new Map([["a/index.html", content("a")]]);
+    expect(diffOutputs(files, claimed, fakeHash).delete).toEqual(["neu/index.html"]);
+  });
+
+  it("leaves no claim in the manifest a finished commit writes", () => {
+    const next = buildManifest({
+      target: "blog",
+      files: new Map([["neu/index.html", content("neu")]]),
+      hash: fakeHash,
+      renderVersion: 1,
+      generator: "test"
+    });
+    expect(next.files["neu/index.html"]).toEqual({ sha256: "hash:neu", bytes: 3 });
   });
 });

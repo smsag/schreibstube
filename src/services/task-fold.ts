@@ -11,6 +11,7 @@
  * them onto rendered HTML.
  */
 import type { TaskLine } from "./task-summary";
+import { indentWidth } from "../utils/text";
 
 export interface FoldTransitions {
   /** Tasks whose body should fold: just ticked, or done when first seen. */
@@ -55,17 +56,6 @@ export interface LineRange {
   /** Zero-based, inclusive. */
   start: number;
   end: number;
-}
-
-/** A tab is four columns, which is what Obsidian's own indentation assumes. */
-function indentWidth(line: string): number {
-  let width = 0;
-  for (const char of line) {
-    if (char === " ") width += 1;
-    else if (char === "\t") width += 4;
-    else break;
-  }
-  return width;
 }
 
 /**

@@ -65,10 +65,8 @@ export const en = {
   common: {
     cancel: "Cancel",
     close: "Close",
-    save: "Save",
     testConnection: "Test connection",
     remove: "Remove",
-    copy: "Copy",
     copied: "Copied",
     notice: (message: string) => `Schreibstube: ${message}`,
     /** Obsidian returns no leaf when the sidebar that would hold the pane is
@@ -345,6 +343,8 @@ export const en = {
     missingSource: (path: string) => `the source for ${path} is missing — please try again.`,
     changedDuringPublish: (path: string) =>
       `${path} changed while publishing — publish again to send the new version.`,
+    attachmentTooLarge: (path: string, limit: number) =>
+      `${path} is larger than ${Math.round(limit / 1_000_000)} MB, more than this device can load to publish — nothing was published. Remove it from the note or publish from a computer.`,
     drawingDiagrams: (index: number, total: number) =>
       `drawing diagram ${index} of ${total} for the website…`,
     diagramsNotDrawn: (count: number) =>

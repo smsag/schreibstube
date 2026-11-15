@@ -238,14 +238,16 @@ describe("VaultIndexService", () => {
     ]);
   });
 
-  it("updateNote respects the cap for NEW notes but still updates existing ones", async () => {
+  it("updateNote adds new notes a tenth past the cap, no further, and still updates existing ones", async () => {
     const p = new FakeProvider();
     const svc = new VaultIndexService(p, new MemStore());
     await svc.sync([alpha, beta]); // size 2
-    await svc.updateNote(gamma, { cap: 2 }); // new, at cap → skipped
-    expect(svc.size()).toBe(2);
+    await svc.updateNote(gamma, { cap: 2 }); // new, at the cap: the newest note, so added
+    expect(svc.size()).toBe(3);
+    await svc.updateNote(note("Notes/delta.md", "delta"), { cap: 2 }); // past the headroom → skipped
+    expect(svc.size()).toBe(3);
     await svc.updateNote(note("Notes/alpha.md", "alpha revised"), { cap: 2 }); // existing → allowed
-    expect(svc.size()).toBe(2);
+    expect(svc.size()).toBe(3);
   });
 
   it("updateNote drops a note that became empty", async () => {
@@ -296,17 +298,6 @@ describe("VaultIndexService", () => {
     const before = store.writes;
     await svc.applyBatch({ updates: [alpha], removes: ["Notes/ghost.md"] }, {}); // unchanged + non-existent
     expect(store.writes).toBe(before);
-  });
-
-  it("removeNote drops a note from the index", async () => {
-    const p = new FakeProvider();
-    const svc = new VaultIndexService(p, new MemStore());
-    await svc.sync([alpha, beta]);
-    await svc.removeNote("Notes/alpha.md");
-    expect(svc.size()).toBe(1);
-    expect(
-      (await svc.query("alpha", { minScore: 0.5 })).find((r) => r.id === "Notes/alpha.md")
-    ).toBeUndefined();
   });
 
   it("sync honours a fine throttle cadence and still indexes every note (Pythia ADR-125)", async () => {
@@ -511,25 +502,70 @@ describe("VaultIndexService — a phone does not rewrite a desktop's index (Pyth
     expect(store.writes).toBe(writes);
   });
 
-  it("a phone keeps an index it built itself, or one nobody signed", async () => {
-    for (const signer of ["mobile", undefined] as const) {
-      const store = new MemStore();
-      await new VaultIndexService(new FakeProvider(), store, signer ? { device: signer } : {}).sync(
-        [alpha]
-      );
-      // A file from before Pythia ADR-221 carries no keeper at all.
-      if (!signer)
-        store.buf = serializeIndex(deserializeIndex(store.buf!).items, 4, {
-          complete: true,
-          scope: ""
-        });
-      const phone = new VaultIndexService(new FakeProvider(), store, { device: "mobile" });
+  it("a phone keeps an index it built itself", async () => {
+    const store = new MemStore();
+    await new VaultIndexService(new FakeProvider(), store, { device: "mobile" }).sync([alpha]);
+    const phone = new VaultIndexService(new FakeProvider(), store, { device: "mobile" });
+    await phone.hydrateForQuery();
+    const writes = store.writes;
+    await phone.applyBatch({ updates: [note("Notes/delta.md", "alpha")], removes: [] });
+    expect(store.writes).toBe(writes + 1);
+    expect(keeperOf(store)).toBe("mobile");
+  });
+
+  it("a phone writes its edit to a readable base nobody signed, and signs it", async () => {
+    const store = new MemStore();
+    await new VaultIndexService(new FakeProvider(), store).sync([alpha]);
+    // A file from before Pythia ADR-221 carries no keeper at all.
+    store.buf = serializeIndex(deserializeIndex(store.buf!).items, 4, {
+      complete: true,
+      scope: ""
+    });
+    const phone = new VaultIndexService(new FakeProvider(), store, {
+      device: "mobile",
+      phoneJournal: new MemStore()
+    });
+    await phone.hydrateForQuery();
+    const writes = store.writes;
+    await phone.applyBatch({ updates: [note("Notes/delta.md", "alpha")], removes: [] });
+    expect(store.writes).toBe(writes + 1);
+    expect(keeperOf(store)).toBe("mobile");
+  });
+
+  it("a phone writes nothing where there is no base, or none it could read", async () => {
+    const undecodable = new MemStore();
+    undecodable.buf = new Uint8Array([1, 2, 3]).buffer; // half-synced, say
+    for (const store of [new MemStore(), undecodable]) {
+      const phone = new VaultIndexService(new FakeProvider(), store, {
+        device: "mobile",
+        phoneJournal: new MemStore(),
+        logger: { warn: () => undefined }
+      });
       await phone.hydrateForQuery();
       const writes = store.writes;
+      const before = store.buf;
       await phone.applyBatch({ updates: [note("Notes/delta.md", "alpha")], removes: [] });
-      expect(store.writes).toBe(writes + 1);
-      expect(keeperOf(store)).toBe("mobile");
+      await phone.flushPendingWrites();
+      expect(store.writes).toBe(writes);
+      expect(store.buf).toBe(before);
+      // The edit still answers on the phone this session.
+      expect((await phone.query("alpha", { minScore: 0.5 })).map((r) => r.id)).toContain(
+        "Notes/delta.md"
+      );
     }
+  });
+
+  it("a phone's own Build now signs the index, and its edits are written from then on", async () => {
+    const store = new MemStore();
+    const phone = new VaultIndexService(new FakeProvider(), store, {
+      device: "mobile",
+      phoneJournal: new MemStore()
+    });
+    await phone.sync([alpha]);
+    expect(keeperOf(store)).toBe("mobile");
+    const writes = store.writes;
+    await phone.applyBatch({ updates: [note("Notes/delta.md", "alpha")], removes: [] });
+    expect(store.writes).toBe(writes + 1);
   });
 
   it("signs every write with when it was made", async () => {

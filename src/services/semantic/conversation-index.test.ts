@@ -143,6 +143,41 @@ describe("ConversationIndex", () => {
     expect(phone.size()).toBe(2);
   });
 
+  it("reads a file that arrived after it looked and found none", async () => {
+    const store = new MemStore() as MemStore & { mtime(): Promise<number | null> };
+    store.mtime = async () => (store.buf ? 5 : null);
+    const phone = new ConversationIndex(new FakeProvider(), store, POLICY);
+    await phone.loadStored();
+    expect(phone.size()).toBe(0);
+
+    const desktop = new ConversationIndex(new FakeProvider(), new MemStore(), POLICY);
+    await desktop.sync([conv("a", "küche")]);
+    store.buf = (desktop as unknown as { store: MemStore }).store.buf;
+    await phone.loadStored();
+    expect(phone.size()).toBe(1);
+  });
+
+  it("answers the ids whose embed failed, and stops before an item or the write when told", async () => {
+    const provider = new FakeProvider();
+    const embed = provider.embed.bind(provider);
+    provider.embed = async (texts) => {
+      if (texts.some((t) => t.includes("BOOM"))) throw new Error("embed failed");
+      return embed(texts);
+    };
+    const store = new MemStore();
+    const index = new ConversationIndex(provider, store, POLICY);
+    const items = [conv("a", "küche"), conv("b", "BOOM")];
+    expect(await index.update(items, ["a", "b"])).toEqual(new Set(["b"]));
+
+    const writes = store.writes;
+    let calls = 0;
+    expect(await index.update([conv("c", "garten")], ["a", "c"], () => ++calls > 1)).toEqual(
+      new Set()
+    );
+    expect(calls).toBe(2); // asked before the item, then before the write
+    expect(store.writes).toBe(writes);
+  });
+
   it("does not read its own write back as another device's", async () => {
     const store = new MemStore() as MemStore & { mtime(): Promise<number | null> };
     let mtime = 1;
@@ -159,13 +194,6 @@ describe("ConversationIndex", () => {
     await index.loadStored();
 
     expect(read).not.toHaveBeenCalled();
-  });
-
-  it("finds conversations like another, from stored vectors", async () => {
-    const index = new ConversationIndex(new FakeProvider(), new MemStore(), POLICY);
-    await index.sync([conv("a", "küche hell"), conv("b", "küche neu"), conv("c", "garten")]);
-
-    expect(index.related("a", OPTS).map((r) => r.id)).toEqual(["b"]);
   });
 
   it("finds conversations that answer a text", async () => {

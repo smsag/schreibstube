@@ -420,6 +420,19 @@ describe("a source with a cursor", () => {
   });
 });
 
+describe("an item whose embed failed", () => {
+  it("is tried again at the next sync", async () => {
+    const s = setup();
+    s.provider.failOn = "garten";
+    s.register();
+    await s.sources.search("küche", QUERY);
+    s.provider.failOn = null;
+    await s.sources.search("garten", QUERY);
+    const stored = deserializeIndex(s.disk.get(FILE("pythia"))!);
+    expect(stored.items.map((item) => item.id).sort()).toEqual(["c1", "c2"]);
+  });
+});
+
 describe("a source that stops or is refused", () => {
   it("counts its listing as syncing, so the model is not taken from under it", async () => {
     const s = setup();
@@ -482,6 +495,25 @@ describe("a source that stops or is refused", () => {
     answer(s.listed);
     await searching;
     expect(s.disk.has(FILE("pythia"))).toBe(false);
+  });
+
+  it("stops embedding when refused mid-embed, and writes nothing", async () => {
+    const s = setup();
+    let open: () => void = () => undefined;
+    s.provider.gate = new Promise<void>((resolve) => (open = resolve));
+    s.register("pythia", s.makeSource([...s.listed, ...one("c3", "küche drei")]));
+    const searching = s.sources.search("küche", QUERY);
+    await vi.waitFor(() => expect(s.provider.embedded).toContain("die küche"));
+    s.answers.pythia = "denied";
+    const refusing = s.sources.consentChanged("pythia");
+    const written: string[] = [];
+    const write = s.disk.set.bind(s.disk);
+    s.disk.set = (p, b) => (written.push(p), write(p, b));
+    open();
+    await searching;
+    await refusing;
+    expect(s.provider.embedded.some((t) => t.includes("drei"))).toBe(false);
+    expect(written).not.toContain(FILE("pythia"));
   });
 
   it("puts nothing back in memory when refused while its listing was on the way", async () => {

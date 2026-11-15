@@ -18,6 +18,7 @@
  * answers.
  */
 import { fencedLines } from "./markdown-fence";
+import { frontmatterLineCount } from "./frontmatter-block";
 
 /** A callout as written, from its `> [!type]` line to its last quoted line. */
 export interface CalloutPassage {
@@ -144,7 +145,7 @@ export function findPassages(source: string): NotePassages {
  */
 function codeLines(lines: readonly string[]): boolean[] {
   const code = fencedLines(lines).map((fenced) => fenced === true);
-  for (let index = 0; index < frontmatterLines(lines); index += 1) code[index] = true;
+  for (let index = 0; index < frontmatterLineCount(lines); index += 1) code[index] = true;
 
   // A fence inside a quote, read on the quote's text without its marks.
   for (let index = 0; index < lines.length;) {
@@ -332,15 +333,6 @@ export function passageCards(
     if (lines.length > 0) add({ kind: "highlights", path, lines });
   }
   return { cards, held };
-}
-
-/** The lines of the properties at the top, which are no part of the text. */
-function frontmatterLines(lines: readonly string[]): number {
-  if (lines[0]?.trimEnd() !== "---") return 0;
-  for (let index = 1; index < lines.length; index += 1) {
-    if (/^(?:---|\.\.\.)\s*$/.test(lines[index] ?? "")) return index + 1;
-  }
-  return 0;
 }
 
 /** The text with `%%…%%` and `<!-- … -->` blanked out, every line where it was. */

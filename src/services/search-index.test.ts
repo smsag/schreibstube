@@ -98,16 +98,6 @@ describe("FileSearchIndex", () => {
     expect(source.reads).toBe(VAULT.length + 1);
   });
 
-  it("forgets the whole vault when asked", () => {
-    const source = fakeSource(VAULT);
-    const index = new FileSearchIndex(source);
-
-    index.search("villa", 50);
-    index.forgetAll();
-
-    expect(index.size).toBe(0);
-  });
-
   it("says how many matched beyond what may be drawn", () => {
     const many: FakeFile[] = Array.from({ length: 10 }, (_, i) => ({
       path: `Objekt ${i}.md`

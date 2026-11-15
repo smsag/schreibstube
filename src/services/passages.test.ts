@@ -208,3 +208,11 @@ describe("passageCards", () => {
     expect(result.held).toBe(2);
   });
 });
+
+describe("findPassages frontmatter fences", () => {
+  it("reads a `...` closer and trailing spaces after a fence as properties", () => {
+    for (const note of ["---  \ns: ==x==\n...\n==y==", "---\ns: ==x==\n---  \n==y=="]) {
+      expect(findPassages(note).highlights.map((h) => h.line)).toEqual([3]);
+    }
+  });
+});

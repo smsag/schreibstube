@@ -9,6 +9,7 @@ import { passageHash } from "./embedding-index";
 import { optedOut, vaultNoteChunks } from "./vault-retrieval";
 import type { IndexKeeper } from "./embedding-index";
 import { escapeRegExp } from "../escape-regexp";
+import { byCodeUnit } from "../../utils/text";
 
 /** The file's name, in Schreibstube's plugin folder. */
 export const RELATED_FILE_NAME = "nimbus-related.json";
@@ -192,11 +193,6 @@ export function isSummaryNote(frontmatter: unknown): boolean {
   return typeof type === "string" && type.trim().toLowerCase() === "summary";
 }
 
-/** Code-unit order, the one the contract sorts by. */
-function byCodeUnits(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
-}
-
 /**
  * The projects in the vault, sorted by tag: every note whose `nimbusProject`
  * gives a tag and that stays in the index. Two notes with one tag: the first
@@ -204,14 +200,14 @@ function byCodeUnits(a: string, b: string): number {
  */
 export function findProjects(notes: readonly ExportNote[]): { tag: string; note: string }[] {
   const byTag = new Map<string, string>();
-  for (const note of [...notes].sort((a, b) => byCodeUnits(a.path, b.path))) {
+  for (const note of [...notes].sort((a, b) => byCodeUnit(a.path, b.path))) {
     if (optedOut(note.frontmatter)) continue;
     const fm = note.frontmatter;
     if (!fm || typeof fm !== "object") continue;
     const tag = projectTag((fm as Record<string, unknown>)[PROJECT_KEY]);
     if (tag !== null && !byTag.has(tag)) byTag.set(tag, note.path);
   }
-  return [...byTag].map(([tag, note]) => ({ tag, note })).sort((a, b) => byCodeUnits(a.tag, b.tag));
+  return [...byTag].map(([tag, note]) => ({ tag, note })).sort((a, b) => byCodeUnit(a.tag, b.tag));
 }
 
 /** Whether a note's frontmatter names it a project at all, whatever the value. */
@@ -340,7 +336,7 @@ async function relatedFor(
   if (own) take(project.note, own, () => true);
   const hinted = [...notes.values()]
     .filter((note) => note.path !== project.note && mayCarry(note.tags, tag))
-    .sort((a, b) => byCodeUnits(a.path, b.path));
+    .sort((a, b) => byCodeUnit(a.path, b.path));
   let carrierReads = 0;
   for (const note of hinted) {
     if (carrierReads >= MAX_CARRIER_READS) {
@@ -375,7 +371,7 @@ async function relatedFor(
     }
     if (++scanned % yieldEvery === 0) await pause();
   }
-  scored.sort((a, b) => roundScore(b.score) - roundScore(a.score) || byCodeUnits(a.path, b.path));
+  scored.sort((a, b) => roundScore(b.score) - roundScore(a.score) || byCodeUnit(a.path, b.path));
 
   // Read in that order until the list is full: the checks that need the text.
   const related: RelatedEntry[] = [];

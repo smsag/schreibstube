@@ -114,8 +114,6 @@ export interface VaultWatcherDeps {
   /** The note being written, whose edits are held back (Pythia ADR-220). Absent: no
    *  note is held, as before. */
   activePath?(): string | null;
-  delayMs?: number;
-  holdIdleMs?: number;
   /** The held note goes to the index only when the writer moves on, never on a
    *  quiet clock: a phone, where an embed is a model load. */
   holdUntilLeft?: boolean;
@@ -142,13 +140,9 @@ export function registerVaultWatcher(
   };
   // Nothing is held back any more: the writer has gone quiet for long enough.
   // Where leaving is the only release, the clock is never armed.
-  const quiet = debounce(() => drain(null), deps.holdIdleMs ?? VAULT_HOLD_IDLE_MS, true);
+  const quiet = debounce(() => drain(null), VAULT_HOLD_IDLE_MS, true);
   const release = deps.holdUntilLeft ? Object.assign(() => {}, { cancel: () => {} }) : quiet;
-  const flush = debounce(
-    () => drain(deps.activePath?.() ?? null),
-    deps.delayMs ?? VAULT_FLUSH_DELAY_MS,
-    true
-  );
+  const flush = debounce(() => drain(deps.activePath?.() ?? null), VAULT_FLUSH_DELAY_MS, true);
   host.register(() => {
     flush.cancel();
     release.cancel();

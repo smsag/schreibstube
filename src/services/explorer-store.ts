@@ -19,6 +19,8 @@ export interface ExplorerFileStore {
   write(text: string): Promise<void>;
   /** Modification time in epoch ms, or null when the file is not there. */
   mtime(): Promise<number | null>;
+  /** Keep text that did not parse beside the file, so replacing it loses nothing. */
+  keepUnreadable?(text: string): Promise<void>;
 }
 
 export interface ExplorerStoreOptions {
@@ -39,6 +41,8 @@ export class ExplorerStore {
   private current: ExplorerData = emptyExplorerData();
   private lastWritten = "";
   private lastMtime: number | null = null;
+  /** The unparseable text already saved aside, so a retry does not save it twice. */
+  private keptUnreadable: string | null = null;
   private dirty = false;
   /** Writes failed in a row, which sets the pause before the next try. */
   private failures = 0;
@@ -122,6 +126,21 @@ export class ExplorerStore {
       const merged = this.adopt(this.reconcile(disk.data));
       const text = serializeExplorerData(merged);
 
+      // At load memory is empty too, so replacing the file here would be the
+      // only copy of every icon and pin going away.
+      if (disk.broken && this.keptUnreadable !== disk.text) {
+        try {
+          await this.file.keepUnreadable?.(disk.text);
+          this.keptUnreadable = disk.text;
+          this.logger.warn("Kept the unreadable explorer state file before replacing it.");
+        } catch (error) {
+          this.dirty = true;
+          this.logger.warn("Could not keep the unreadable explorer state file.", error);
+          if (!this.disposed) this.scheduleFlush(this.retryDelay());
+          return;
+        }
+      }
+
       if (text === disk.text) {
         this.lastWritten = text;
         this.lastMtime = disk.mtime;
@@ -196,22 +215,27 @@ export class ExplorerStore {
     return this.current;
   }
 
-  private async readDisk(): Promise<{ data: ExplorerData; text: string; mtime: number | null }> {
+  private async readDisk(): Promise<{
+    data: ExplorerData;
+    text: string;
+    mtime: number | null;
+    broken: boolean;
+  }> {
     const text = await this.safely(() => this.file.read(), null);
     const mtime = await this.safely(() => this.file.mtime(), null);
 
-    if (text === null) return { data: emptyExplorerData(), text: "", mtime };
+    if (text === null) return { data: emptyExplorerData(), text: "", mtime, broken: false };
 
     try {
-      return { data: parseExplorerData(JSON.parse(text)), text, mtime };
+      return { data: parseExplorerData(JSON.parse(text)), text, mtime, broken: false };
     } catch (error) {
-      // A half-written file from a sync client, or someone's failed edit. Our
-      // copy is the better one; the next flush replaces the broken file.
+      // A half-written file from a sync client, or someone's failed edit. The
+      // next flush saves it aside and then replaces it.
       this.logger.warn(
         "The explorer state file is not valid JSON; keeping the in-memory state.",
         error
       );
-      return { data: emptyExplorerData(), text, mtime };
+      return { data: emptyExplorerData(), text, mtime, broken: true };
     }
   }
 

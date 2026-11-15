@@ -213,7 +213,11 @@ it. Output is hashed before it is written, so an unchanged page is left alone.
 **The manifest is what makes deletion safe.** `<state>/manifest.json` records
 every file the bridge wrote. A page whose note was unpublished is removed; a
 file the bridge has never heard of is never touched. It is written last, so a
-crash means the next publish repeats work rather than losing a file. A
+crash means the next publish repeats work rather than losing a file; before
+the first page is written, the paths the commit is about to create are added
+to the previous manifest as in flight, without a hash, so a commit that stops
+halfway leaves no file of its own that the next plan calls a conflict, and
+each such path is written again or deleted by the next commit. A
 deletion the host refuses is counted in the commit's `deleteFailed`, logged as
 a warning, and kept in the manifest, so the next publish tries it again;
 `deleted` counts only what actually went.
@@ -302,7 +306,8 @@ HTML labels, which are `foreignObject`, are not.
 One that fails is refused with `400 asset_rejected`.
 
 Every write goes to a temporary name and is renamed over its target, so a reader
-never sees a half-written page. Every directory between the configured root and
+never sees a half-written page; a write that fails removes the temporary file
+where the connection still allows it. Every directory between the configured root and
 the file is looked at first, once per connection, and a link — a directory that
 points elsewhere — is refused for a write, a deletion or pruning alike, in the
 web root and in the state directory. The host key is checked against a

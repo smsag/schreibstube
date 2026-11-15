@@ -320,15 +320,23 @@ export function renamePath(
   const moved: Record<string, ExplorerEntry> = {};
 
   for (const [path, entry] of Object.entries(data.entries)) {
-    if (path === oldPath) {
-      moved[newPath] = { ...entry, updatedAt: now };
-    } else if (path.startsWith(prefix)) {
-      moved[`${newPath}/${path.slice(prefix.length)}`] = { ...entry, updatedAt: now };
-    } else {
+    const target =
+      path === oldPath
+        ? newPath
+        : path.startsWith(prefix)
+          ? `${newPath}/${path.slice(prefix.length)}`
+          : null;
+    if (target === null) {
       entries[path] = entry;
+      continue;
     }
+    moved[target] = { ...entry, updatedAt: now };
+    // A cleared stamp, not a gap: the merge with the file would bring the old
+    // path back from disk, icon and all, and nothing would ever expire it.
+    entries[path] = { updatedAt: now };
   }
 
+  if (Object.keys(moved).length === 0) return data;
   return { version: EXPLORER_DATA_VERSION, entries: { ...entries, ...moved } };
 }
 
@@ -428,7 +436,7 @@ export function reattachOrphans(
 
     const { orphanedAt: _gone, name: _remembered, ...live } = entry;
     entries[candidate] = { ...live, updatedAt: now };
-    delete entries[orphanPath];
+    entries[orphanPath] = { updatedAt: now };
     touched = true;
   }
 
@@ -440,23 +448,19 @@ export function reattachOrphans(
  * entries that carry neither an icon nor a pin and are old enough that no other
  * device can still be holding the values they cleared.
  */
-export function pruneExplorerData(
-  data: ExplorerData,
-  now: number,
-  graceMs = ORPHAN_GRACE_MS
-): ExplorerData {
+export function pruneExplorerData(data: ExplorerData, now: number): ExplorerData {
   const entries: Record<string, ExplorerEntry> = {};
   let dropped = false;
 
   for (const [path, entry] of Object.entries(data.entries)) {
     const expired =
       entry.orphanedAt !== undefined
-        ? now - entry.orphanedAt > graceMs
+        ? now - entry.orphanedAt > ORPHAN_GRACE_MS
         : entry.icon === undefined &&
           entry.pinnedAt === undefined &&
           entry.keptAt === undefined &&
           sharedUntil(entry, now) === null &&
-          now - entry.updatedAt > graceMs;
+          now - entry.updatedAt > ORPHAN_GRACE_MS;
 
     if (expired) {
       dropped = true;

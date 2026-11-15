@@ -728,8 +728,11 @@ export class SemanticEngine {
     const app = this.plugin.app;
     const removes = [...deleted];
     const updates: IndexableNote[] = [];
+    // What a build would select, opted-out notes and those past the note
+    // limit left out: the rest is what the build would drop, so it is dropped.
+    const selected = new Set(this.collectNotes().map((n) => n.path));
     for (const file of changed) {
-      if (optedOut(app.metadataCache.getFileCache(file)?.frontmatter)) {
+      if (!selected.has(file.path)) {
         removes.push(file.path);
       } else {
         updates.push({ path: file.path, load: () => app.vault.cachedRead(file) });
@@ -769,11 +772,6 @@ export class SemanticEngine {
     this.deferred = null;
     if (!buf || (buf.changed.size === 0 && buf.deleted.size === 0)) return;
     await this.applyChanges([...buf.changed.values()], [...buf.deleted]);
-  }
-
-  /** Whether a search by meaning can answer now, without building first. */
-  isReady(): boolean {
-    return this.enabled() && (this.service?.isReady() ?? false);
   }
 
   /**

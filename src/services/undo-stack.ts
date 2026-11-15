@@ -80,8 +80,4 @@ export class UndoStack {
     this.last = null;
     return action;
   }
-
-  clear(): void {
-    this.last = null;
-  }
 }

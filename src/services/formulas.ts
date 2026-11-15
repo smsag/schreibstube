@@ -13,8 +13,6 @@ import { convert, rateBetween, type ExchangeRates } from "./exchange-rates";
 
 export type FormulaOp = "sum" | "avg" | "median" | "count" | "min" | "max";
 
-export const FORMULA_OPS: readonly FormulaOp[] = ["sum", "avg", "median", "count", "min", "max"];
-
 export interface FormulaContext {
   format: NumberFormat;
   /** ISO code bare numbers count in and mixed currencies convert into; "" for none. */

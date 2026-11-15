@@ -261,13 +261,19 @@ current index are collected at commit.
 
 Every write goes to a temporary name in the destination directory and is
 renamed over the target. Rename within one filesystem is atomic, so a reader
-never sees a half-written page.
+never sees a half-written page. A write that fails removes its temporary file
+where the connection still allows it.
 
-Order at commit: render everything, write changed output, delete removed
+Order at commit: render everything, check that nothing in the way belongs to
+someone else, claim the new paths, write changed output, delete removed
 output, prune empty directories, collect orphan sources, write the manifest
-last. A crash before the manifest leaves it describing the previous state, so
-the next plan re-uploads and re-renders. The failure mode is wasted work, never
-a lost file.
+last. The claim is the previous manifest saved again with every path the
+commit is about to create added as in flight, without a hash. A crash before
+the final manifest leaves the previous state plus those claims, so the next
+plan re-uploads and re-renders, takes the half-written commit's files for the
+bridge's own, rewrites every one of them, and deletes those its index no
+longer has. The failure mode is wasted work, never a lost file and never a
+publish refused over the bridge's own files.
 
 ### Path safety
 
@@ -501,16 +507,16 @@ preview has proven itself in practice.
 
 ## Failure modes
 
-| Failure              | Behaviour                                                                        |
-| -------------------- | -------------------------------------------------------------------------------- |
-| Bridge unreachable   | Nothing is uploaded; the command reports and stops                               |
-| Bridge too old       | The version handshake names the mismatch and points at a redeploy                |
-| Token wrong          | One clear message pointing at settings; no partial run                           |
-| Fingerprint mismatch | Refused, loudly. This is the one case that might be an attack                    |
-| Upload interrupted   | Uploaded hashes stay; the manifest is untouched; the next run resumes free       |
-| Commit fails         | Output may be partly written; the manifest is untouched; the next run re-renders |
-| Slug collision       | Refused at plan; nothing is uploaded                                             |
-| Disk full            | The failing write reports the error; nothing is committed                        |
+| Failure              | Behaviour                                                                     |
+| -------------------- | ----------------------------------------------------------------------------- |
+| Bridge unreachable   | Nothing is uploaded; the command reports and stops                            |
+| Bridge too old       | The version handshake names the mismatch and points at a redeploy             |
+| Token wrong          | One clear message pointing at settings; no partial run                        |
+| Fingerprint mismatch | Refused, loudly. This is the one case that might be an attack                 |
+| Upload interrupted   | Uploaded hashes stay; the manifest is untouched; the next run resumes free    |
+| Commit fails         | Output may be partly written; the manifest claims it; the next run re-renders |
+| Slug collision       | Refused at plan; nothing is uploaded                                          |
+| Disk full            | The failing write reports the error; nothing is committed                     |
 
 ## Non-functional requirements
 

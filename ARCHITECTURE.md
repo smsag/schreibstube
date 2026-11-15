@@ -83,6 +83,7 @@ hash every note and attachment
         ├── PUT  /publish/asset ───────▶ write asset ─────────────▶ SFTP
         │
         └── POST /publish/commit ──────▶ render every note
+                                         claim the new paths
                                          write what changed ──────▶ SFTP
                                          delete what went
                                          write the manifest last
@@ -119,23 +120,37 @@ was hardened for the phone, and live in `services/semantic/`; the wiring is in
 The desktop keeps the vault index; a phone holds it. A phone never builds on
 its own — a first build there ran for over an hour and iOS may end it whenever
 Obsidian goes to the background — so it reads the synced file, answers from it
-finished or not, and reads it again when the desktop has written a newer one.
+finished or not, and reads it again when the desktop has written a newer one —
+or the first one, when there was none yet when it looked.
 **Build now** on a phone embeds a budget of notes and merges what the desktop
-wrote meanwhile before it writes, so the two devices do not undo each other
-through the one file. The phone's own edits are embedded on the phone — only
+wrote meanwhile before it writes, whether it stopped at its budget or finished
+inside it, so the two devices do not undo each other through the one file.
+A phone writes its edits to the shared files only for an index it signed
+itself, or one it read whole that nobody signed — from before indexes were
+signed, a phone-only vault's — which its write then signs; a phone never needs
+a build to keep its edits. With no index yet, or one it could not read, it
+writes nothing there: its edit would become a base of a row or two under the
+shared name, and a desktop could adopt it. The phone's own edits are embedded on the phone — only
 notes typed into there (Obsidian's `editor-change`), each when its writer moves
 on to another and never on a quiet clock, since an embed there is a model load.
 A note that changed any other way, a sync above all, is the desktop's to embed:
 at every launch a phone used to embed what had arrived while it was closed, and
 loaded the model two seconds into its start. The edits go to a journal of its own
 (`…phone-journal.bin`), tied to the desktop's base like the shared journal and
-ignored once the desktop writes a new one. Each journal is written over itself
+ignored once the desktop writes a new one; with no desktop base to tie them
+to, they stay in memory for the session. Each journal is written over itself
 rather than replaced, since iCloud keeps a replaced file it
 was still syncing as a numbered copy; copies already there are merged into the
 journal when it is read and removed by its writer's next write. A build
 answers queries while it runs, and a note whose
 embed fails on the desktop — not by a deadline — is kept as a row without
 vectors, so it is not retried until its text changes.
+
+The note limit keeps the newest notes. An edit or a new note outside them is
+dropped from the index, as the build would drop it; one inside them is
+embedded even when the index is already at the limit, since a note created now
+is the newest of all. Edits may grow the index a tenth past the limit, and the
+next full pass trims it back.
 
 iOS ends Obsidian's web process at about 2 GB, without a catch or a log, so
 everything on a phone is sized against that line. The runtime runs its plain
@@ -242,14 +257,17 @@ api.onIndexChanged(cb); // what a search can find changed; at most once a second
 ```
 
 Any plugin may register a source; each is one index file of its own
-(`semantic-source-<id>-…bin`), so sources never share rows or ids. Plugins are
+(`semantic-source-<id>-<model family>.bin`), so sources never share rows or
+ids; removing one source's files matches the family too, since an id may hold
+hyphens and another source's may begin with this one's. Plugins are
 not isolated from each other and a name cannot be proved, so the gate is the
 person. A source is read only once allowed. While search by meaning is on, a
 source nobody has answered for is asked about in a notice that stays until it
 is answered; **Not now** leaves it waiting, to be asked at the next launch or
 when search by meaning is switched on. The settings list every source, take the
 answer back, and **Forget** one no longer registered. A refusal stops a listing
-or embed in flight before it writes, and removes the source's items from memory
+or embed in flight before it writes — checked after the source answers and
+before each item and the write — and removes the source's items from memory
 and its file from disk. The name must be an installed plugin's where the registry
 can say so. Everything a source hands over is untrusted: checked, bounded to
 1 000 items of 40 000 characters and eight sources, and given five seconds to
@@ -264,6 +282,8 @@ future is still reported. An answer that does not fit is logged, the cursor
 forgotten, and the whole list read once instead. Only an item's title, updated
 time and attached notes stay in memory; its text is held until it is embedded,
 and a phone, which reads the desktop's file and embeds no source, never holds it.
+An item whose embed fails stays pending and is tried at the next sync, since a
+source with a cursor will not hand it over again.
 
 Each item is `{ id, title, updatedAt, summary?, messages? | text?, notes? }`.
 `notes`, optional, are vault paths attached to the item as context: Recommended
@@ -298,16 +318,30 @@ every answer before the print uses it. See PRINTING.md, "Pythia's footnotes".
 
 Icons and the two marks are keyed by vault path, and they live in `explorer.json` beside
 `data.json` rather than inside it. `data.json` is saved by writing the whole
-settings object, so a second device holding a stale copy in memory overwrites
-everything the first one wrote — mailbox and publishing state included. A
-separate file limits that to icons, and small independent entries make the cheap
+settings object. A device takes over what another one saved when the file
+arrives — all of it but when it last polled and which sources it allowed, with
+the sync records merged note by note — so a change made on one is no longer
+undone by the other's next automatic save; what is read once at load applies at
+the next start. What is left is the time between one device's save and its
+arrival at the other, in which a save there still writes the older copy,
+mailbox and publishing state included. A separate file keeps icons and pins out
+of that, and small independent entries make the cheap
 fix possible: every entry carries a timestamp, every write re-reads the file and
 merges per entry, and the pane polls the file's modification time so a write
 delivered by iCloud or Obsidian Sync is picked up rather than clobbered.
 
 Paths move, so the map follows renames (a renamed folder moves everything under
 it) and keeps a tombstone for thirty days when a file disappears, because a move
-made outside Obsidian arrives as a delete and a create.
+made outside Obsidian arrives as a delete and a create. A rename leaves a
+cleared stamp at the old path rather than a gap: the merge starts from the
+file, which still holds that path, and without the stamp the old entry came
+back with its icon at every save. The stamp wins the merge and is pruned after
+the same thirty days.
+
+A state file that does not parse — half-written by a sync client, or broken by
+a hand edit — is kept as `explorer.json.broken` before the first write replaces
+it. At launch there is nothing in memory to be the better copy, so replacing it
+unseen was every icon and pin gone.
 
 ## The three rules worth knowing
 
@@ -317,6 +351,10 @@ mirroring deletions safe on a host that has other things on it.
 
 **The manifest is written last.** A crash before that leaves it describing the
 previous state, so the next publish repeats work rather than losing a file.
+Before the first write the previous manifest is saved once more with every new
+path marked as in flight, without a hash: a commit that stops halfway has then
+left only files the bridge is known to own, and the next publish rewrites them
+instead of refusing them as someone else's.
 
 **The host key is pinned.** A stateless container cannot trust on first use; it
 would re-trust a new key after every restart.

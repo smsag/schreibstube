@@ -28,6 +28,7 @@ import {
   findDiagramFences,
   type DiagramFence
 } from "../services/publish-diagrams";
+import { toArrayBuffer } from "../utils/array-buffer";
 import { sha256 } from "../utils/sha256";
 import { confirmBridge } from "./bridge-trust";
 import { DiagramCapture } from "./diagram-capture";
@@ -582,7 +583,12 @@ export class MailCommands {
       return;
     }
     const insert = (files: string): void => {
-      view.editor.replaceSelection(`${formatMessage(message)}\n${files ? `${files}\n` : ""}`);
+      // Placed at the selection's end, not over it: the person may have selected
+      // something while the files came, and that is theirs.
+      view.editor.replaceRange(
+        `${formatMessage(message)}\n${files ? `${files}\n` : ""}`,
+        view.editor.getCursor("to")
+      );
     };
 
     await this.withBusy("attachments", async () => {
@@ -720,11 +726,6 @@ export class MailCommands {
     const detail = err instanceof Error ? err.message : t().proofread.unknownError;
     new Notice(`${userMessage} — ${detail}`);
   }
-}
-
-/** The bytes as an ArrayBuffer of their own, which `createBinary` takes. */
-function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 /** One reading of the note: the draft, and what to freeze once it has gone. */

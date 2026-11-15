@@ -199,11 +199,6 @@ export class FileSearchIndex {
     }
   }
 
-  /** Throw away everything, for a change too broad to name a file. */
-  forgetAll(): void {
-    this.cache.clear();
-  }
-
   /** How many files have been read, so a test can prove the cache holds. */
   get size(): number {
     return this.cache.size;

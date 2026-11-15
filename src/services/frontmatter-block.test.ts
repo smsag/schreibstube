@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitFrontmatter } from "./frontmatter-block";
+import { frontmatterLineCount, splitFrontmatter } from "./frontmatter-block";
 
 describe("splitFrontmatter", () => {
   it("separates the block from the body, the block keeping its fences", () => {
@@ -56,5 +56,23 @@ describe("splitFrontmatter", () => {
     expect(splitFrontmatter("Text\n---\nMore").block).toBe("");
     expect(splitFrontmatter("----\na: 1\n---\n").block).toBe("");
     expect(splitFrontmatter("--- a\nb\n---\n").block).toBe("");
+  });
+});
+
+describe("frontmatterLineCount", () => {
+  it("counts both fences, and agrees with splitFrontmatter on where the body starts", () => {
+    for (const text of ["---\na: 1\n---\nB", "--- \na\n...  \nB", "---\n---\nB", "---\na\n---"]) {
+      const lines = text.split("\n");
+      const count = frontmatterLineCount(lines);
+      expect(count).toBeGreaterThan(0);
+      expect(lines.slice(count).join("\n")).toBe(splitFrontmatter(text).body);
+    }
+    expect(frontmatterLineCount(["Text", "---"])).toBe(0);
+    expect(frontmatterLineCount(["---", "a"])).toBe(0);
+  });
+
+  it("does not take whitespace beyond blanks and a carriage return after a fence", () => {
+    expect(frontmatterLineCount(["---\u00a0", "a", "---"])).toBe(0);
+    expect(frontmatterLineCount(["---\r", "a", "...\r"])).toBe(3);
   });
 });

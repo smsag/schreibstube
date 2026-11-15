@@ -200,3 +200,21 @@ describe("amountsInText", () => {
     expect(amountsInText(text, de).map((a) => a.value)).toEqual([300, 20]);
   });
 });
+
+describe("amountsInText and list markers", () => {
+  const values = (text: string) => amountsInText(text, de).map((a) => a.value);
+
+  it("does not read a bullet's hyphen as a minus", () => {
+    expect(values("- 300 €\n- 20 €")).toEqual([300, 20]);
+  });
+
+  it("keeps a hyphen that touches the number negative", () => {
+    expect(values("-20 €")).toEqual([-20]);
+  });
+
+  it("reads checkbox, numbered and worded items as before", () => {
+    expect(values("- [ ] 20 €")).toEqual(amountsInText("[ ] 20 €", de).map((a) => a.value));
+    expect(values("1. 20 €")).toEqual([20]);
+    expect(values("- Miete 300 €")).toEqual([300]);
+  });
+});

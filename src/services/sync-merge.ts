@@ -74,3 +74,21 @@ export function sameSyncState(
     (key) => b[key] !== undefined && JSON.stringify(a[key]) === JSON.stringify(b[key])
   );
 }
+
+/**
+ * The poll's results that still stand on the record they were computed from.
+ *
+ * A poll takes minutes over a large vault; a person who accepts a note's
+ * changes meanwhile stores a settled record, and saving the poll's result over
+ * it listed the note as changed again. Records are replaced, never edited, so
+ * identity is the test.
+ */
+export function updatesStillCurrent(
+  updates: Record<string, SyncRecord>,
+  read: ReadonlyMap<string, SyncRecord | undefined>,
+  current: (path: string) => SyncRecord | undefined
+): Record<string, SyncRecord> {
+  return Object.fromEntries(
+    Object.entries(updates).filter(([path]) => current(path) === read.get(path))
+  );
+}

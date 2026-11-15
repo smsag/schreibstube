@@ -6,6 +6,7 @@ import {
   setIcon,
   serializeExplorerData,
   emptyExplorerData,
+  renamePath,
   ORPHAN_GRACE_MS
 } from "./explorer-state";
 
@@ -20,6 +21,11 @@ class FakeFile implements ExplorerFileStore {
   mtimeMs = T0;
   writes = 0;
   failWrites = false;
+  kept: string[] = [];
+
+  async keepUnreadable(text: string): Promise<void> {
+    this.kept.push(text);
+  }
 
   async read(): Promise<string | null> {
     return this.text;
@@ -103,6 +109,84 @@ describe("loading", () => {
     await store.load();
 
     expect(store.data().entries).toEqual({});
+  });
+});
+
+const BROKEN = '{"version":2,"entries":{"Projekte":{"icon":"star","pinnedAt":5,"updatedAt":900},}}';
+
+describe("a file that does not parse", () => {
+  it("is not rewritten by a rename that touched nothing", async () => {
+    file.text = BROKEN;
+    const store = makeStore(file);
+    await store.load();
+
+    store.mutate((data, now) => renamePath(data, "x.md", "y.md", now));
+    await store.flush();
+
+    expect(file.text).toBe(BROKEN);
+    expect(file.writes).toBe(0);
+  });
+
+  it("is kept beside the file, once, before a real change replaces it", async () => {
+    file.text = BROKEN;
+    const store = makeStore(file);
+    await store.load();
+
+    store.mutate((data, now) => setIcon(data, "a.md", "home", now));
+    await store.flush();
+    store.mutate((data, now) => setIcon(data, "b.md", "home", now));
+    await store.flush();
+
+    expect(file.kept).toEqual([BROKEN]);
+    expect(file.text).toContain("a.md");
+  });
+
+  it("is simply merged when it parses again by the time of the flush", async () => {
+    file.text = BROKEN;
+    const store = makeStore(file);
+    await store.load();
+    store.mutate((data, now) => setIcon(data, "a.md", "home", now));
+    file.putForeign(serializeExplorerData(setIcon(emptyExplorerData(), "t.md", "star", T0)));
+
+    await store.flush();
+
+    expect(file.kept).toEqual([]);
+    expect(file.text).toContain("t.md");
+  });
+});
+
+describe("a renamed file", () => {
+  it("leaves no live entry at the old path after the flush", async () => {
+    const store = makeStore(file);
+    await store.load();
+    store.mutate((data, now) => setIcon(data, "A.md", "star", now));
+    await store.flush();
+
+    store.mutate((data, now) => renamePath(data, "A.md", "B.md", now + 1));
+    await store.flush();
+
+    expect(iconFor(store.data(), "A.md")).toBeUndefined();
+    expect(iconFor(store.data(), "B.md")).toBe("star");
+    expect(JSON.parse(file.text ?? "").entries["A.md"]).toEqual({ updatedAt: T0 + 1 });
+  });
+
+  it("lets a new note at the old path start without the old icon, and the stamp expires", async () => {
+    let clock = T0;
+    const store = makeStore(file, manualTimers(), () => clock);
+    await store.load();
+    store.mutate((data, now) => setIcon(data, "A.md", "star", now));
+    await store.flush();
+    clock += 1;
+    store.mutate((data, now) => renamePath(data, "A.md", "B.md", now));
+    await store.flush();
+
+    expect(iconFor(store.data(), "A.md")).toBeUndefined();
+
+    clock += ORPHAN_GRACE_MS + 10;
+    store.mutate((data, now) => setIcon(data, "C.md", "home", now));
+    await store.flush();
+
+    expect(JSON.parse(file.text ?? "").entries["A.md"]).toBeUndefined();
   });
 });
 

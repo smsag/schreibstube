@@ -14,6 +14,7 @@
  */
 import { isDrawing } from "./file-glyph";
 import { basename, CONTROL_CHARS } from "./file-name";
+import { byCodeUnit } from "../utils/text";
 
 /**
  * How many articles a description names. A picture embedded in a template
@@ -88,11 +89,6 @@ export function sameArticleLinks(current: unknown, wanted: readonly string[]): b
     seen.add(value);
   }
   return true;
-}
-
-/** Plain code-unit order: the same answer on every device and engine. */
-function byCodeUnit(a: string, b: string): number {
-  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 /**

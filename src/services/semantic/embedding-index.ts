@@ -1,6 +1,8 @@
 // The conversation vector index: its in-memory shape, a content hash for
-// incremental reuse, an add/drop diff against the current conversation set, and a
-// compact binary (de)serialization for persistence in the plugin directory.
+// incremental reuse, and a compact binary (de)serialization for persistence in
+// the plugin directory.
+
+import { fnv1a } from "../../utils/fnv1a";
 
 export interface IndexedConversation {
   id: string;
@@ -20,14 +22,7 @@ export interface IndexedConversation {
  * The same FNV-1a over one passage, as a number: kept per passage, so it is
  * stored as compactly as the header allows. Only ever compared with itself.
  */
-export function passageHash(text: string): number {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < text.length; i++) {
-    h ^= text.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return h >>> 0;
-}
+export const passageHash = fnv1a;
 
 /** Every passage's hash, in order. */
 export function passageHashes(chunks: readonly string[]): Uint32Array {
@@ -54,38 +49,10 @@ export function readPassages(value: unknown, count: number): Uint32Array | undef
  * its vectors must be recomputed — not for security.
  */
 export function conversationContentHash(chunks: string[]): string {
-  let h = 0x811c9dc5;
   // The separator is a NUL, so no chunk boundary can be forged by chunk text.
   // Written as an ESCAPE, never as a literal NUL byte: a raw one in the source
   // makes git treat this whole file as binary and stop showing its diffs.
-  const s = chunks.join("\u0000");
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 0x01000193);
-  }
-  return (h >>> 0).toString(16);
-}
-
-export interface IndexDiff {
-  /** Conversation ids that are new or whose content changed — need (re)embedding. */
-  toEmbed: string[];
-  /** Conversation ids in the index that no longer exist — drop from the index. */
-  toDrop: string[];
-}
-
-/**
- * Compare the persisted index (id → contentHash) with the current desired set and
- * report which conversations to re-embed and which to drop. This is the whole
- * incremental strategy: only changed/new conversations are ever re-embedded.
- */
-export function diffIndex(
-  existing: Map<string, string>,
-  desired: { id: string; contentHash: string }[]
-): IndexDiff {
-  const desiredIds = new Set(desired.map((d) => d.id));
-  const toEmbed = desired.filter((d) => existing.get(d.id) !== d.contentHash).map((d) => d.id);
-  const toDrop = [...existing.keys()].filter((id) => !desiredIds.has(id));
-  return { toEmbed, toDrop };
+  return fnv1a(chunks.join("\u0000")).toString(16);
 }
 
 // ── Binary format ─────────────────────────────────────────────────────────────
@@ -207,41 +174,6 @@ export function serializeIndex(
     }
   }
   return buf;
-}
-
-/**
- * What a persisted index says about itself — rows, completeness, scope — read
- * from the header alone (Pythia ADR-199). For the settings status line, which must be
- * able to say "ready" or "unfinished" without loading the model: `deserializeIndex`
- * needs no model either, but copies every vector. Null for anything unreadable,
- * which the status reports as "not built".
- */
-export function peekIndexMeta(buf: ArrayBuffer): (IndexMeta & { count: number }) | null {
-  try {
-    const dv = new DataView(buf);
-    if (buf.byteLength < HEADER_LEN || dv.getUint32(0) !== MAGIC || dv.getUint8(4) !== VERSION)
-      return null;
-    const count = dv.getUint32(7);
-    const metaLen = dv.getUint32(11);
-    if (HEADER_LEN + metaLen > buf.byteLength) return null;
-    // `null` is valid JSON, and a header written by hand may be exactly that.
-    const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, HEADER_LEN, metaLen))) as {
-      complete?: unknown;
-      scope?: unknown;
-      keeper?: unknown;
-      writtenAt?: unknown;
-    } | null;
-    return {
-      count,
-      complete: head?.complete === true,
-      scope: typeof head?.scope === "string" ? head.scope : "",
-      ...signature(head)
-    };
-  } catch {
-    // Malformed JSON in a header is the same fact as a bad magic: this file
-    // cannot vouch for an index, and the caller says "not built".
-    return null;
-  }
 }
 
 export function deserializeIndex(buf: ArrayBuffer): {

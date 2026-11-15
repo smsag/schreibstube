@@ -63,10 +63,8 @@ export const de: Messages = {
   common: {
     cancel: "Abbrechen",
     close: "Schließen",
-    save: "Speichern",
     testConnection: "Verbindung testen",
     remove: "Entfernen",
-    copy: "Kopieren",
     copied: "Kopiert",
     notice: (message: string) => `Schreibstube: ${message}`,
     sidebarMissing: (pane: string) =>
@@ -332,6 +330,8 @@ export const de: Messages = {
     missingSource: (path: string) => `die Quelle zu ${path} fehlt — bitte erneut versuchen.`,
     changedDuringPublish: (path: string) =>
       `${path} wurde während der Veröffentlichung geändert — erneut veröffentlichen, um die neue Fassung zu senden.`,
+    attachmentTooLarge: (path: string, limit: number) =>
+      `${path} ist größer als ${Math.round(limit / 1_000_000)} MB, mehr als dieses Gerät zum Veröffentlichen laden kann — nichts wurde veröffentlicht. Die Datei aus der Notiz entfernen oder am Computer veröffentlichen.`,
     drawingDiagrams: (index: number, total: number) =>
       `zeichne Visualisierung ${index} von ${total} für die Website …`,
     diagramsNotDrawn: (count: number) =>
@@ -1415,7 +1415,6 @@ export const de: Messages = {
       stay: "Bei dieser Notiz bleiben",
       openSource: "Diese Notiz öffnen",
       picture: "Bild",
-      conversation: "Gespräch in Pythia",
       copyLink: "Obsidian-URL kopieren",
       copied: "Obsidian-URL kopiert.",
       copyFailed: "Die URL konnte nicht in die Zwischenablage kopiert werden.",
@@ -2061,8 +2060,7 @@ export const de: Messages = {
     notFound: (label: string) => `${label} nicht gefunden — Einstellungen prüfen.`,
     apiKey: "API-Schlüssel",
     mailToken: "Mail-Token",
-    publishToken: "Publish-Token",
-    githubToken: "GitHub-Token"
+    publishToken: "Publish-Token"
   },
   pdf: {
     pickTitle: (name: string) => `Textstellen aus ${name}`,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { folderOfPath, missingAncestors } from "./ensure-folder";
+import { missingAncestors } from "./ensure-folder";
 
 const vault =
   (...folders: string[]) =>
@@ -26,12 +26,5 @@ describe("missingAncestors", () => {
 
   it("ignores empty segments from a leading or doubled slash", () => {
     expect(missingAncestors("/A//B/", vault())).toEqual(["A", "A/B"]);
-  });
-});
-
-describe("folderOfPath", () => {
-  it("is the part before the last slash, or nothing at the root", () => {
-    expect(folderOfPath("A/B/c.md")).toBe("A/B");
-    expect(folderOfPath("c.md")).toBe("");
   });
 });

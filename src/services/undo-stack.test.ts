@@ -40,14 +40,6 @@ describe("UndoStack", () => {
     expect(stack.peek(1000)).toBeNull();
   });
 
-  it("can be told to forget", () => {
-    const stack = new UndoStack();
-    stack.push(remove, 1000);
-    stack.clear();
-
-    expect(stack.peek(1000)).toBeNull();
-  });
-
   it("takes its window from the caller, for a test or a setting", () => {
     const stack = new UndoStack(10);
     stack.push(move, 0);

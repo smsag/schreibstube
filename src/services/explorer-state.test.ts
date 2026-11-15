@@ -116,7 +116,23 @@ describe("renamePath", () => {
     expect(iconFor(moved, "Neu")).toBe("folder");
     expect(iconFor(moved, "Neu/Haus.md")).toBe("home");
     expect(iconFor(moved, "Alternativ.md")).toBe("star");
-    expect(moved.entries["Alt"]).toBeUndefined();
+    expect(moved.entries["Alt"]).toEqual({ updatedAt: T0 + MINUTE });
+    expect(moved.entries["Alt/Haus.md"]).toEqual({ updatedAt: T0 + MINUTE });
+  });
+
+  it("leaves the data alone when no entry matched", () => {
+    const data = setIcon(emptyExplorerData(), "a.md", "home", T0);
+    expect(renamePath(data, "x.md", "y.md", T0 + MINUTE)).toBe(data);
+  });
+
+  it("leaves a cleared stamp that is neither live nor kept past the grace period", () => {
+    const data = setIcon(setPinned(emptyExplorerData(), "A.md", true, T0), "A.md", "star", T0);
+    const moved = renamePath(data, "A.md", "B.md", T0 + MINUTE);
+
+    expect(iconFor(moved, "A.md")).toBeUndefined();
+    expect(isPinned(moved, "A.md")).toBe(false);
+    expect(pinnedPaths(moved)).toEqual(["B.md"]);
+    expect(pruneExplorerData(moved, T0 + MINUTE + 31 * DAY).entries["A.md"]).toBeUndefined();
   });
 
   it("is a no-op when nothing moved", () => {
@@ -168,7 +184,7 @@ describe("a file that disappears", () => {
     const back = reattachOrphans(gone, ["Neu/Haus.md", "Neu/Andere.md"], T0 + MINUTE);
 
     expect(iconFor(back, "Neu/Haus.md")).toBe("home");
-    expect(back.entries["Alt/Haus.md"]).toBeUndefined();
+    expect(back.entries["Alt/Haus.md"]).toEqual({ updatedAt: T0 + MINUTE });
   });
 
   it("leaves an ambiguous match alone rather than guessing", () => {
@@ -212,7 +228,8 @@ describe("a file that disappears", () => {
     const back = reattachOrphans({ version: 2, entries }, moved, T0 + MINUTE);
     expect(performance.now() - started).toBeLessThan(2_000);
     expect(iconFor(back, `Neu/n${count - 1}.md`)).toBe("home");
-    expect(Object.keys(back.entries)).toHaveLength(count);
+    // Each old path keeps a cleared stamp, so the live entries are counted.
+    expect(Object.values(back.entries).filter((entry) => entry.icon)).toHaveLength(count);
   });
 
   it("revives a file that was written again at the same path", () => {

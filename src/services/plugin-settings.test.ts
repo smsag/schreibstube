@@ -6,6 +6,7 @@ import {
   MAX_RENAME_CONTENT_CHARS,
   MIN_FILENAME_LENGTH,
   MIN_RENAME_CONTENT_CHARS,
+  adoptDiskSettings,
   holdsRetiredSettings,
   normalizeSettings,
   RETIRED_SETTING_KEYS
@@ -800,5 +801,41 @@ describe("the answers given for other plugins' sources", () => {
         semanticSources: { pythia: true, reader: false, "No Id": true, other: "yes" } as never
       }).semanticSources
     }).toEqual({ pythia: true, reader: false });
+  });
+});
+
+describe("adoptDiskSettings", () => {
+  const local = normalizeSettings({
+    recommendedCount: 9,
+    syncLastPollAt: 5,
+    semanticSources: { a: true }
+  } as never);
+
+  it("takes ordinary settings from the file", () => {
+    const next = adoptDiskSettings(local, { ...local, recommendedCount: 3 });
+    expect(next?.recommendedCount).toBe(3);
+  });
+
+  it("keeps this device's poll time, source consent and sync records", () => {
+    const next = adoptDiskSettings(local, {
+      syncLastPollAt: 99,
+      semanticSources: { b: true },
+      syncState: { "x.md": { hash: "h", etag: "", checkedAt: 1 } }
+    });
+    expect(next?.syncLastPollAt).toBe(5);
+    expect(next?.semanticSources).toEqual({ a: true });
+    expect(next?.syncState).toEqual(local.syncState);
+  });
+
+  it("validates what it adopts", () => {
+    expect(adoptDiskSettings(local, { llmProvider: "nonsense" })?.llmProvider).toBe(
+      DEFAULT_SETTINGS.llmProvider
+    );
+  });
+
+  it("changes nothing for a missing or unparseable file", () => {
+    for (const bad of [null, undefined, "text", 3, []]) {
+      expect(adoptDiskSettings(local, bad)).toBeNull();
+    }
   });
 });

@@ -71,9 +71,6 @@ describe("BodyIndex", () => {
     expect(index.strengths("x").size).toBe(0);
     index.set("a.md", "x");
     expect(index.strengths("").size).toBe(0);
-    index.clear();
-    expect(index.size).toBe(0);
-    expect(index.vocabularySize).toBe(0);
   });
 });
 

@@ -591,3 +591,24 @@ function integerOf(value: unknown): number | null {
   }
   return null;
 }
+
+/**
+ * The settings another device saved, to take over here.
+ *
+ * data.json is written whole, so a setting changed on one device was undone by
+ * the next automatic save of the other. These two stay this device's own: when
+ * it last polled, and which sources it let in. Nothing is adopted from a file
+ * that is missing or is not an object, which would otherwise read as defaults.
+ */
+export function adoptDiskSettings(
+  local: SchreibstubeSettings,
+  loaded: unknown
+): SchreibstubeSettings | null {
+  if (!loaded || typeof loaded !== "object" || Array.isArray(loaded)) return null;
+  return {
+    ...normalizeSettings(loaded as LoadedSettings),
+    syncLastPollAt: local.syncLastPollAt,
+    semanticSources: local.semanticSources,
+    syncState: local.syncState
+  };
+}

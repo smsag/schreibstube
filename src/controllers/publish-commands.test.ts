@@ -989,6 +989,46 @@ describe("uploading from a phone's point of view", () => {
     expect(Notice.shown.join(" ")).toMatch(/Blog\/bild-0\.png changed while publishing/);
   });
 
+  it("uploads equal bytes under each name the plan gives, not under the last one read", async () => {
+    const bytes = new Uint8Array([137, 80, 78, 71, 1]);
+    const vault = fakeVault({
+      notes: [
+        {
+          path: "Blog/Erste.md",
+          content: "![[Pasted image 1.png]] ![[Pasted image 2.png]]",
+          frontmatter: published
+        }
+      ],
+      binaries: [
+        { path: "Blog/Pasted image 1.png", bytes },
+        { path: "Blog/Pasted image 2.png", bytes }
+      ]
+    });
+    planAsking(["Blog/Pasted image 1.png", "Blog/Pasted image 2.png"]);
+
+    await controller(vault).commands.publish();
+    await runEnded();
+
+    const names = client.uploadAsset.mock.calls.map((call) => call[3]).sort();
+    expect(names).toEqual(["Pasted image 1.png", "Pasted image 2.png"]);
+    expect(client.commit).toHaveBeenCalled();
+  });
+
+  it("stops and names the file when an attachment is too large to read", async () => {
+    const vault = fakeVault({
+      notes: [{ path: "Blog/Erste.md", content: "![[film.mp4]]", frontmatter: published }],
+      binaries: [{ path: "Blog/film.mp4", bytes: new Uint8Array([1]) }]
+    });
+    vault.file("Blog/film.mp4").stat.size = 800_000_000;
+    const reads = vi.spyOn(vault.app.vault, "readBinary");
+
+    await controller(vault).commands.publish();
+
+    expect(reads).not.toHaveBeenCalled();
+    expect(client.plan).not.toHaveBeenCalled();
+    expect(Notice.shown.join(" ")).toMatch(/Blog\/film\.mp4/);
+  });
+
   it("uploads a few at a time, never more than three", async () => {
     const all = pictures(8);
     const vault = fakeVault({
@@ -1280,6 +1320,28 @@ describe("canvases drawn for the site", () => {
     );
     // The picture is sent from memory: there is no file in the vault to read.
     expect(client.uploadAsset.mock.calls[0]?.[4]).toEqual(png(1).buffer);
+  });
+
+  it("carries every name a page points at when two canvases draw the same picture", async () => {
+    askForEverything();
+    capture.capture.mockResolvedValue({ pictures: [png(1)], expected: 1, title: "" });
+    const twice = fakeVault({
+      notes: [
+        {
+          path: "Blog/Plan.md",
+          content: "```vizardry\ntype: swot\n```\n\n```vizardry\ntype: grid\n```",
+          frontmatter: published
+        }
+      ]
+    });
+
+    await controller(twice).commands.publish();
+    await runEnded();
+
+    const names = plannedIndex().assets.map((asset: { name: string }) => asset.name);
+    expect(new Set(names).size).toBe(2);
+    expect(uploadedSource()).toContain(`](${names[0]})`);
+    expect(uploadedSource()).toContain(`](${names[1]})`);
   });
 
   it("publishes a canvas it could not draw as its source, and says so", async () => {

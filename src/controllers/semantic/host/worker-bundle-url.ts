@@ -4,10 +4,10 @@ import { withWorkerPrelude } from "./worker-prelude";
 import { conversationContentHash } from "../../../services/semantic/embedding-index";
 
 /**
- * Write the embedding worker bundle to the plugin folder (once per version) and
- * return a same-origin resource-path URL for it — the blob-free way to start a
- * Worker where `blob:` URLs are blocked (Obsidian mobile, capacitor:// desktop
- * builds; Pythia ADR-126). The bundle is the same one inlined in main.js
+ * Write the embedding worker bundle to the plugin folder (once per version, and
+ * again when the file there is not it) and return a same-origin resource-path
+ * URL for it — the blob-free way to start a Worker where `blob:` URLs are
+ * blocked (Obsidian mobile, capacitor:// desktop builds; Pythia ADR-126). The bundle is the same one inlined in main.js
  * (`getEmbeddingBundle`), so the worker and the iframe never diverge — with the
  * Worker prelude in front of it, as for the blob Worker (#306).
  *
@@ -18,18 +18,20 @@ export async function embeddingWorkerUrl(plugin: Plugin): Promise<string> {
   const adapter = plugin.app.vault.adapter;
   const dir = plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`;
   const source = withWorkerPrelude(getEmbeddingBundle());
-  // Fingerprint the CONTENT, not the version and not a hand-bumped marker. The
-  // file is written only when absent, so a same-version rebuild would otherwise
-  // keep serving stale worker code. #306 used a `-p1` suffix for exactly this
-  // reason, and Pythia ADR-185 changes the prelude again — which is the second time a
-  // manual marker would have had to be remembered. A hash cannot be forgotten.
+  // Fingerprint the CONTENT, not the version and not a hand-bumped marker, so a
+  // same-version rebuild gets a file of its own rather than the old worker code.
+  // #306 used a `-p1` suffix for exactly this reason, and Pythia ADR-185 changes
+  // the prelude again — which is the second time a manual marker would have had
+  // to be remembered. A hash cannot be forgotten.
   // `conversationContentHash` is a generic FNV-1a over strings despite its name;
   // a second hash implementation here would be a second source of truth.
   const fingerprint = conversationContentHash([source]);
   const path = normalizePath(
     `${dir}/embedding-worker-${plugin.manifest.version}-${fingerprint}.mjs`
   );
-  if (!(await adapter.exists(path))) {
+  // Compared, not only looked for: a file cut short or changed under this name
+  // would otherwise stay, and every model load fall back to the UI thread.
+  if (!(await adapter.exists(path)) || (await adapter.read(path)) !== source) {
     await adapter.write(path, source);
     // Best-effort: drop stale worker bundles from older plugin versions. A
     // failure here leaves a few dead files behind and nothing else, which is

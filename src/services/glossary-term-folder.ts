@@ -21,6 +21,7 @@ import {
   type GlossaryConcept,
   type Severity
 } from "./glossary-parser";
+import { splitFrontmatter } from "./frontmatter-block";
 
 /** The one key this plugin writes on a term note. Prefixed like every other. */
 export const TERM_AVOID_KEY = "schreibstubeAvoid";
@@ -146,7 +147,7 @@ export function removeAvoid(current: unknown, word: string): string[] {
  * capped. Pythia writes the definition first, but a hand-edited note may not.
  */
 export function definitionExcerpt(markdown: string): string {
-  const body = markdown.replace(/^---\r?\n(?:[\s\S]*?\r?\n)?---\r?\n?/, "");
+  const body = splitFrontmatter(markdown).body;
   for (const paragraph of body.split(/\r?\n\s*\r?\n/)) {
     const text = paragraph.trim();
     if (!text || text.startsWith(">") || text.startsWith("#") || text.startsWith("```")) continue;

@@ -19,6 +19,7 @@
  */
 import { closesFence, fenceMarker } from "./markdown-fence";
 import { isOpenTask, taskState } from "./task-state";
+import { indentWidth } from "../utils/text";
 
 export const DONE_TASK_MODES = ["back", "archive", "delete"] as const;
 export type DoneTaskMode = (typeof DONE_TASK_MODES)[number];
@@ -61,17 +62,6 @@ interface List {
 
 type Segment = { kind: "lines"; lines: string[] } | { kind: "list"; list: List };
 
-/** A tab is four columns, as in Obsidian's own indentation. */
-function indentWidth(line: string): number {
-  let width = 0;
-  for (const char of line) {
-    if (char === " ") width += 1;
-    else if (char === "\t") width += 4;
-    else break;
-  }
-  return width;
-}
-
 function leadingSpace(line: string): string {
   return /^[ \t]*/.exec(line)?.[0] ?? "";
 }
@@ -90,9 +80,11 @@ class Reader {
   /** For each line that opens a fence, the line that closes it. */
   private readonly fenceEnd = new Map<number, number>();
   private readonly opaque: boolean[];
+  private readonly unread: boolean[];
 
   constructor(private readonly lines: readonly string[]) {
     this.opaque = lines.map(() => false);
+    this.unread = lines.map(() => false);
     let at = 0;
     if (lines[0] === "---") {
       const close = lines.findIndex((line, i) => i > 0 && (line === "---" || line === "..."));
@@ -101,29 +93,83 @@ class Reader {
         at = close + 1;
       }
     }
-    let open: { line: number; fence: string } | null = null;
-    for (; at < lines.length; at += 1) {
-      const line = lines[at] ?? "";
+    let open: { line: number; fence: string; base: number | null } | null = null;
+    while (at < lines.length || open) {
+      const line = lines[at];
+      const marker = line === undefined ? null : fenceMarker(line);
       if (!open) {
-        const marker = fenceMarker(line);
-        if (marker) open = { line: at, fence: marker };
+        if (marker) open = { line: at, fence: marker, base: this.itemBase(at) };
+      } else if (line === undefined) {
+        // Unclosed at the top level it is text to the end of the note, as
+        // Obsidian reads it. Inside a list item it ends where the item does:
+        // read as running on, a delete took the rest of the note with the task.
+        if (open.base === null) this.seal(open.line, lines.length - 1);
+        else at = this.sealToItemEnd(open.line, open.base) - 1;
+        open = null;
       } else if (closesFence(line, open.fence)) {
-        this.close(open.line, at);
+        // A fence line outside the item cannot close a fence inside it; it
+        // opens one of its own, so the scan goes back to where the item ended.
+        if (open.base !== null && indentWidth(line) <= open.base) {
+          at = this.sealToItemEnd(open.line, open.base) - 1;
+        } else {
+          this.close(open.line, at);
+        }
         open = null;
       }
+      at += 1;
     }
-    // An unclosed fence runs to the end of the note, as Obsidian reads it.
-    if (open) this.close(open.line, lines.length - 1);
+
+    // Only the first archive section takes the filing; a later one is never
+    // read either. Its headings stay headings, so the first still ends there.
+    const archives = lines.map((_, i) => i).filter((i) => this.isArchiveHeading(i));
+    for (const start of archives.slice(1)) {
+      for (let i = start; i < this.sectionEnd(start); i += 1) this.unread[i] = true;
+    }
   }
 
   private close(open: number, end: number): void {
     this.fenceEnd.set(open, end);
-    for (let i = open; i <= end; i += 1) this.opaque[i] = true;
+    this.seal(open, end);
+  }
+
+  private seal(from: number, to: number): void {
+    for (let i = from; i <= to; i += 1) this.opaque[i] = true;
+  }
+
+  /** The indentation of the list item whose body line `at` lies in, or null. */
+  private itemBase(at: number): number | null {
+    const indent = indentWidth(this.lines[at] ?? "");
+    for (let i = at - 1; i >= 0; i -= 1) {
+      const line = this.lines[i] ?? "";
+      if (this.opaque[i] || isBlank(line) || indentWidth(line) >= indent) continue;
+      return ITEM_PATTERN.test(line) && !RULE_PATTERN.test(line) ? indentWidth(line) : null;
+    }
+    return null;
+  }
+
+  /**
+   * Make the unbalanced fence opened at `open` text up to the end of its list
+   * item, recording no fence end, and return the line the item ends before.
+   */
+  private sealToItemEnd(open: number, base: number): number {
+    let end = open + 1;
+    while (end < this.lines.length) {
+      const line = this.lines[end] ?? "";
+      if (!isBlank(line) && indentWidth(line) <= base) break;
+      end += 1;
+    }
+    this.seal(open, end - 1);
+    return end;
   }
 
   isItem(index: number): boolean {
     const line = this.lines[index] ?? "";
-    return !this.opaque[index] && ITEM_PATTERN.test(line) && !RULE_PATTERN.test(line);
+    return (
+      !this.opaque[index] &&
+      !this.unread[index] &&
+      ITEM_PATTERN.test(line) &&
+      !RULE_PATTERN.test(line)
+    );
   }
 
   isHeading(index: number): boolean {
@@ -138,12 +184,17 @@ class Reader {
   archiveSection(): { start: number; end: number } | null {
     const start = this.lines.findIndex((_, i) => this.isArchiveHeading(i));
     if (start === -1) return null;
+    return { start, end: this.sectionEnd(start) };
+  }
+
+  /** The line the archive section starting at `start` ends before. */
+  private sectionEnd(start: number): number {
     const level = ARCHIVE_PATTERN.exec(this.lines[start] ?? "")?.[1]?.length ?? 2;
     for (let i = start + 1; i < this.lines.length; i += 1) {
       const heading = this.isHeading(i) ? HEADING_PATTERN.exec(this.lines[i] ?? "") : null;
-      if (heading && (heading[1]?.length ?? 0) <= level) return { start, end: i };
+      if (heading && (heading[1]?.length ?? 0) <= level) return i;
     }
-    return { start, end: this.lines.length };
+    return this.lines.length;
   }
 
   /** Lines `from` up to `to`, exclusive, as lists and the lines between them. */

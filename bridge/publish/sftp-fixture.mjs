@@ -30,8 +30,15 @@ export async function startSftpServer({ user = "web", password = "geheim", laten
   // Paths the server refuses to remove, answering "permission denied", so a
   // test can see what a publish does with a deletion the host would not do;
   // and paths whose writes it holds for a while before answering, so a test
-  // can see what a publish that ran out of time does next.
-  const stats = { requests: {}, reads: [], refusedRemovals: new Set(), slowWrites: new Map() };
+  // can see what a publish that ran out of time does next; and path prefixes
+  // it will not write below, so a test can stop a publish halfway.
+  const stats = {
+    requests: {},
+    reads: [],
+    refusedRemovals: new Set(),
+    slowWrites: new Map(),
+    refusedWrites: new Set()
+  };
   const root = await mkdtemp(join(tmpdir(), "schreibstube-sftp-"));
   const { privateKey } = generateKeyPairSync("rsa", {
     modulusLength: 2048,
@@ -146,6 +153,9 @@ function serve(channel, root, { latencyMs, stats }) {
     const writing = Boolean(flags & (OPEN_MODE.WRITE | OPEN_MODE.TRUNC | OPEN_MODE.CREAT));
     for (const [prefix, ms] of stats.slowWrites) {
       if (writing && path.startsWith(prefix)) await new Promise((done) => setTimeout(done, ms));
+    }
+    for (const prefix of stats.refusedWrites) {
+      if (writing && path.startsWith(prefix)) return sftp.status(id, STATUS.PERMISSION_DENIED);
     }
     try {
       if (writing) {

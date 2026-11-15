@@ -41,6 +41,7 @@ import {
   PUBLISH_KEY_ROLES,
   type PublishKeyMap
 } from "./publish-index";
+import { frontmatterLineCount } from "./frontmatter-block";
 
 /** What a set may put in a note: YAML scalars, and lists of them. */
 export type PropertyValue = string | number | boolean | null | (string | number | boolean)[];
@@ -180,10 +181,14 @@ export function isFolderSetPath(path: string, folder: string): boolean {
 
 /** The frontmatter block of a note's text, without its fences, or null. */
 export function frontmatterBlock(text: string): string | null {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text);
-  if (match) return match[1] ?? "";
-  // An empty block: the two fences with nothing between them.
-  return /^---\r?\n---(?:\r?\n|$)/.test(text) ? "" : null;
+  const lines = text.split("\n");
+  const count = frontmatterLineCount(lines);
+  if (count === 0) return null;
+  // An empty block, the two fences with nothing between them, is "".
+  return lines
+    .slice(1, count - 1)
+    .map((line) => line.replace(/\r$/, ""))
+    .join("\n");
 }
 
 export function hasTemplaterCode(text: string): boolean {

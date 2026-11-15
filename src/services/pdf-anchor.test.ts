@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isUsableSelection, parsePdfSubpath, pdfSubpath } from "./pdf-anchor";
+import { isUsableSelection, pdfSubpath } from "./pdf-anchor";
 import type { PdfSelection } from "./pdf-anchor";
 
 const selection: PdfSelection = { beginIndex: 4, beginOffset: 0, endIndex: 6, endOffset: 31 };
@@ -45,31 +45,5 @@ describe("isUsableSelection", () => {
 
   it("rejects nothing at all", () => {
     expect(isUsableSelection(undefined)).toBe(false);
-  });
-});
-
-describe("parsePdfSubpath", () => {
-  it("reads back what it writes", () => {
-    const anchor = { page: 12, selection };
-    expect(parsePdfSubpath(pdfSubpath(anchor))).toEqual(anchor);
-  });
-
-  it("tolerates the leading hash a link carries", () => {
-    expect(parsePdfSubpath("#page=3")).toEqual({ page: 3 });
-  });
-
-  it("keeps the page when the selection is malformed", () => {
-    expect(parsePdfSubpath("page=3&selection=4,0")).toEqual({ page: 3 });
-    expect(parsePdfSubpath("page=3&selection=9,0,4,1")).toEqual({ page: 3 });
-  });
-
-  it("answers nothing for a subpath that addresses no page", () => {
-    expect(parsePdfSubpath("height=400")).toBeNull();
-    expect(parsePdfSubpath("page=0")).toBeNull();
-    expect(parsePdfSubpath("")).toBeNull();
-  });
-
-  it("ignores parameters it does not know, rather than failing on them", () => {
-    expect(parsePdfSubpath("page=7&height=400")).toEqual({ page: 7 });
   });
 });

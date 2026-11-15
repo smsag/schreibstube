@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 /**
- * Every hand-built button wears one of this plugin's nine roles.
+ * Every hand-built button wears one of this plugin's seven roles.
  *
  * Obsidian sets a fill, a label colour, a height, a radius, a shadow and — on a
  * tablet or in a phone modal — a padding and a width on every `button` in the
@@ -24,17 +24,7 @@ const css = readFileSync(new URL("../../styles.css", import.meta.url), "utf8")
 
 const SCOPE =
   ":is(.schreibstube-review, .schreibstube-explorer, .schreibstube-icon-picker, .schreibstube-prompt, .schreibstube-recommended-footer, .schreibstube-related-notes)";
-const ROLES = [
-  "primary",
-  "secondary",
-  "quiet",
-  "destructive",
-  "link",
-  "icon",
-  "seg",
-  "tab",
-  "chip-warn"
-];
+const ROLES = ["primary", "secondary", "quiet", "destructive", "link", "icon", "seg"];
 
 describe("the role set", () => {
   it("has a base rule that claims every property Obsidian's own sets", () => {
@@ -73,7 +63,7 @@ describe("the role set", () => {
     );
   });
 
-  it("gives each of the nine roles a rule", () => {
+  it("gives each of the seven roles a rule", () => {
     for (const role of ROLES) {
       expect(css, `no rule for sb-${role}`).toContain(`${SCOPE} .sb.sb-${role}`);
     }
@@ -121,7 +111,7 @@ describe("every hand-built button names a role", () => {
       // A literal role, or the review panel's factory, whose role parameter is
       // a union the next test pins.
       expect(m[0], `a hand-built button with no role:\n${m[0]}`).toMatch(
-        /\bsb sb-(primary|secondary|quiet|destructive|link|icon|seg|tab|chip-warn|\$\{role\})(?![\w-])/
+        /\bsb sb-(primary|secondary|quiet|destructive|link|icon|seg|\$\{role\})(?![\w-])/
       );
     }
   });

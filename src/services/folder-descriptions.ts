@@ -40,8 +40,7 @@ export function planFolderDescriptions(
   folder: string,
   pictures: readonly FolderPicture[],
   hasDescription: (path: string) => boolean,
-  maxBytes: number,
-  cap: number = MAX_FOLDER_DESCRIPTIONS
+  maxBytes: number
 ): FolderDescriptionPlan {
   const inFolder = pictures
     .filter((picture) => isUnderFolder(picture.path, folder))
@@ -56,9 +55,9 @@ export function planFolderDescriptions(
     else pending.push(picture.path);
   }
   return {
-    describe: pending.slice(0, cap),
+    describe: pending.slice(0, MAX_FOLDER_DESCRIPTIONS),
     described,
     tooLarge,
-    deferred: Math.max(0, pending.length - cap)
+    deferred: Math.max(0, pending.length - MAX_FOLDER_DESCRIPTIONS)
   };
 }

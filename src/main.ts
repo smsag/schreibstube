@@ -25,6 +25,7 @@ import { findOverlayHost, isNoteEditor } from "./platform/overlay-host";
 import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
 import {
   DEFAULT_SETTINGS,
+  adoptDiskSettings,
   holdsRetiredSettings,
   normalizeSettings
 } from "./services/plugin-settings";
@@ -93,6 +94,8 @@ import { ReadingHistoryController } from "./controllers/reading-history-controll
 import { createGlossaryUnderlineExtension } from "./processors/glossary-underline";
 import { revealFlashExtension } from "./processors/reveal-flash";
 import { typewriterExtension } from "./processors/typewriter";
+import { parentOf } from "./services/tree-move";
+import { createReviewFollowExtension } from "./processors/review-follow";
 import {
   createIconShortcodeExtension,
   registerIconShortcodePostProcessor
@@ -143,7 +146,6 @@ import type {
   RecommendedItem
 } from "./ui/recommended-panel";
 import type { RecentHost } from "./ui/recent-panel";
-import { folderOfPath } from "./services/ensure-folder";
 import { fileGlyph } from "./services/file-glyph";
 import { obsidianFileUrl } from "./services/obsidian-url";
 import { splitItemKey, type SchreibstubeSemanticApi } from "./services/semantic/semantic-api";
@@ -239,6 +241,9 @@ export default class SchreibstubePlugin extends Plugin {
   /** One save at a time: each reads the file before writing it, and two
    *  interleaved would each merge against what the other is about to replace. */
   private saveChain: Promise<void> = Promise.resolve();
+  /** Saves asked for and not yet on disk; their values are newer than the file's. */
+  private savesPending = 0;
+  private savesStarted = 0;
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private share: ShareCommands | null = null;
@@ -505,6 +510,12 @@ export default class SchreibstubePlugin extends Plugin {
     this.registerEditorExtension(revealFlashExtension);
     // Idle in every editor but the new note's opened with the link's flag.
     this.registerEditorExtension(typewriterExtension);
+    // The review cards move with every edit of the note they belong to.
+    this.registerEditorExtension(
+      createReviewFollowExtension((path, editorDom, map) =>
+        this.proofread?.followEdit(path, editorDom, map)
+      )
+    );
     // `:folder:` in a note: the picker while one is typed, the glyph in Live
     // Preview, and the glyph in Reading view. One setting switches all three.
     const iconShortcodes = (): boolean => this.settings.iconShortcodes;
@@ -1067,7 +1078,7 @@ export default class SchreibstubePlugin extends Plugin {
       lastOpened: () => this.app.workspace.getLastOpenFiles(),
       // Trashed files are still in the vault, but not anywhere a person looks.
       titleOf: (path) => (explorer.isTrashed(path) ? null : explorer.displayTitle(path)),
-      folderOf: (path) => folderOfPath(path),
+      folderOf: (path) => parentOf(path),
       glyphOf: (path) => host.glyphOf(path),
       open: (path, where) => host.open(path, where),
       showMenu: (path, event) => host.showMenu(path, event)
@@ -1538,7 +1549,8 @@ export default class SchreibstubePlugin extends Plugin {
     return {
       read: async () => ((await adapter.exists(path)) ? adapter.read(path) : null),
       write: async (text) => adapter.write(path, text),
-      mtime: async () => (await adapter.stat(path))?.mtime ?? null
+      mtime: async () => (await adapter.stat(path))?.mtime ?? null,
+      keepUnreadable: async (text) => adapter.write(`${path}.broken`, text)
     };
   }
 
@@ -1848,9 +1860,19 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   async saveSettings(): Promise<void> {
+    this.savesPending += 1;
+    this.savesStarted += 1;
     const run = this.saveChain.then(() => this.writeSettings());
     this.saveChain = run.catch(() => undefined);
-    await run;
+    try {
+      await run;
+    } finally {
+      this.savesPending -= 1;
+    }
+    this.refreshAfterSettings();
+  }
+
+  private refreshAfterSettings(): void {
     // A changed bookmarks path only matters once the pane has been told;
     // nothing else watches the settings object. The Latest list is not told
     // here: it reads the sync records, and the store says when those change.
@@ -1898,20 +1920,42 @@ export default class SchreibstubePlugin extends Plugin {
   /**
    * Another device's save has arrived.
    *
-   * Only the sync records are taken from it, merged note by note: they are what
-   * a device acts on without being asked, and a stale copy reported updates the
-   * note already held. Settings a person changed keep the rule they always had.
+   * Its settings are adopted, so a change made there is not written back over
+   * by this device's next automatic save. Sync records are merged note by note
+   * and the per-device keys stay local (see `adoptDiskSettings`). Whatever is
+   * read once at load applies at the next start.
+   *
+   * A save of this device's own that has not reached the file yet wins: the
+   * person's change is in memory first and the save writes it out, so adopting
+   * now would throw it away.
    */
   override async onExternalSettingsChange(): Promise<void> {
-    const disk = await this.readDiskSyncState();
-    if (disk === null) return;
+    let loaded: unknown;
+    const savesBefore = this.savesStarted;
+    try {
+      loaded = await this.loadData();
+    } catch (error) {
+      this.logger.debug("Could not read the data file after another device saved:", error);
+      return;
+    }
+    // A save that began while the file was being read makes that read stale.
+    const ownSave = this.savesPending > 0 || this.savesStarted !== savesBefore;
+    const adopted = ownSave ? null : adoptDiskSettings(this.settings, loaded);
+    const disk = normalizeSettings(loaded as never).syncState;
 
     const merged = mergeSyncState({
       local: this.settings.syncState,
       disk,
       dropped: this.droppedSyncRecords
     });
-    if (sameSyncState(merged, this.settings.syncState)) return;
+    const syncChanged = !sameSyncState(merged, this.settings.syncState);
+    if (adopted !== null) {
+      this.settings = { ...adopted, syncState: merged };
+      this.refreshAfterSettings();
+      if (syncChanged) this.sections?.invalidateLatest();
+      return;
+    }
+    if (!syncChanged) return;
 
     this.settings.syncState = merged;
     this.sections?.invalidateLatest();

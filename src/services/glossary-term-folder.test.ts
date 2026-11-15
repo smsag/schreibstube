@@ -339,3 +339,11 @@ describe("translationSuggestions", () => {
     expect(translationSuggestions(undefined, "T")).toEqual([]);
   });
 });
+
+describe("definitionExcerpt frontmatter fences", () => {
+  it("skips a block closed with `...` or fenced with trailing spaces, and not one closed by `----`", () => {
+    expect(definitionExcerpt("---  \nkey: v\n...\nDie Definition.")).toBe("Die Definition.");
+    expect(definitionExcerpt("---\nkey: v\n---  \nDie Definition.")).toBe("Die Definition.");
+    expect(definitionExcerpt("---\nkey: v\n----\nText")).toContain("key: v");
+  });
+});

@@ -25,9 +25,3 @@ export function missingAncestors(path: string, exists: (folder: string) => boole
   }
   return missing;
 }
-
-/** The folder a file at `path` sits in; empty at the vault root. */
-export function folderOfPath(path: string): string {
-  const cut = path.lastIndexOf("/");
-  return cut === -1 ? "" : path.slice(0, cut);
-}

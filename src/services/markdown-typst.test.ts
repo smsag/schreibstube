@@ -979,3 +979,16 @@ describe("marks and breaks for the preview", () => {
     expect(convert("A\n\nB")).toBe("A\n\nB");
   });
 });
+
+describe("frontmatter fences", () => {
+  it("drops a block closed with `...` or fenced with trailing spaces", () => {
+    for (const note of [
+      "---  \ntitle: Geheim\n...\n\nHallo",
+      "---\ntitle: Geheim\n---  \n\nHallo"
+    ]) {
+      const out = convert(note);
+      expect(out).toContain("Hallo");
+      expect(out).not.toContain("Geheim");
+    }
+  });
+});

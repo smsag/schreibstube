@@ -347,3 +347,11 @@ describe("setsToComplete", () => {
     ]);
   });
 });
+
+describe("frontmatterBlock fences", () => {
+  it("reads a `...` closer and trailing spaces after a fence", () => {
+    expect(frontmatterBlock("---  \na: 1\n...\nBody")).toBe("a: 1");
+    expect(frontmatterBlock("---\na: 1\n---  \nBody")).toBe("a: 1");
+    expect(frontmatterBlock("---\n...\nBody")).toBe("");
+  });
+});

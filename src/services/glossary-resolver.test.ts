@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatFolderRules,
   matchFolderRule,
   parseFolderRules,
   parseGlossaryList,
@@ -135,11 +134,6 @@ describe("parseFolderRules", () => {
     expect(parseFolderRules("\n# comment\nkein Trenner\nKunden | A.md")).toEqual([
       { folder: "Kunden", glossaries: ["A.md"] }
     ]);
-  });
-
-  it("round-trips through formatFolderRules", () => {
-    const text = "Kunden | A.md, B.md";
-    expect(formatFolderRules(parseFolderRules(text))).toBe(text);
   });
 });
 

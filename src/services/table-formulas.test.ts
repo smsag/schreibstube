@@ -6,7 +6,6 @@ import {
   findTables,
   applyFreezes,
   formulaOutcomes,
-  freezeFormulas,
   freezePlan,
   parseFormula,
   resolveFormulas,
@@ -292,24 +291,12 @@ describe("evaluateGrid, for what a cell shows and what it says about its rates",
   });
 });
 
-describe("freezeFormulas", () => {
-  it("freezes a fixed formula at its result, once", () => {
-    const note = "| A |\n|---|\n| 5 € |\n| 7 € |\n| **=sum(fixed)** |";
-    const first = freezeFormulas(note, ctx);
-    expect(first.frozen).toBe(1);
-    expect(plain(first.text)).toContain("| **=sum(fixed: 12 €)** |");
-    expect(freezeFormulas(first.text, ctx)).toEqual({ text: first.text, frozen: 0 });
-  });
-
-  it("leaves live formulas and ones without a number alone", () => {
-    const note = "| A | B |\n|---|---|\n| 5 | x |\n| =sum | =avg(fixed) |";
-    expect(freezeFormulas(note, ctx)).toEqual({ text: note, frozen: 0 });
-  });
-
+describe("a frozen total", () => {
   it("keeps parentheses out of the frozen text, where they would end it", () => {
     const rates = { date: "2026-09-26", fetchedAt: 0, rates: { USD: 1.25 } };
     const note = "| A |\n|---|\n| 5 € |\n| 5 $ |\n| =sum(fixed) |";
-    const frozen = freezeFormulas(note, { ...ctx, defaultCurrency: "EUR", rates }).text;
+    const fctx = { ...ctx, defaultCurrency: "EUR", rates };
+    const frozen = applyFreezes(note, freezePlan(note, fctx))?.text ?? "";
     expect(plain(frozen)).toContain("=sum(fixed: ≈ 9,00 € · ECB 26.09.2026)");
     expect(parseFormula(frozen.split("\n")[4]!.slice(1, -1))?.frozen).toContain("9,00");
   });

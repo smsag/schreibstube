@@ -123,7 +123,7 @@ type UpdateOutcome = "embedded" | "dropped" | "unchanged";
 
 /** What an edit batch may do. */
 export interface BatchOptions {
-  /** Add no new note past this many (the note limit). */
+  /** The note limit; new notes are added up to a tenth past it, see `updateInMemory`. */
   cap?: number;
   /** Embed at most this many notes; the rest keep their rows (0 or absent: no limit). */
   maxEmbeds?: number;
@@ -185,7 +185,7 @@ export class VaultIndexService {
   /** What the persisted index says about ITSELF (Pythia ADR-184) — whether the build
    *  that wrote it finished, and the scope its rows were selected under. */
   private meta: IndexMeta = EMPTY_INDEX_META;
-  /** Serializes all mutations (sync / updateNote / removeNote / clear) so they
+  /** Serializes all mutations (sync / updateNote / applyBatch / clear) so they
    *  never interleave — a targeted edit can't race a full build (Pythia ADR-121). */
   private chain: Promise<unknown> = Promise.resolve();
   private synced = false;
@@ -289,10 +289,21 @@ export class VaultIndexService {
    * while it runs, or its catch-up at the next launch. What the phone saves is
    * the whole-file write (~19 MB at the cap) and the two devices overwriting
    * each other's copy of one synced file.
+   *
+   * A phone writes an index it signed itself, and one it read whole that
+   * nobody signed — from before keepers, a phone-only vault's — which its
+   * write then signs, so a phone never needs a build to keep its edits. With
+   * no file yet or one it could not read, it does not: its write would put a
+   * base of a row or two under the shared name, and a desktop adopting it
+   * would shrink its index to that.
    */
   private writesEdits(): boolean {
-    return !(this.device === "mobile" && this.meta.keeper === "desktop");
+    if (this.device !== "mobile" || this.meta.keeper === "mobile") return true;
+    return this.meta.keeper === undefined && this.baseRead;
   }
+
+  /** Whether the last load decoded a base of this model from the store. */
+  private baseRead = false;
 
   /** Which stored rows this device may reuse (Pythia ADR-201). */
   private get policy(): HashPolicy {
@@ -373,13 +384,9 @@ export class VaultIndexService {
     return this.meta.complete && this.meta.scope === scope;
   }
 
-  /** The scope the persisted rows were selected under, for diagnostics. */
-  indexedScope(): string {
-    return this.meta.scope;
-  }
-
   private async load(): Promise<void> {
     if (this.loaded) return;
+    this.baseRead = false;
     await this.rememberBaseMtime();
     const buf = await this.store.read();
     if (buf) {
@@ -402,6 +409,7 @@ export class VaultIndexService {
             if (this.journal) rows = applyJournal(rows, this.journal.content());
           }
           this.items = rows;
+          this.baseRead = true;
           this.meta = {
             ...meta,
             ...(merged.keeper ? { keeper: merged.keeper } : {}),
@@ -490,16 +498,11 @@ export class VaultIndexService {
    * content changed, add it if new, drop it if now empty/unreadable. No-ops unless
    * the index is already built (`isReady`); a not-yet-built index is handled by a
    * full `sync`. `cap` (when > 0) prevents ADDING a new note past the note cap.
-   * This is what the vault watcher calls on an edit, so a single note change costs
-   * one embed instead of rescanning the whole corpus.
+   * A one-note `applyBatch`; the vault watcher goes through `applyBatch` either
+   * way, so a single note change costs one embed instead of rescanning the corpus.
    */
   updateNote(note: IndexableNote, opts: { cap?: number } = {}): Promise<void> {
     return this.applyBatch({ updates: [note], removes: [] }, opts);
-  }
-
-  /** Targeted removal of a single note from the index (delete / moved out of scope). */
-  removeNote(path: string): Promise<void> {
-    return this.applyBatch({ updates: [], removes: [path] }, {});
   }
 
   /**
@@ -653,7 +656,11 @@ export class VaultIndexService {
     const { hash, reuse } = resolveRowHash(this.policy, prev?.contentHash, chunks);
     if (reuse) return "unchanged"; // or a row this device accepts — Pythia ADR-201
     const cap = opts.cap ?? 0;
-    if (!prev && cap > 0 && this.size() >= cap) return "unchanged"; // cap new adds
+    // The caller sends only notes a build would select, and a note created
+    // now is the newest of them: refused at the cap, it went unfound until the
+    // next full pass, which also trims what it pushed past the cap. A tenth
+    // more is the bound on how far edits may grow the index until then.
+    if (!prev && cap > 0 && this.size() >= cap + Math.ceil(cap / 10)) return "unchanged";
     if (!opts.mayEmbed) return "unchanged";
 
     const raw = await this.embedAll(chunks);
@@ -745,9 +752,11 @@ export class VaultIndexService {
 
   /** Whether the base on disk is no longer the one this instance read or
    *  wrote — another device's write, delivered by sync. Only a store that can
-   *  tell (a real file) is asked; the rest read as unchanged. */
+   *  tell (a real file) is asked; the rest read as unchanged. A base that
+   *  appeared where none was read counts: a phone that looked before the
+   *  desktop's first one synced would otherwise never read it. */
   async baseReplacedOnDisk(): Promise<boolean> {
-    if (!this.store.mtime || this.baseMtime === null) return false;
+    if (!this.store.mtime) return false;
     try {
       const now = await this.store.mtime();
       return now !== null && now !== this.baseMtime;
@@ -1056,7 +1065,9 @@ export class VaultIndexService {
       this.meta.scope !== scope ||
       this.meta.keeper !== this.device
     ) {
-      await persist(final, true);
+      // A phone's pass merges here too: one that finishes inside its budget
+      // would otherwise write over what the desktop wrote while it ran.
+      await persist(options.mergeFromStore ? null : final, true);
     }
     this.synced = true;
     return { embedded, stopped };

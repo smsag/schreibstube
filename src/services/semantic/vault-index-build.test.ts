@@ -341,7 +341,6 @@ describe("VaultIndexService — completeness (Pythia ADR-184)", () => {
     await svc.sync([alpha, beta], undefined, {}, "SCOPE-WIDE");
     expect(svc.isComplete("SCOPE-WIDE")).toBe(true);
     expect(svc.isComplete("SCOPE-NARROW")).toBe(false);
-    expect(svc.indexedScope()).toBe("SCOPE-WIDE");
   });
 
   it("marks a no-op re-sync complete when the file did not say so", async () => {

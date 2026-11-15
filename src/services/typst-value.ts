@@ -80,12 +80,6 @@ export function typstKey(key: string): string {
   return identifier && !TYPST_KEYWORDS.has(key) ? key : typstString(key);
 }
 
-/** A length such as `25mm` or `1.5cm`, or null when the text is not one. */
-export function typstLength(value: string): string | null {
-  const match = /^(-?\d+(?:\.\d+)?)\s*(mm|cm|in|pt|em)$/.exec(value.trim());
-  return match ? `${match[1]}${match[2]}` : null;
-}
-
 /**
  * A list of values as Typst reads one.
  *

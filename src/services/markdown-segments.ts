@@ -97,7 +97,8 @@ export function segmentMarkdown(text: string): SegmentResult {
   // A frontmatter block is only frontmatter on the very first line.
   if (lines[0]?.text.trim() === "---") {
     const close = findLine(lines, 1, (line) => line.text.trim() === "---");
-    index = close === -1 ? lines.length : close + 1;
+    // Unclosed, it is a rule, and the note is prose from the top.
+    if (close !== -1) index = close + 1;
   }
 
   for (let line = lines[index]; line !== undefined; line = lines[index]) {

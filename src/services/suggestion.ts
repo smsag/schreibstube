@@ -155,8 +155,8 @@ export interface ResolvedAnchor {
  * Find where a suggestion belongs in the current document text.
  *
  * In order: the recorded offsets if the text there is unchanged, then the
- * nearest occurrence within a window around them, then a whole-document search
- * that only counts if the result is unique. Anything else is unplaceable.
+ * occurrence within a window around them, then a whole-document search; each
+ * of the last two only counts if it finds the text exactly once. Anything else is unplaceable.
  */
 export function resolveAnchor(docText: string, suggestion: Suggestion): ResolvedAnchor | null {
   const { from, to, original } = suggestion;
@@ -172,14 +172,13 @@ export function resolveAnchor(docText: string, suggestion: Suggestion): Resolved
     return { from, to };
   }
 
+  // Close by it counts only if it is the one copy there: with two, nothing says
+  // which the card was recorded on, and the wrong one is a silent edit.
   const windowStart = Math.max(0, from - NEARBY_WINDOW);
-  const windowEnd = Math.min(docText.length, to + NEARBY_WINDOW);
-  const nearby = nearestOccurrence(
-    docText.slice(windowStart, windowEnd),
-    original,
-    from - windowStart
-  );
+  const windowText = docText.slice(windowStart, Math.min(docText.length, to + NEARBY_WINDOW));
+  const nearby = windowText.indexOf(original);
   if (nearby !== -1) {
+    if (windowText.indexOf(original, nearby + 1) !== -1) return null;
     return { from: windowStart + nearby, to: windowStart + nearby + original.length };
   }
 
@@ -341,6 +340,36 @@ export function settleStatuses(
       return { ...suggestion, status: "stale" as const };
     }
     return suggestion;
+  });
+}
+
+/**
+ * Where a position in the text before an edit stands after it. `assoc` says
+ * which side of text inserted exactly there the position keeps to: -1 before
+ * it, 1 after it. The editor's own change sets answer this.
+ */
+export type PositionMap = (pos: number, assoc: -1 | 1) => number;
+
+/**
+ * Move the open cards through an edit of the note, so a card keeps naming the
+ * words it was recorded on however much is typed, pasted or undone around
+ * them. The ids stay as they were: the panel and the merge of a later scan
+ * know a card by them.
+ *
+ * Text typed against a card's start goes in front of it, and text typed
+ * against its end stays outside it; a pure insertion keeps to the text before
+ * its point, which is what it is found by. An edit inside a card moves its
+ * ends but not its recorded text, so the staleness check sees the difference.
+ */
+export function mapSuggestions(suggestions: Suggestion[], map: PositionMap): Suggestion[] {
+  return suggestions.map((suggestion) => {
+    if (suggestion.status !== "pending" && suggestion.status !== "stale") return suggestion;
+    const point = suggestion.from === suggestion.to;
+    const from = map(suggestion.from, point ? -1 : 1);
+    const to = point ? from : Math.max(from, map(suggestion.to, -1));
+    return from === suggestion.from && to === suggestion.to
+      ? suggestion
+      : { ...suggestion, from, to };
   });
 }
 

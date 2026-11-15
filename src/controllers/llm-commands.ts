@@ -40,7 +40,8 @@ import {
 } from "../services/llm-tags";
 
 import { insertTable, selectedLineRange } from "./table-insert";
-import { missingAncestors, folderOfPath } from "../services/ensure-folder";
+import { missingAncestors } from "../services/ensure-folder";
+import { parentOf } from "../services/tree-move";
 
 type DescribeOutcome =
   | { kind: "described"; title: string }
@@ -327,7 +328,7 @@ export class LlmCommands {
   private async writeNote(path: string, content: string): Promise<void> {
     const exists = (folder: string): boolean =>
       this.app.vault.getAbstractFileByPath(folder) !== null;
-    for (const folder of missingAncestors(folderOfPath(path), exists)) {
+    for (const folder of missingAncestors(parentOf(path), exists)) {
       await this.app.vault.createFolder(folder);
     }
     const existing = this.app.vault.getFileByPath(path);

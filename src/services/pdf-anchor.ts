@@ -78,35 +78,3 @@ export function pdfSubpath(anchor: PdfAnchor): string {
   const { beginIndex, beginOffset, endIndex, endOffset } = anchor.selection;
   return `${page}&selection=${beginIndex},${beginOffset},${endIndex},${endOffset}`;
 }
-
-/**
- * Read a subpath back into an anchor, or `null` when it addresses no page.
- *
- * Used to tell a mark this plugin wrote from one a person typed, and to leave
- * anything it does not understand alone rather than rewriting it.
- */
-export function parsePdfSubpath(subpath: string): PdfAnchor | null {
-  const trimmed = subpath.startsWith("#") ? subpath.slice(1) : subpath;
-  const parts = new Map<string, string>();
-  for (const pair of trimmed.split("&")) {
-    const at = pair.indexOf("=");
-    if (at > 0) parts.set(pair.slice(0, at), pair.slice(at + 1));
-  }
-
-  const page = Number(parts.get("page"));
-  if (!Number.isInteger(page) || page < 1) return null;
-
-  const raw = parts.get("selection");
-  if (!raw) return { page };
-
-  const numbers = raw.split(",").map(Number);
-  if (numbers.length !== 4) return { page };
-  const [beginIndex, beginOffset, endIndex, endOffset] = numbers as [
-    number,
-    number,
-    number,
-    number
-  ];
-  const selection = { beginIndex, beginOffset, endIndex, endOffset };
-  return isUsableSelection(selection) ? { page, selection } : { page };
-}

@@ -349,9 +349,11 @@ export class SourceIndex {
     if (this.released || !this.allowed() || this.index !== index) return;
     const changed = [...this.pending.values()];
     const keep = [...this.meta].sort((a, b) => b[1].updatedAt - a[1].updatedAt).map(([id]) => id);
-    const failed = await index.update(changed, keep);
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- another call may set it while this one awaited
-    if (this.released || this.index !== index) return;
+    // Asked before each item and before the write: a source refused while it
+    // embeds stops there, and nothing of it is written.
+    const stopped = (): boolean => this.released || !this.allowed() || this.index !== index;
+    const failed = await index.update(changed, keep, stopped);
+    if (stopped()) return;
     for (const item of changed) {
       if (this.pending.get(item.id) !== item) continue;
       // An item whose embed failed stays pending: a source with a cursor will
