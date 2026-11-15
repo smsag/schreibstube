@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mergeSyncState, sameSyncState } from "./sync-merge";
+import { mergeSyncState, sameSyncState, updatesStillCurrent } from "./sync-merge";
 import type { SyncRecord } from "./sync-document";
 
 function record(checkedAt: number, hash = `h${checkedAt}`): SyncRecord {
@@ -98,5 +98,43 @@ describe("sameSyncState", () => {
     expect(sameSyncState({ "A.md": record(1) }, { "A.md": record(2) })).toBe(false);
     expect(sameSyncState({ "A.md": record(1) }, {})).toBe(false);
     expect(sameSyncState({ "A.md": record(1) }, { "B.md": record(1) })).toBe(false);
+  });
+});
+
+describe("updatesStillCurrent", () => {
+  it("drops a result whose note was settled while the poll ran", () => {
+    const read = record(1, "unsettled");
+    const settled = record(2, "settled");
+    const store: Record<string, SyncRecord> = { "A.md": settled, "B.md": record(1) };
+    const polled = { "A.md": record(3, "polled"), "B.md": record(3, "polled") };
+
+    const kept = updatesStillCurrent(
+      polled,
+      new Map<string, SyncRecord | undefined>([
+        ["A.md", read],
+        ["B.md", store["B.md"]]
+      ]),
+      (path) => store[path]
+    );
+
+    expect(Object.keys(kept)).toEqual(["B.md"]);
+  });
+
+  it("keeps a result for a note that had no record and still has none", () => {
+    const kept = updatesStillCurrent(
+      { "N.md": record(3) },
+      new Map([["N.md", undefined]]),
+      () => undefined
+    );
+
+    expect(Object.keys(kept)).toEqual(["N.md"]);
+  });
+
+  it("drops a result for a note that gained a record meanwhile", () => {
+    const kept = updatesStillCurrent({ "N.md": record(3) }, new Map([["N.md", undefined]]), () =>
+      record(2)
+    );
+
+    expect(kept).toEqual({});
   });
 });

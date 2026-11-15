@@ -130,3 +130,11 @@ describe("buildHeadingIndex on long notes", () => {
     expect(performance.now() - started).toBeLessThan(1000);
   });
 });
+
+describe("buildHeadingIndex frontmatter fences", () => {
+  it("reads a `...` closer and trailing spaces after a fence as frontmatter", () => {
+    for (const content of ["---  \n# x\n...\n# Top", "---\n# x\n---  \n# Top"]) {
+      expect(buildHeadingIndex(content)).toEqual([{ level: 1, text: "Top", lineNumber: 3 }]);
+    }
+  });
+});

@@ -44,6 +44,7 @@ import {
   recordForSource,
   type NoteBinding
 } from "../services/sync-reconcile";
+import { updatesStillCurrent } from "../services/sync-merge";
 import type { SyncStore } from "./proofread-controller";
 import type { PollSummary } from "../services/sync-summary";
 
@@ -219,6 +220,7 @@ export class SyncPoller {
     this.polling = true;
     const summary: PollSummary = { checked: 0, withChanges: 0, failed: 0, notes: [] };
     const updates: Record<string, SyncRecord> = {};
+    const read = new Map<string, SyncRecord | undefined>();
 
     try {
       // Inside the guard, not before it: anything that throws between setting
@@ -230,6 +232,7 @@ export class SyncPoller {
           const file = files[next];
           if (file === undefined) return;
           next += 1;
+          read.set(file.path, this.syncStore.get(file.path));
           const binding = resolveBinding(file.path, await this.readBinding(file));
           if (binding.kind === "drawing") {
             await this.pollDrawing(file, binding.result, token, summary, force, single);
@@ -243,9 +246,8 @@ export class SyncPoller {
         Array.from({ length: Math.min(POLL_CONCURRENCY, files.length) }, () => worker())
       );
 
-      if (Object.keys(updates).length > 0) {
-        await this.syncStore.setMany(updates);
-      }
+      const current = updatesStillCurrent(updates, read, (path) => this.syncStore.get(path));
+      if (Object.keys(current).length > 0) await this.syncStore.setMany(current);
     } finally {
       this.polling = false;
     }

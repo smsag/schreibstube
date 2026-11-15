@@ -1,6 +1,7 @@
 import { normalizePath, type Plugin } from "obsidian";
 import type { IndexStore } from "../../services/semantic/index-store";
 import { vectorFamily, type EmbeddingModelId } from "../../services/semantic/embedding-models";
+import { basename } from "../../services/file-name";
 import { conflictCopies } from "../../services/semantic/conflict-copies";
 import { isSourceFileName } from "../../services/semantic/source-files";
 
@@ -105,8 +106,8 @@ export class SemanticIndexFiles implements IndexStore {
     const adapter = this.plugin.app.vault.adapter;
     const dir = pluginDir(this.plugin);
     if (!(await adapter.exists(dir))) return [];
-    const names = (await adapter.list(dir)).files.map(baseName);
-    return conflictCopies(names, baseName(this.path)).map((name) => ({
+    const names = (await adapter.list(dir)).files.map(basename);
+    return conflictCopies(names, basename(this.path)).map((name) => ({
       name,
       read: () => adapter.readBinary(`${dir}/${name}`)
     }));
@@ -115,7 +116,7 @@ export class SemanticIndexFiles implements IndexStore {
   async removeCopies(names: readonly string[]): Promise<void> {
     const adapter = this.plugin.app.vault.adapter;
     const dir = pluginDir(this.plugin);
-    const own = new Set(conflictCopies(names, baseName(this.path)));
+    const own = new Set(conflictCopies(names, basename(this.path)));
     for (const name of names) {
       // Only ever a copy of this file, whatever the caller passed.
       if (!own.has(name)) continue;
@@ -149,7 +150,7 @@ export async function removeRetiredIndexFiles(plugin: Plugin): Promise<void> {
   if (!(await adapter.exists(dir))) return;
   const listed = await adapter.list(dir);
   for (const path of listed.files) {
-    const name = baseName(path);
+    const name = basename(path);
     if (name.startsWith("semantic-conversations-") && name.endsWith(".bin")) {
       await adapter.remove(path);
     }
@@ -166,7 +167,7 @@ export async function removeSourceFiles(plugin: Plugin, sourceId: string): Promi
   const dir = pluginDir(plugin);
   if (!(await adapter.exists(dir))) return;
   for (const path of (await adapter.list(dir)).files) {
-    if (isSourceFileName(baseName(path), sourceId)) await adapter.remove(path);
+    if (isSourceFileName(basename(path), sourceId)) await adapter.remove(path);
   }
 }
 
@@ -175,8 +176,4 @@ export function pluginDir(plugin: Plugin): string {
   return normalizePath(
     plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`
   );
-}
-
-function baseName(path: string): string {
-  return path.slice(path.lastIndexOf("/") + 1);
 }

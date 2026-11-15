@@ -1,11 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EXECUTING_FENCE_LANGUAGES, findExecutableCode } from "./executable-code";
-import {
-  escapeForeignText,
-  foreignLine,
-  neutralizeExecutableCode,
-  neutralizeIntroducedCode
-} from "./foreign-text";
+import { escapeForeignText, foreignLine, neutralizeIntroducedCode } from "./foreign-text";
 import { fenceMarker } from "./markdown-fence";
 
 describe("escapeForeignText", () => {
@@ -91,7 +86,7 @@ describe("neutralizeIntroducedCode", () => {
   });
 
   it("disarms a tag inside a span as well as the span", () => {
-    const result = neutralizeExecutableCode("`$= '<% x %>'`");
+    const result = neutralizeIntroducedCode("", "`$= '<% x %>'`");
     expect(findExecutableCode(result.text)).toEqual([]);
     expect(result.text).not.toContain("<%");
   });
@@ -112,12 +107,12 @@ describe("neutralizeIntroducedCode", () => {
   });
 
   it("relabels an indented tilde fence", () => {
-    const result = neutralizeExecutableCode("  ~~~DataviewJS\nx\n  ~~~\n");
+    const result = neutralizeIntroducedCode("", "  ~~~DataviewJS\nx\n  ~~~\n");
     expect(result.text).toBe("  ~~~text DataviewJS\nx\n  ~~~\n");
   });
 
   it("returns plain Markdown untouched", () => {
     const text = "## Fazit\n\n- **Umsatz** +4 %\n- `code` bleibt\n\n```js\nshown()\n```\n";
-    expect(neutralizeExecutableCode(text)).toEqual({ text, kinds: [] });
+    expect(neutralizeIntroducedCode("", text)).toEqual({ text, kinds: [] });
   });
 });

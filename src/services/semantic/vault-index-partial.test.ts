@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 import { EMBED_REQUEST_CHUNKS, VaultIndexService, type IndexableNote } from "./vault-index-service";
 import type { IndexStore } from "./index-store";
 import type { EmbeddingProvider } from "./embedding-provider";
-import { deserializeIndex, peekIndexMeta } from "./embedding-index";
+import { deserializeIndex } from "./embedding-index";
 
 class FakeProvider implements EmbeddingProvider {
   readonly dim = 4;
@@ -117,7 +117,7 @@ describe("VaultIndexService — a phone's budget", () => {
     expect(svc.size()).toBe(4);
     expect(svc.isReady()).toBe(true);
     expect(svc.isComplete("scope")).toBe(false);
-    expect(peekIndexMeta(store.buf!)?.complete).toBe(false);
+    expect(deserializeIndex(store.buf!).meta.complete).toBe(false);
     expect(rowIds(store)).toHaveLength(4);
   });
 
@@ -168,6 +168,35 @@ describe("VaultIndexService — a phone's budget", () => {
     expect(rowIds(store).sort()).toEqual(
       ["Notes/n0.md", "Notes/n1.md", "Notes/n2.md", "Notes/n4.md", "Notes/n5.md"].sort()
     );
+  });
+
+  it("merges what a desktop wrote meanwhile when its pass finishes inside the budget", async () => {
+    const store = new MemStore();
+    const notes = [note("a.md", "alpha"), note("slow.md", "slow beta")];
+    class SlowProvider extends FakeProvider {
+      override async embed(texts: string[]): Promise<Float32Array[]> {
+        if (texts.some((t) => t.includes("slow"))) throw new Error("embed timed out");
+        return super.embed(texts);
+      }
+    }
+    const provider = new SlowProvider();
+    provider.onEmbed = async () => {
+      // Meanwhile the desktop indexes the note the phone will not get through.
+      provider.onEmbed = null;
+      await new VaultIndexService(new FakeProvider(), store, { device: "desktop" }).sync(
+        [notes[1]!],
+        undefined,
+        {},
+        "s"
+      );
+    };
+    const phone = new VaultIndexService(provider, store, { device: "mobile" });
+    const result = await phone.sync(notes, undefined, {}, "s", {
+      maxEmbeds: 10,
+      mergeFromStore: true
+    });
+    expect(result.stopped).toBe(false);
+    expect(rowIds(store).sort()).toEqual(["a.md", "slow.md"]);
   });
 
   it("without merging, a pass writes only what it loaded — the loss merging prevents", async () => {
@@ -235,7 +264,7 @@ describe("VaultIndexService — failures that are not the note's", () => {
       new VaultIndexService(dead, store, { persistIntervalMs: 0 }).sync(changed, undefined, {}, "s")
     ).rejects.toThrow("not available");
     expect(store.writes).toBe(writes);
-    expect(peekIndexMeta(store.buf!)?.complete).toBe(true);
+    expect(deserializeIndex(store.buf!).meta.complete).toBe(true);
   });
 
   it("a failure written just before the backend died is tried again", async () => {
@@ -339,6 +368,23 @@ describe("VaultIndexService — reading without waiting", () => {
     const plain = new VaultIndexService(new FakeProvider(), new MemStore());
     await plain.sync([note("a.md", "alpha")]);
     expect(await plain.baseReplacedOnDisk()).toBe(false);
+  });
+
+  it("reads a base that arrived after it looked and found none", async () => {
+    const store = new (class extends MemStore {
+      async mtime(): Promise<number | null> {
+        return this.buf ? 5 : null;
+      }
+    })();
+    const phone = new VaultIndexService(new FakeProvider(), store, { device: "mobile" });
+    await phone.hydrateForQuery();
+    expect(await phone.baseReplacedOnDisk()).toBe(false); // still nothing there
+    await new VaultIndexService(new FakeProvider(), store, { device: "desktop" }).sync([
+      note("a.md", "alpha")
+    ]);
+    expect(await phone.baseReplacedOnDisk()).toBe(true);
+    await phone.reload();
+    expect(phone.size()).toBe(1);
   });
 });
 

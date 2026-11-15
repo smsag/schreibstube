@@ -433,12 +433,11 @@ export function readSlideFits(report: unknown): SlideFit[] {
  * splitting.
  */
 export function smallSlides(
-  fits: readonly SlideFit[],
-  threshold: number = SMALL_SLIDE_SCALE
+  fits: readonly SlideFit[]
 ): { pages: number[]; smallest: number } | null {
   const byPage = new Map<number, number>();
   for (const fit of fits) {
-    if (fit.scale >= threshold) continue;
+    if (fit.scale >= SMALL_SLIDE_SCALE) continue;
     byPage.set(fit.page, Math.min(fit.scale, byPage.get(fit.page) ?? 1));
   }
   if (byPage.size === 0) return null;

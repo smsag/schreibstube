@@ -37,6 +37,17 @@ describe("segmentMarkdown", () => {
     expect(textsOf("---\ntitle: x\n---\n\nBody.")).toEqual(["Body."]);
   });
 
+  it("reads a note that opens with a rule and never closes it", () => {
+    expect(textsOf("---\nFirst paragraph.\n\nSecond paragraph.")).toEqual([
+      "---\nFirst paragraph.",
+      "Second paragraph."
+    ]);
+  });
+
+  it("ends at a math block that never closes, rather than reading it again", () => {
+    expect(textsOf("Before.\n\n$$\nx = 1\n\nAfter.")).toEqual(["Before."]);
+  });
+
   it("does not treat a later horizontal rule as frontmatter", () => {
     expect(textsOf("Body.\n\n---\n\nMore.")).toEqual(["Body.", "More."]);
   });

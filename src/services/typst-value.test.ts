@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  printableText,
-  typstArray,
-  typstDictionary,
-  typstKey,
-  typstLength,
-  typstString
-} from "./typst-value";
+import { printableText, typstArray, typstDictionary, typstKey, typstString } from "./typst-value";
 
 describe("typstString", () => {
   it("quotes plain text", () => {
@@ -66,20 +59,6 @@ describe("typstDictionary", () => {
     expect(typstDictionary({ name: "Ekinci", note: 'say "hi"' })).toBe(
       '(name: "Ekinci", note: "say \\"hi\\"")'
     );
-  });
-});
-
-describe("typstLength", () => {
-  it("accepts the units a page margin is written in", () => {
-    expect(typstLength("25mm")).toBe("25mm");
-    expect(typstLength(" 1.5cm ")).toBe("1.5cm");
-    expect(typstLength("12pt")).toBe("12pt");
-  });
-
-  it("refuses anything else, so a bad value cannot reach the source", () => {
-    for (const value of ["25", "25 px", "calc(1)", "", "25mm; #panic()"]) {
-      expect(typstLength(value)).toBeNull();
-    }
   });
 });
 

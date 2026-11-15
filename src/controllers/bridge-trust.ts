@@ -15,8 +15,7 @@ type DeviceStorage = Partial<Pick<App, "loadLocalStorage" | "saveLocalStorage">>
 export async function confirmBridge(
   app: App,
   capability: BridgeCapability,
-  url: string,
-  ask: typeof askToSendToken = askToSendToken
+  url: string
 ): Promise<boolean> {
   const storage = app as DeviceStorage;
   const key = BRIDGE_ORIGIN_KEYS[capability];
@@ -32,7 +31,7 @@ export async function confirmBridge(
   if (decision.kind === "refuse") return false;
 
   const name = t().bridgeTrust[capability];
-  const confirmed = await ask(app, {
+  const confirmed = await askToSendToken(app, {
     title: decision.previous ? t().bridgeTrust.titleChanged : t().bridgeTrust.titleNew,
     message: decision.previous
       ? t().bridgeTrust.messageChanged(name, decision.origin, decision.previous)

@@ -4,7 +4,7 @@ import { describe, it, expect, vi } from "vitest";
 import { VaultIndexService, type IndexableNote } from "./vault-index-service";
 import type { IndexStore } from "./index-store";
 import { BackendGoneError, type EmbeddingProvider } from "./embedding-provider";
-import { deserializeIndex, peekIndexMeta, serializeIndex } from "./embedding-index";
+import { deserializeIndex, serializeIndex } from "./embedding-index";
 import { optedOut } from "./vault-retrieval";
 
 class FakeProvider implements EmbeddingProvider {
@@ -245,7 +245,7 @@ describe("a base another device replaced", () => {
     await fresh.hydrateForQuery();
     expect(fresh.vectorsOf("c.md")).not.toBeNull(); // the desktop's edit is readable
     expect(fresh.vectorsOf("p.md")).not.toBeNull(); // the phone's note survived it
-    expect(peekIndexMeta(store.buf!)?.keeper).toBe("desktop");
+    expect(deserializeIndex(store.buf!).meta.keeper).toBe("desktop");
   });
 });
 

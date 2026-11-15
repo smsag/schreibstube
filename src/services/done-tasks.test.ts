@@ -354,3 +354,63 @@ describe("archive", () => {
     expect(result.content).toBe(note("```", "## Archive", "```", "", "## Archive", "", "- [x] a"));
   });
 });
+
+describe("a fence that never closes", () => {
+  const input =
+    "- [x] Ran the migration\n  ```sql\n  UPDATE t SET x = 1;\n- [ ] Next step\n\n## Notes\n\nImportant paragraph.\n";
+
+  it("ends where its list item ends, so the rest of the note survives a delete", () => {
+    expect(clearDoneTasks(input, "delete")).toEqual({
+      content: "- [ ] Next step\n\n## Notes\n\nImportant paragraph.\n",
+      count: 1
+    });
+  });
+
+  it("files only the item when archiving", () => {
+    const { content, count } = clearDoneTasks(input, "archive");
+    expect(count).toBe(1);
+    expect(content.startsWith("- [ ] Next step\n\n## Notes\n\nImportant paragraph.\n")).toBe(true);
+    expect(content).toContain("## Archive\n\n- [x] Ran the migration\n  ```sql");
+  });
+
+  it("sends only the item back, behind the open task that follows it", () => {
+    expect(clearDoneTasks(input, "back")).toEqual({
+      content:
+        "- [ ] Next step\n- [x] Ran the migration\n  ```sql\n  UPDATE t SET x = 1;\n\n## Notes\n\nImportant paragraph.\n",
+      count: 1
+    });
+  });
+
+  it("is not closed by a fence line outside its item", () => {
+    // The top-level fence opens a block of its own, which runs to the end.
+    expect(clearDoneTasks("- [x] a\n  ```\n  x\n- [ ] b\n```\n\n- [x] c\n", "delete")).toEqual({
+      content: "- [ ] b\n```\n\n- [x] c\n",
+      count: 1
+    });
+  });
+
+  it("still takes code of any indentation when the fence closes inside the item", () => {
+    expect(clearDoneTasks("- [x] a\n  ```\nflush left\n  ```\n- [ ] b\n", "delete")).toEqual({
+      content: "- [ ] b\n",
+      count: 1
+    });
+  });
+});
+
+describe("more than one archive section", () => {
+  const input = "## Archive\n- [x] old1\n\n# Other\n- [x] new\n\n## Archive\n- [x] old2\n";
+
+  it("files into the first and never reads the second", () => {
+    expect(clearDoneTasks(input, "archive")).toEqual({
+      content: "## Archive\n- [x] old1\n- [x] new\n\n# Other\n\n## Archive\n- [x] old2\n",
+      count: 1
+    });
+  });
+
+  it("does not delete from the second", () => {
+    expect(clearDoneTasks(input, "delete")).toEqual({
+      content: "## Archive\n- [x] old1\n\n# Other\n\n## Archive\n- [x] old2\n",
+      count: 1
+    });
+  });
+});

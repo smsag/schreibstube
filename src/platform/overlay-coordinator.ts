@@ -5,7 +5,6 @@ import { findOverlayHost } from "./overlay-host";
 type OverlayControllerLike = {
   render: (input: OverlayRenderInput) => void;
   destroy: () => void;
-  contains: (target: EventTarget | null) => boolean;
 };
 
 type CreateOverlayController = (
@@ -48,9 +47,5 @@ export class OverlayCoordinator {
     this.controller?.destroy();
     this.controller = null;
     this.host = null;
-  }
-
-  contains(target: EventTarget | null): boolean {
-    return this.controller?.contains(target) ?? false;
   }
 }

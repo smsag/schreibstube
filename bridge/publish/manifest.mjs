@@ -58,6 +58,12 @@ export function normalizeManifest(raw, target) {
     } catch {
       throw bad(`${JSON.stringify(path.slice(0, 200))} is no path the bridge writes`);
     }
+    // A path a commit claimed before writing it (`withInFlight`): the bridge's
+    // own, with no content known yet.
+    if (entry?.inFlight === true) {
+      checked[path] = { inFlight: true };
+      continue;
+    }
     if (
       !/^[0-9a-f]{64}$/.test(entry?.sha256 ?? "") ||
       !Number.isInteger(entry?.bytes) ||
@@ -209,6 +215,19 @@ export function diffOutputs(files, manifest, hash, uploaded = new Map()) {
 
   const remove = Object.keys(published).filter((path) => !files.has(path) && !uploaded.has(path));
   return { write: write.sort(), unchanged: unchanged.sort(), delete: remove.sort() };
+}
+
+/**
+ * The manifest saved before a commit writes anything: the last one, plus
+ * every path about to be written that it does not know. A commit that stops
+ * halfway leaves pages and generator files on the host; without this claim
+ * the next publish found them in no manifest and refused them as someone
+ * else's. A claim carries no hash, so it is never taken for "unchanged".
+ */
+export function withInFlight(manifest, paths) {
+  const files = { ...manifest.files };
+  for (const path of paths) files[path] ??= { inFlight: true };
+  return { ...manifest, files };
 }
 
 /**

@@ -518,6 +518,69 @@ describe("a renamed and an unpublished note", () => {
   });
 });
 
+describe("a commit that stops halfway", () => {
+  const third = "# Dritte\n\nNeu.\n";
+  const fourth = "# Vierte\n\nAuch neu.\n";
+  const more = () => {
+    const next = bothNotes();
+    next.notes.push(
+      note({
+        sourcePath: "Blog/Dritte.md",
+        sha256: sha256(third),
+        slug: "dritte",
+        title: "Dritte"
+      }),
+      note({
+        sourcePath: "Blog/Vierte.md",
+        sha256: sha256(fourth),
+        slug: "vierte",
+        title: "Vierte"
+      })
+    );
+    return next;
+  };
+  const moreSources = () =>
+    new Map([...sources(), [sha256(third), third], [sha256(fourth), fourth]]);
+
+  /** A commit of `more()` that writes the third page and dies on the fourth. */
+  async function failHalfway() {
+    sftp.stats.refusedWrites.add(`${SITE}/vierte/`);
+    try {
+      expect((await publish(more(), moreSources())).status).toBe(502);
+    } finally {
+      sftp.stats.refusedWrites.clear();
+    }
+    expect(await readFile(siteFile("dritte", "index.html"), "utf8")).toContain("Dritte");
+  }
+
+  it("leaves no page of its own that the next plan takes for someone else's", async () => {
+    await failHalfway();
+    const plan = await post("/publish/plan", { target: "blog", index: more() });
+    expect(plan.json.conflicts).toEqual([]);
+
+    const retried = await publish(more(), moreSources());
+    expect(retried.status).toBe(200);
+    expect(await readFile(siteFile("vierte", "index.html"), "utf8")).toContain("Vierte");
+    for (const entry of Object.values((await manifest()).files)) {
+      expect(entry.sha256).toMatch(/^[0-9a-f]{64}$/);
+    }
+    expect((await publish(bothNotes(), sources())).status).toBe(200);
+  });
+
+  it("lets a later index drop its pages, written or not", async () => {
+    await failHalfway();
+    const back = await publish(bothNotes(), sources());
+    expect(back.status).toBe(200);
+    expect(back.json.deleteFailed).toBe(0);
+    await expect(readFile(siteFile("dritte", "index.html"))).rejects.toThrow();
+    await expect(readdir(siteFile("vierte"))).rejects.toThrow();
+    const files = (await manifest()).files;
+    expect(Object.keys(files)).not.toContain("dritte/index.html");
+    expect(Object.keys(files)).not.toContain("vierte/index.html");
+    for (const entry of Object.values(files)) expect(entry.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+});
+
 describe("re-rendering from stored state", () => {
   it("rebuilds the site with no vault and no upload", async () => {
     const response = await post("/publish/render", { target: "blog" });

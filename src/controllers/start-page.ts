@@ -12,7 +12,8 @@
 import { Notice, TFile, type App, type EventRef, type WorkspaceLeaf } from "obsidian";
 import { t } from "../i18n";
 import type { Logger } from "../services/logger";
-import { folderOfPath, missingAncestors } from "../services/ensure-folder";
+import { missingAncestors } from "../services/ensure-folder";
+import { parentOf } from "../services/tree-move";
 import {
   opensStartPage,
   START_PAGE_SETTLE_MS,
@@ -86,7 +87,7 @@ export class StartPageController {
     const path = starterPath(configured);
     try {
       const exists = (folder: string) => this.app.vault.getAbstractFileByPath(folder) !== null;
-      for (const folder of missingAncestors(folderOfPath(path), exists)) {
+      for (const folder of missingAncestors(parentOf(path), exists)) {
         await this.app.vault.createFolder(folder);
       }
       await this.app.vault.create(path, starterNote({ hint: t().startPage.starterHint }));

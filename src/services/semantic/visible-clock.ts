@@ -42,10 +42,10 @@ export class VisibleClock {
    * timer cannot be paused: on resume an overdue timer fires immediately, which is
    * the bug. Returns the cancel function.
    */
-  timeout(fire: () => void, ms: number, pollMs = Math.min(1_000, ms)): () => void {
+  timeout(fire: () => void, ms: number): () => void {
     // Never 0: `setInterval(…, 0)` is a spin, and a deadline of 0 is a caller
     // mistake rather than a reason to burn the thread the timeout protects.
-    const poll = Math.max(MIN_POLL_MS, pollMs);
+    const poll = Math.max(MIN_POLL_MS, Math.min(1_000, ms));
     const start = this.elapsed();
     const handle = setInterval(() => {
       if (this.elapsed() - start >= ms) {

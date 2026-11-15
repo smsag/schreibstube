@@ -104,14 +104,6 @@ export class BodyIndex implements BodyMatcher {
     }
   }
 
-  clear(): void {
-    this.answers.clear();
-    this.notes.clear();
-    this.vocabulary = new Map();
-    this.words = [];
-    this.compactAt = MAX_VOCABULARY;
-  }
-
   /** How many notes have been read. */
   get size(): number {
     return this.notes.size;

@@ -90,7 +90,6 @@ describe("BuildGuard", () => {
     expect(guard.mayAutoBuild()).toBe(true); // one interruption is tolerated
     guard.start("m");
     expect(guard.mayAutoBuild()).toBe(false);
-    expect(guard.marker()).toEqual({ attempts: 2, startedAt: 42, modelId: "m" });
     guard.end();
     expect(box.v).toBeNull();
     expect(guard.mayAutoBuild()).toBe(true);

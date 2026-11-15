@@ -22,6 +22,7 @@ import {
   type SlideAlign,
   type SlidePart
 } from "./print-slides";
+import { splitFrontmatter } from "./frontmatter-block";
 
 /** What a tab is worth when a list's nesting is measured, as in the editor. */
 const TAB_COLUMNS = 4;
@@ -1308,8 +1309,7 @@ function withoutLead(markup: string): string {
 
 /** The note without its properties, which print through `options.properties`, not as text. */
 function stripFrontmatter(source: string): string {
-  const match = /^---\r?\n(?:[\s\S]*?\r?\n)?---[ \t]*(?:\r?\n|$)/.exec(source);
-  return match ? source.slice(match[0].length) : source;
+  return splitFrontmatter(source).body;
 }
 
 /**

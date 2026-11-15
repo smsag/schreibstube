@@ -477,7 +477,7 @@
   opacity: 0.5;
 }
 
-/* Primary — the one action its surface exists for. Send's `.stop` is destructive. */
+/* Primary — the one action its surface exists for. */
 :is(
     .schreibstube-review,
     .schreibstube-explorer,
@@ -567,25 +567,7 @@
     .schreibstube-recommended-footer,
     .schreibstube-related-notes
   )
-  .sb.sb-destructive:hover,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-primary.stop,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-primary.stop:hover {
+  .sb.sb-destructive:hover {
   padding: 3px var(--s2, 8px);
   background: transparent;
   border-color: var(--btn-error, var(--text-error));
@@ -667,18 +649,6 @@
   color: var(--btn-warning, var(--color-orange));
   -webkit-text-fill-color: var(--btn-warning, var(--color-orange));
 }
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-icon.is-stale {
-  color: var(--btn-accent, var(--color-accent));
-  -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
-}
 /* On: a toggle that is set (toolbar web/vault/template). */
 :is(
     .schreibstube-review,
@@ -749,24 +719,6 @@
     .schreibstube-recommended-footer,
     .schreibstube-related-notes
   )
-  .sb.sb-seg.is-pinned,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-seg.is-pinned:hover,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
   .sb.sb-seg.active,
 :is(
     .schreibstube-review,
@@ -782,85 +734,6 @@
   -webkit-text-fill-color: var(--btn-accent, var(--color-accent));
   font-weight: 500;
 }
-/* Tab — the comparison card keeps its underline; accessibility only (ADR-188). */
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-tab,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-tab:hover {
-  min-height: 28px;
-  padding: var(--s1, 4px) var(--s2, 8px);
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  margin-bottom: -1px;
-  font-weight: 400;
-  background: transparent;
-}
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-tab.is-active,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-tab.is-active:hover {
-  font-weight: 600;
-  border-bottom-color: var(--btn-accent, var(--color-accent));
-  color: var(--text-normal);
-  -webkit-text-fill-color: var(--text-normal);
-}
-/* Chip — a status you can tap. The warning is the tint; the label stays normal
-   (orange text measures under 3:1 on white). */
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-chip-warn,
-:is(
-    .schreibstube-review,
-    .schreibstube-explorer,
-    .schreibstube-icon-picker,
-    .schreibstube-prompt,
-    .schreibstube-recommended-footer,
-    .schreibstube-related-notes
-  )
-  .sb.sb-chip-warn:hover {
-  padding: 3px var(--s2, 8px);
-  border-color: var(--color-orange); /* no color-mix: plain */
-  border-color: color-mix(in srgb, var(--color-orange) 50%, transparent);
-  background: transparent;
-  background: color-mix(in srgb, var(--color-orange) 14%, transparent);
-  color: var(--text-normal);
-  -webkit-text-fill-color: var(--text-normal);
-}
 
 /* Hover — soft neutral. Only where a pointer can hover, so nothing sticks on
    touch; the transition runs only here, so a state fill is never animated on
@@ -874,7 +747,7 @@
       .schreibstube-recommended-footer,
       .schreibstube-related-notes
     )
-    .sb.sb-primary:hover:not(:disabled):not(.stop),
+    .sb.sb-primary:hover:not(:disabled),
   :is(
       .schreibstube-review,
       .schreibstube-explorer,
@@ -912,15 +785,6 @@
       .schreibstube-recommended-footer,
       .schreibstube-related-notes
     )
-    .sb.sb-primary.stop:hover:not(:disabled),
-  :is(
-      .schreibstube-review,
-      .schreibstube-explorer,
-      .schreibstube-icon-picker,
-      .schreibstube-prompt,
-      .schreibstube-recommended-footer,
-      .schreibstube-related-notes
-    )
     .sb.sb-icon.is-warning:hover:not(:disabled) {
     background: var(--background-modifier-hover);
   }
@@ -950,7 +814,7 @@
       .schreibstube-recommended-footer,
       .schreibstube-related-notes
     )
-    .sb.sb-seg:hover:not(:disabled):not(.is-pinned):not(.active) {
+    .sb.sb-seg:hover:not(:disabled):not(.active) {
     background: var(--background-modifier-hover);
     color: var(--text-normal);
     -webkit-text-fill-color: var(--text-normal);
@@ -967,30 +831,6 @@
     background: var(--background-modifier-hover);
     padding-inline: 6px;
     margin-inline: -4px;
-  }
-  :is(
-      .schreibstube-review,
-      .schreibstube-explorer,
-      .schreibstube-icon-picker,
-      .schreibstube-prompt,
-      .schreibstube-recommended-footer,
-      .schreibstube-related-notes
-    )
-    .sb.sb-tab:hover:not(:disabled):not(.is-active) {
-    color: var(--text-normal);
-    -webkit-text-fill-color: var(--text-normal);
-    border-bottom-color: var(--background-modifier-border);
-  }
-  :is(
-      .schreibstube-review,
-      .schreibstube-explorer,
-      .schreibstube-icon-picker,
-      .schreibstube-prompt,
-      .schreibstube-recommended-footer,
-      .schreibstube-related-notes
-    )
-    .sb.sb-chip-warn:hover:not(:disabled) {
-    background: color-mix(in srgb, var(--color-orange) 22%, transparent);
   }
 }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {

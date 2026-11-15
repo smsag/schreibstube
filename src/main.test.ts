@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Notice } from "./testing/obsidian-stub";
 import SchreibstubePlugin from "./main";
 import { setLanguage } from "./i18n";
+import { normalizeSettings } from "./services/plugin-settings";
 
 interface FakeLeaf {
   setViewState: (state: { type: string; active: boolean }) => Promise<void>;
@@ -175,5 +176,42 @@ describe("New doc from a link", () => {
     handlers.get("schreibstube-new-doc")?.({ action: "schreibstube-new-doc", typewriter: "1" });
 
     expect(createUntitled).toHaveBeenCalledWith(expect.objectContaining({ typewriter: true }));
+  });
+});
+
+describe("onExternalSettingsChange", () => {
+  function withDisk(disk: unknown) {
+    const plugin = pluginWith({});
+    const p = plugin as unknown as Record<string, unknown>;
+    p.settings = normalizeSettings({ recommendedCount: 7, syncLastPollAt: 5 });
+    p.loadData = async () => disk;
+    p.saveData = async () => undefined;
+    return plugin;
+  }
+
+  it("adopts a setting another device changed, keeping this device's poll time", async () => {
+    const plugin = withDisk({ recommendedCount: 3, syncLastPollAt: 99 });
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.recommendedCount).toBe(3);
+    expect(plugin.settings.syncLastPollAt).toBe(5);
+  });
+
+  it("leaves everything alone when the file is not an object", async () => {
+    const plugin = withDisk(null);
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.recommendedCount).toBe(7);
+  });
+
+  it("does not undo a local change whose save has not reached the file", async () => {
+    const plugin = withDisk({ recommendedCount: 3 });
+    const p = plugin as unknown as { settings: { recommendedCount: number } };
+    p.settings.recommendedCount = 4;
+    const saving = plugin.saveSettings();
+    await plugin.onExternalSettingsChange();
+    await saving;
+
+    expect(plugin.settings.recommendedCount).toBe(4);
   });
 });

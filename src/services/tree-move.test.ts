@@ -6,6 +6,7 @@ import {
   isUnder,
   moveDestinations,
   moveRefusalMessage,
+  parentOf,
   planMove,
   type MoveContext
 } from "./tree-move";
@@ -175,5 +176,12 @@ describe("ancestorsOf", () => {
 
   it("leaves out the path's own segment, so revealing a folder opens its parents", () => {
     expect(ancestorsOf("Berufliches/Karriere")).toEqual(["Berufliches"]);
+  });
+});
+
+describe("parentOf", () => {
+  it("is the part before the last slash, or nothing at the root", () => {
+    expect(parentOf("A/B/c.md")).toBe("A/B");
+    expect(parentOf("c.md")).toBe("");
   });
 });

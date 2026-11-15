@@ -17,7 +17,8 @@ import {
   normalizeManifest,
   orphanSources,
   plannedOutputs,
-  planUploads
+  planUploads,
+  withInFlight
 } from "./manifest.mjs";
 import {
   assetName,
@@ -520,15 +521,17 @@ async function publishSite({
   // A page the manifest does not know and the host already has is someone
   // else's file — a placeholder index, another tool's page — and is refused
   // before anything is written, unless the target may take such files over.
+  const unknown = difference.write.filter((path) => !manifest.files[path]);
   if (!target.adoptExisting) {
     const recorded = await pending.of(remote, target);
     const owned = new Set([...uploads.written(target.name).keys(), ...recorded.keys()]);
-    const fresh = difference.write.filter(
-      (path) => !manifest.files[path] && !owned.has(path) && !HTACCESS_FILES.has(path)
-    );
+    const fresh = unknown.filter((path) => !owned.has(path) && !HTACCESS_FILES.has(path));
     const taken = await present(remote, fresh);
     if (taken.length > 0) throw conflictError(target, taken);
   }
+  signal?.throwIfAborted();
+
+  if (unknown.length > 0) await writeManifest(remote, withInFlight(manifest, unknown));
   signal?.throwIfAborted();
 
   await mapLimit(difference.write, SFTP_CONCURRENCY, (path) =>
@@ -574,10 +577,7 @@ async function publishSite({
     renderVersion: RENDER_VERSION,
     generator
   });
-  await remote.writeAbsolute(
-    remote.stateAbsolute(MANIFEST_FILE),
-    Buffer.from(JSON.stringify(recorded, null, 2), "utf8")
-  );
+  await writeManifest(remote, recorded);
 
   // The manifest now records every upload the site uses; what it does not
   // use is asked for again by the next plan, should a later index need it.
@@ -912,6 +912,13 @@ export async function guardState(remote) {
 async function readManifest(remote, target) {
   const raw = await remote.readJson(remote.stateAbsolute(MANIFEST_FILE), { strict: true });
   return normalizeManifest(raw, target.name);
+}
+
+async function writeManifest(remote, manifest) {
+  await remote.writeAbsolute(
+    remote.stateAbsolute(MANIFEST_FILE),
+    Buffer.from(JSON.stringify(manifest, null, 2), "utf8")
+  );
 }
 
 async function storedSourceHashes(remote) {

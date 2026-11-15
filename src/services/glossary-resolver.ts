@@ -102,10 +102,6 @@ export function parseFolderRules(text: string): FolderRule[] {
   return rules;
 }
 
-export function formatFolderRules(rules: FolderRule[]): string {
-  return rules.map((rule) => `${rule.folder} | ${rule.glossaries.join(", ")}`).join("\n");
-}
-
 /** Split a frontmatter value that may be a single path, a comma list, or a
  *  YAML-ish inline list, and strip wikilink brackets from each entry. */
 export function parseGlossaryList(value: unknown): string[] {

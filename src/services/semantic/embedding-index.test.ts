@@ -1,12 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   conversationContentHash,
-  diffIndex,
   serializeIndex,
   deserializeIndex,
   passageHash,
   passageHashes,
-  peekIndexMeta,
   readKeeper,
   readPassages,
   readWrittenAt,
@@ -19,30 +17,6 @@ describe("conversationContentHash", () => {
   });
   it("changes when content changes", () => {
     expect(conversationContentHash(["a", "b"])).not.toBe(conversationContentHash(["a", "c"]));
-  });
-});
-
-describe("diffIndex", () => {
-  it("flags new and changed conversations to embed, and removed ones to drop", () => {
-    const existing = new Map([
-      ["a", "h1"],
-      ["b", "h2"],
-      ["c", "h3"]
-    ]);
-    const desired = [
-      { id: "a", contentHash: "h1" }, // unchanged
-      { id: "b", contentHash: "h2-new" }, // changed
-      { id: "d", contentHash: "h4" } // new
-      // c is gone
-    ];
-    const diff = diffIndex(existing, desired);
-    expect(diff.toEmbed.sort()).toEqual(["b", "d"]);
-    expect(diff.toDrop).toEqual(["c"]);
-  });
-  it("embeds everything against an empty index", () => {
-    const diff = diffIndex(new Map(), [{ id: "a", contentHash: "h" }]);
-    expect(diff.toEmbed).toEqual(["a"]);
-    expect(diff.toDrop).toEqual([]);
   });
 });
 
@@ -123,7 +97,6 @@ describe("deserializeIndex — truncated files", () => {
     dv.setUint32(7, 0);
     dv.setUint32(11, meta.length);
     new Uint8Array(buf, 15).set(meta);
-    expect(peekIndexMeta(buf)).toMatchObject({ count: 0, complete: false, scope: "" });
     expect(() => deserializeIndex(buf)).toThrow(/meta\/count mismatch/);
   });
 
@@ -195,14 +168,12 @@ describe("the index's keeper (Pythia ADR-221)", () => {
     for (const keeper of ["desktop", "mobile"] as const) {
       const buf = serializeIndex(rows, 4, { complete: true, scope: "S", keeper });
       expect(deserializeIndex(buf).meta.keeper).toBe(keeper);
-      expect(peekIndexMeta(buf)?.keeper).toBe(keeper);
     }
   });
 
   it("reads a file without one as unknown — the behaviour before Pythia ADR-221", () => {
     const buf = serializeIndex(rows, 4, { complete: true, scope: "S" });
     expect(deserializeIndex(buf).meta).toEqual({ complete: true, scope: "S" });
-    expect(peekIndexMeta(buf)?.keeper).toBeUndefined();
   });
 
   it("validates it at the boundary: anything else is unknown, never trusted", () => {
@@ -232,7 +203,6 @@ describe("when the index was written (Pythia ADR-221)", () => {
       writtenAt: 1_790_000_000_000
     });
     expect(deserializeIndex(buf).meta.writtenAt).toBe(1_790_000_000_000);
-    expect(peekIndexMeta(buf)?.writtenAt).toBe(1_790_000_000_000);
   });
 
   it("keeps only a positive finite number", () => {

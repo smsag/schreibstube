@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ChangeSet, Text, type ChangeSpec } from "@codemirror/state";
 import {
   applyPlan,
   createSuggestion,
@@ -8,6 +9,7 @@ import {
   resolveAnchor,
   revealRange,
   settleStatuses,
+  mapSuggestions,
   INSERT_REVEAL_CHARS,
   type Suggestion
 } from "./suggestion";
@@ -60,13 +62,20 @@ describe("resolveAnchor", () => {
     expect(resolveAnchor(edited, suggestion)).toBe(null);
   });
 
-  it("picks the nearest of several occurrences close by", () => {
+  it("goes stale rather than pick one of several occurrences close by", () => {
     const source = "Immobilie eins. Immobilie zwei.";
     const suggestion = at(source, "Immobilie", "Objekt");
     suggestion.from = 16;
     suggestion.to = 25;
-    const edited = `X${source}`;
-    expect(resolveAnchor(edited, suggestion)).toEqual({ from: 17, to: 26 });
+    expect(resolveAnchor(`XXXXXXXXXX${source}`, suggestion)).toBe(null);
+    expect(resolveAnchor(`X${source}`, suggestion)).toBe(null);
+  });
+
+  it("still follows a shifted text that occurs once nearby", () => {
+    const source = "Immobilie eins. Haus zwei.";
+    const suggestion = at(source, "Immobilie", "Objekt");
+    const edited = `XXXXXXXXXX${source}`;
+    expect(resolveAnchor(edited, suggestion)).toEqual({ from: 10, to: 19 });
   });
 
   it("places a pure insertion by the text recorded before it", () => {
@@ -407,5 +416,129 @@ describe("revealRange", () => {
     const text = "Kurz.";
 
     expect(revealRange(text, { from: 0, to: 0 }, insertion(text, 0))).toEqual({ from: 0, to: 0 });
+  });
+});
+
+describe("mapSuggestions", () => {
+  // Through the editor's own change sets, so the rules below are the ones a
+  // keystroke actually meets.
+  const source = "Immobilie eins. Immobilie zwei.";
+  const card = (from: number) =>
+    createSuggestion({
+      kind: "replace",
+      source: "glossary",
+      category: "terminology",
+      severity: "warning",
+      from,
+      to: from + 9,
+      original: "Immobilie",
+      replacement: "Objekt",
+      note: ""
+    });
+  const through = (spec: ChangeSpec) => {
+    const changes = ChangeSet.of(spec, source.length);
+    return {
+      text: changes.apply(Text.of([source])).toString(),
+      map: (pos: number, assoc: -1 | 1) => changes.mapPos(pos, assoc)
+    };
+  };
+
+  it("keeps two cards on a repeated word on their own copies through typing in front", () => {
+    const { text, map } = through({ from: 0, insert: "Die " });
+    const mapped = mapSuggestions([card(0), card(16)], map);
+    expect(mapped.map((s) => [s.from, s.to])).toEqual([
+      [4, 13],
+      [20, 29]
+    ]);
+    expect(refreshStaleness(text, mapped).map((s) => s.status)).toEqual(["pending", "pending"]);
+  });
+
+  it("keeps the ids, by which the panel and a later scan know a card", () => {
+    const cards = [card(0), card(16)];
+    const mapped = mapSuggestions(cards, through({ from: 0, insert: "Die " }).map);
+    expect(mapped.map((s) => s.id)).toEqual(cards.map((s) => s.id));
+  });
+
+  it("puts text typed against a card's end outside it", () => {
+    const [mapped] = mapSuggestions([card(0)], through({ from: 9, insert: "n" }).map);
+    expect([mapped?.from, mapped?.to]).toEqual([0, 9]);
+  });
+
+  it("leaves a card edited inside on its own words, which no longer match", () => {
+    const { text, map } = through({ from: 3, to: 4, insert: "M" });
+    const mapped = mapSuggestions([card(0), card(16)], map);
+    expect(mapped.map((s) => [s.from, s.to])).toEqual([
+      [0, 9],
+      [16, 25]
+    ]);
+    expect(text.slice(mapped[0]!.from, mapped[0]!.to)).not.toBe("Immobilie");
+  });
+
+  it("collapses a card whose words were deleted", () => {
+    const { text, map } = through({ from: 0, to: 16 });
+    const mapped = mapSuggestions([card(0), card(16)], map);
+    expect(mapped.map((s) => [s.from, s.to])).toEqual([
+      [0, 0],
+      [0, 9]
+    ]);
+    expect(text.slice(mapped[1]!.from, mapped[1]!.to)).toBe("Immobilie");
+  });
+
+  it("leaves decided cards alone", () => {
+    const rejected = { ...card(0), status: "rejected" as const };
+    const accepted = { ...card(16), status: "accepted" as const };
+    const mapped = mapSuggestions([rejected, accepted], through({ from: 0, insert: "Die " }).map);
+    expect(mapped[0]).toBe(rejected);
+    expect(mapped[1]).toBe(accepted);
+  });
+
+  it("keeps a pure insertion behind the text it was recorded after", () => {
+    const text = "Erstens zweitens";
+    const point = createSuggestion(
+      {
+        kind: "insert",
+        source: "llm",
+        category: "punctuation",
+        severity: "warning",
+        from: 7,
+        to: 7,
+        original: "",
+        replacement: ",",
+        note: ""
+      },
+      text.slice(0, 7)
+    );
+    const changes = ChangeSet.of(
+      [
+        { from: 0, insert: "Und " },
+        { from: 7, insert: "s" }
+      ],
+      text.length
+    );
+    const edited = changes.apply(Text.of([text])).toString();
+    const [mapped] = mapSuggestions([point], (pos, assoc) => changes.mapPos(pos, assoc));
+    expect([mapped?.from, mapped?.to]).toEqual([11, 11]);
+    expect(edited).toBe("Und Erstenss zweitens");
+    // Typed against its point, after its context: the context no longer
+    // stands right before it, so the safety net decides, and finds it.
+    expect(resolveAnchor(edited, mapped!)).toEqual({ from: 11, to: 11 });
+  });
+
+  it("is moved once by an accepted batch, applied as one edit", () => {
+    const [a, b] = [card(0), card(16)];
+    const plan = planApply(source, [a]);
+    const changes = ChangeSet.of(
+      plan.changes.map(({ from, to, text }) => ({ from, to, insert: text })),
+      source.length
+    );
+    const mapped = mapSuggestions([a, b], (pos, assoc) => changes.mapPos(pos, assoc));
+    const settled = refreshStaleness(
+      applyPlan(source, plan),
+      settleStatuses(mapped, plan, new Set([a.id]))
+    );
+    expect(settled.map((s) => [s.status, s.from, s.to])).toEqual([
+      ["accepted", 0, 6],
+      ["pending", 13, 22]
+    ]);
   });
 });

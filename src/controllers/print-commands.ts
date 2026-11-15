@@ -91,7 +91,8 @@ import { pictureEdge } from "../services/print-slideshow";
 import { printAssetName, printImageFormat } from "../services/print-images";
 import { linkpathCandidates } from "../services/slideshow";
 import { missingCapability, readPlatformFeatures } from "../services/print-capability";
-import { folderOfPath, missingAncestors } from "../services/ensure-folder";
+import { missingAncestors } from "../services/ensure-folder";
+import { parentOf } from "../services/tree-move";
 
 /** Pictures a template folder may carry for its own layout to place. */
 const TEMPLATE_ASSET = /\.(png|jpe?g|gif|webp|svg)$/i;
@@ -832,7 +833,7 @@ export class PrintCommands {
     }
     if (existing) throw new Error(t().print.outputIsFolder(path));
 
-    await this.makeFolder(folderOfPath(path));
+    await this.makeFolder(parentOf(path));
     await this.app.vault.createBinary(path, toArrayBuffer(pdf));
     return true;
   }

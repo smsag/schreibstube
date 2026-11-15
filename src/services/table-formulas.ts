@@ -407,14 +407,6 @@ export function applyFreezes(
   return { text: lines.join("\n"), frozen };
 }
 
-/** The note with every `(fixed)` formula not yet frozen frozen at its result now. */
-export function freezeFormulas(
-  markdown: string,
-  ctx: FormulaContext
-): { text: string; frozen: number } {
-  return applyFreezes(markdown, freezePlan(markdown, ctx)) ?? { text: markdown, frozen: 0 };
-}
-
 /** What every formula in a note comes to, to know whether any of it needs rates. */
 export function formulaOutcomes(markdown: string, ctx: FormulaContext): Outcome[] {
   return findTables(markdown).flatMap((table) =>

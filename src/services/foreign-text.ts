@@ -106,11 +106,6 @@ function kindsOf(regions: readonly ExecutableRegion[]): string[] {
   return [...new Set(regions.map((region) => region.kind))];
 }
 
-/** Every executing construct in `text` disarmed: nothing in it is the reader's own. */
-export function neutralizeExecutableCode(text: string): NeutralizedText {
-  return neutralizeIntroducedCode("", text);
-}
-
 /** A change at one offset: `length` characters there become `insert`. */
 interface PointEdit {
   at: number;

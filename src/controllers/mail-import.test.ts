@@ -91,7 +91,15 @@ function setup({ existing = [] as { path: string; bytes: Uint8Array }[] } = {}) 
   const note = new TFile("Wohnung/Hausverwaltung.md");
   const view = {
     file: note as InstanceType<typeof TFile> | null,
-    editor: { replaceSelection: (text: string) => inserted.push(text) }
+    editor: {
+      replaceSelection: (text: string) => inserted.push(text),
+      replaceRange: (text: string, at: unknown) => {
+        inserted.push(text);
+        view.insertedAt.push(at);
+      },
+      getCursor: (which: string) => ({ line: 7, ch: which === "to" ? 12 : 3 })
+    },
+    insertedAt: [] as unknown[]
   };
 
   const app = {
@@ -184,6 +192,13 @@ describe("importing a mail with its attachments", () => {
       /> \[\[Protokoll 2025\.pdf\]\]\n> !\[\[Foto\.jpg\]\]\n> _Not imported: Termin\.ics \(file type\)_\n$/
     );
     expect(Notice.shown).toContain("Schreibstube: 2 attachments saved.");
+  });
+
+  it("inserts after the selection, not over a paragraph chosen while the files came", async () => {
+    const { mail, inserted, view } = setup();
+    await importFirst(mail, inserted);
+
+    expect(view.insertedAt).toEqual([{ line: 7, ch: 12 }]);
   });
 
   it("links a file imported before instead of saving it again", async () => {

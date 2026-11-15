@@ -32,6 +32,7 @@ import {
   thumbnailType
 } from "../services/publish-thumbnail";
 import { getImageMimeType, resizeImageToBytes } from "../services/image-resize";
+import { MAX_PUBLISH_ATTACHMENT_BYTES, isReadableAttachment } from "../services/publish-attachment";
 import { sourceForUpload } from "../services/publish-source";
 import {
   ATTACHMENT_EXTENSIONS,
@@ -244,7 +245,8 @@ export class PublishCommands {
         const content = asset.bytes
           ? toArrayBuffer(asset.bytes)
           : await this.readAttachment(asset.path, entry.sha256);
-        await uploadAsset(bridge, account.target, entry.sha256, asset.name, content);
+        // Equal bytes under two names are two planned uploads, one asset here.
+        await uploadAsset(bridge, account.target, entry.sha256, entry.name ?? asset.name, content);
         uploaded();
       });
 
@@ -256,7 +258,10 @@ export class PublishCommands {
         const asset = assets.get(entry.sha256);
         if (asset) {
           try {
-            await this.sendThumbnail(bridge, account.target, entry, asset);
+            await this.sendThumbnail(bridge, account.target, entry, {
+              ...asset,
+              name: entry.name ?? asset.name
+            });
           } catch (error) {
             this.logger.debug(`Thumbnail skipped for ${entry.sourcePath}.`, error);
           }
@@ -506,12 +511,16 @@ export class PublishCommands {
         // The copy that is uploaded shows each canvas as the picture drawn of it.
         const uploaded = await this.withDiagrams(content, fences, file.path, drawing);
         for (const picture of uploaded.pictures) {
-          if (assets.has(picture.sha256)) continue;
-          assets.set(picture.sha256, {
-            name: picture.name,
-            path: picture.name,
-            bytes: picture.bytes
-          });
+          // By name, not bytes: two fences that draw the same picture are two
+          // names a page points at, and the index must carry both.
+          if (assetEntries.some((entry) => entry.sourcePath === picture.name)) continue;
+          if (!assets.has(picture.sha256)) {
+            assets.set(picture.sha256, {
+              name: picture.name,
+              path: picture.name,
+              bytes: picture.bytes
+            });
+          }
           assetEntries.push({
             sourcePath: picture.name,
             sha256: picture.sha256,
@@ -560,6 +569,14 @@ export class PublishCommands {
           // the bridge asks for them. Kept for the whole run, every picture a
           // site shows sat in memory at once, which a phone's WebView does not
           // survive for long.
+          if (!isReadableAttachment(target.stat.size)) {
+            new Notice(
+              t().common.notice(
+                t().publish.attachmentTooLarge(target.path, MAX_PUBLISH_ATTACHMENT_BYTES)
+              )
+            );
+            return null;
+          }
           const data = await this.app.vault.readBinary(target);
           const assetHash = await hash(new Uint8Array(data));
           assets.set(assetHash, { name: target.name, path: target.path });

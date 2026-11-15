@@ -61,10 +61,6 @@ export class ConversationIndex {
     private readonly readDeadlineMs = READ_DEADLINE_MS
   ) {}
 
-  isSyncing(): boolean {
-    return this.syncing !== null;
-  }
-
   size(): number {
     return this.items.length;
   }
@@ -138,9 +134,10 @@ export class ConversationIndex {
   }
 
   /** Whether the file is no longer the one read or written here: another
-   *  device's write, delivered by sync. */
+   *  device's write, delivered by sync — or the first one, where none was
+   *  there when this one looked. */
   private async replacedOnDisk(): Promise<boolean> {
-    if (!this.store.mtime || this.storedMtime === null) return false;
+    if (!this.store.mtime) return false;
     try {
       const now = await this.store.mtime();
       return now !== null && now !== this.storedMtime;
@@ -162,7 +159,9 @@ export class ConversationIndex {
    * in `keep`, in that order, and drop the rest. The whole list is the case
    * where every item is in `changed`; an incremental sync hands over only
    * what moved, so the full texts of everything else need not be held.
-   * Concurrent calls run one after another.
+   * Concurrent calls run one after another. `stopped` is asked before each
+   * embed and before the write: a source refused meanwhile ends the update
+   * there, and nothing of it is written.
    *
    * Answers the ids of `changed` whose embed failed: each keeps its old row,
    * if it had one, and the caller hands it in again rather than forgetting
@@ -170,10 +169,11 @@ export class ConversationIndex {
    */
   async update(
     changed: readonly ConversationItem[],
-    keep: readonly string[]
+    keep: readonly string[],
+    stopped: () => boolean = () => false
   ): Promise<ReadonlySet<string>> {
     while (this.syncing) await this.syncing.catch(() => undefined);
-    const run = this.doUpdate(changed, keep);
+    const run = this.doUpdate(changed, keep, stopped);
     this.syncing = run;
     try {
       return await run;
@@ -184,7 +184,8 @@ export class ConversationIndex {
 
   private async doUpdate(
     changed: readonly ConversationItem[],
-    keep: readonly string[]
+    keep: readonly string[],
+    stopped: () => boolean
   ): Promise<ReadonlySet<string>> {
     const failed = new Set<string>();
     await this.load();
@@ -202,6 +203,7 @@ export class ConversationIndex {
     if (embed.length === 0 && !dropped && !reordered) return failed;
 
     for (const d of embed) {
+      if (stopped()) return new Set();
       try {
         const raw = await this.embedAll(d.chunks);
         byId.set(d.id, { id: d.id, contentHash: d.contentHash, chunks: raw.map(quantize) });
@@ -212,6 +214,7 @@ export class ConversationIndex {
         failed.add(d.id);
       }
     }
+    if (stopped()) return new Set();
     if (embed.length > 0 && failed.size === embed.length && !dropped) return failed; // nothing new
     this.items = keep
       .map((id) => byId.get(id))
@@ -254,11 +257,6 @@ export class ConversationIndex {
       if (this.loaded && !this.loading && !this.syncing) this.loaded = false;
     }
     await this.load();
-  }
-
-  /** Conversations like `sourceId`, from stored vectors: no model call. */
-  related(sourceId: string, opts: { minScore: number; limit: number }): ScoredId[] {
-    return rankRelated(sourceId, this.items, opts);
   }
 
   /** Conversations like a note's stored vectors, best first. No model call;
@@ -305,27 +303,6 @@ export class ConversationIndex {
   ): ScoredId[] {
     return rankByQuery(query, this.items, opts);
   }
-}
-
-/**
- * Conversations ranked by likeness to one of them: the best chunk-to-chunk
- * cosine between the two, the source left out, the floor applied, a screenful
- * kept — past that the list grows with the vault, not with relevance (Pythia
- * ADR-169).
- */
-export function rankRelated(
-  sourceId: string,
-  index: readonly IndexedConversation[],
-  opts: { minScore: number; limit: number }
-): ScoredId[] {
-  const source = index.find((i) => i.id === sourceId);
-  if (!source || source.chunks.length === 0) return [];
-  return index
-    .filter((i) => i.id !== sourceId && i.chunks.length > 0)
-    .map((i) => ({ id: i.id, score: maxPairwiseCosine(source.chunks, i.chunks) }))
-    .filter((r) => Number.isFinite(r.score) && r.score >= opts.minScore)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, opts.limit);
 }
 
 /** Conversations ranked by their best chunk against a query vector. */

@@ -44,7 +44,7 @@ export function countFilesUnder(
  * An empty folder carries none: a nought says nothing that a folder opening on
  * nothing does not already say, and a row is quieter without it.
  */
-export function folderCountLabel(count: number, max: number = FOLDER_COUNT_MAX): string | null {
+export function folderCountLabel(count: number): string | null {
   if (!Number.isFinite(count) || count <= 0) return null;
-  return count > max ? `${max}+` : String(Math.floor(count));
+  return count > FOLDER_COUNT_MAX ? `${FOLDER_COUNT_MAX}+` : String(Math.floor(count));
 }

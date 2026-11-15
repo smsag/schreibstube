@@ -18,6 +18,7 @@ import { t } from "../i18n";
 import { diffHunks } from "./line-diff";
 import { executableTouched, findExecutableCode } from "./executable-code";
 import { createSuggestion, type Suggestion } from "./suggestion";
+import { fnv1a } from "../utils/fnv1a";
 
 export interface SyncRecord {
   /** Hash of the note body as of the last successful sync. */
@@ -200,12 +201,7 @@ export function localState(body: string, record: SyncRecord | undefined): LocalS
  * dependency.
  */
 export function hashText(text: string): string {
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < text.length; i += 1) {
-    hash ^= text.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-  }
-  return hash.toString(16).padStart(8, "0");
+  return fnv1a(text).toString(16).padStart(8, "0");
 }
 
 /** CRLF in a fetched file would otherwise show up as a change on every line. */

@@ -97,11 +97,6 @@ export class BuildGuard {
     }
   }
 
-  /** The interrupted-build record, or null when the last build ended normally. */
-  marker(): BuildMarker | null {
-    return this.read();
-  }
-
   mayAutoBuild(): boolean {
     return mayAutoBuild(this.read());
   }

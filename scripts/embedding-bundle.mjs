@@ -24,8 +24,6 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-/** What transformers.js imports, and what it is given instead. */
-export const RUNTIME_IMPORT = "onnxruntime-web/webgpu";
 export const PINNED_RUNTIME_IMPORT = "onnxruntime-web/wasm";
 
 /** The default transformers.js writes into the runtime's settings at import. */

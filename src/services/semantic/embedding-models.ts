@@ -136,10 +136,6 @@ export const EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] = Object.keys(
   EMBEDDING_MODELS
 ) as EmbeddingModelId[];
 
-/** The models a user can choose — variants are picked by the device, never by hand. */
-export const SELECTABLE_EMBEDDING_MODEL_IDS: readonly EmbeddingModelId[] =
-  EMBEDDING_MODEL_IDS.filter((id) => !EMBEDDING_MODELS[id].variantOf);
-
 /**
  * Which build of the embedding runtime produced a vector, as a number rows can carry.
  *

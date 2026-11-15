@@ -332,6 +332,8 @@ export function readCell(text: string, format: NumberFormat): CellReading {
   return found.length > 0 ? { kind: "quoted" } : { kind: "unreadable" };
 }
 
+const LIST_MARKER = /^\s*(?:[-*+]|\d+[.)])\s+/;
+
 /**
  * One amount per line that has one, for the total of a selection.
  *
@@ -349,7 +351,8 @@ export function amountsInText(text: string, format: NumberFormat, figuresOnly = 
   lines.forEach((line, at) => {
     const next = lines[at + 1];
     if (line.includes("|") && next !== undefined && isTableDelimiter(next)) return;
-    const amount = pick(findAmounts(line, format), figuresOnly);
+    // A bullet's hyphen is a marker, not a minus: `- 300 €` is 300.
+    const amount = pick(findAmounts(line.replace(LIST_MARKER, ""), format), figuresOnly);
     if (amount) amounts.push(amount);
   });
   return amounts;

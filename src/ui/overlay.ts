@@ -2,7 +2,6 @@ import { Menu, setIcon, setTooltip } from "obsidian";
 import { t } from "../i18n";
 import { collapsedCrumbs, sectionPosition, siblingsOf } from "../services/heading-tree";
 import type { HeadingEntry, HeadingIndex } from "../types";
-import { isNodeLike } from "../services/workspace-internals";
 
 export interface OverlayRenderInput {
   ancestorStack: HeadingEntry[];
@@ -83,10 +82,6 @@ export class OverlayController {
     this.container.removeEventListener("pointerdown", this.handlePointerDown);
     this.container.remove();
     this.parent.classList.remove("schreibstube-overlay-host");
-  }
-
-  contains(target: EventTarget | null): boolean {
-    return isNodeLike(target) && this.container.contains(target);
   }
 
   /**

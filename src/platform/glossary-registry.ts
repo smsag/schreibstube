@@ -129,11 +129,6 @@ export class GlossaryRegistry {
     if (isInTermFolder(path, this.getTermFolder())) this.folderCache = null;
   }
 
-  clear(): void {
-    this.cache.clear();
-    this.folderCache = null;
-  }
-
   private termFiles(): TFile[] {
     const folder = this.getTermFolder();
     if (!folder) return [];

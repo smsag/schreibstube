@@ -871,7 +871,6 @@ export const enExtra = {
       stay: "Stay on this note",
       openSource: "Open this note",
       picture: "Picture",
-      conversation: "Conversation in Pythia",
       copyLink: "Copy Obsidian URL",
       copied: "Obsidian URL copied.",
       copyFailed: "The URL could not be copied to the clipboard.",
@@ -1491,8 +1490,7 @@ export const enExtra = {
     notFound: (label: string) => `${label} not found — check Settings.`,
     apiKey: "API key",
     mailToken: "mail token",
-    publishToken: "publish token",
-    githubToken: "GitHub token"
+    publishToken: "publish token"
   },
   pdf: {
     pickTitle: (name: string) => `Passages from ${name}`,

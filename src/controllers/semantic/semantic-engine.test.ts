@@ -72,10 +72,12 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
   const contents = new Map(Object.entries(notes));
   /** Readable, but not listed: an edit the build itself does not reach. */
   const unlisted = new Map<string, string>();
+  /** A note's modification time where it is not 1: the cap keeps the newest. */
+  const noteMtimes = new Map<string, number>();
   const file = (path: string): TFile => {
     // The stub's constructor takes the path; Obsidian's own declares none.
     const f = new (TFile as unknown as new (path: string) => TFile)(path);
-    f.stat = { ctime: 0, mtime: 1, size: 1 };
+    f.stat = { ctime: 0, mtime: noteMtimes.get(path) ?? 1, size: 1 };
     return f;
   };
   const files = (): TFile[] => [...contents.keys()].map(file);
@@ -141,7 +143,18 @@ function world(notes: Record<string, string> = { "a.md": "alpha one", "b.md": "b
     semanticSources: {}
   } as unknown as SchreibstubeSettings;
   const engine = (): SemanticEngine => new SemanticEngine(plugin, () => settings, NULL_LOGGER, 5);
-  return { plugin, settings, contents, unlisted, disk, reads, file, engine, typeIn };
+  return {
+    plugin,
+    settings,
+    contents,
+    unlisted,
+    noteMtimes,
+    disk,
+    reads,
+    file,
+    engine,
+    typeIn
+  };
 }
 
 type Internals = {
@@ -215,6 +228,17 @@ describe("SemanticEngine", () => {
     await built(e);
     expect(inside(e).phase.kind).toBe("idle");
     await expect(e.applyChanges([w.file("c.md")], [])).resolves.toBeUndefined();
+  });
+
+  it("indexes a note created while the index is at the note limit, being the newest", async () => {
+    const w = world();
+    w.settings.semanticMaxNotes = 2;
+    const e = w.engine();
+    await built(e);
+    w.contents.set("c.md", "gamma three");
+    w.noteMtimes.set("c.md", 5);
+    await e.applyChanges([w.file("c.md")], []);
+    expect(e.relatedSnapshot()?.rows.map((row) => row.id)).toContain("c.md");
   });
 
   it("marks itself busy at once when the catch-up starts", async () => {

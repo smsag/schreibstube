@@ -7,8 +7,7 @@ describe("OverlayCoordinator", () => {
     const host = { id: "host" } as unknown as HTMLElement;
     const createSpy = vi.fn(() => ({
       render: vi.fn(),
-      destroy: vi.fn(),
-      contains: vi.fn().mockReturnValue(false)
+      destroy: vi.fn()
     }));
 
     const coordinator = new OverlayCoordinator(createSpy);
@@ -40,13 +39,11 @@ describe("OverlayCoordinator", () => {
       .fn()
       .mockReturnValueOnce({
         render: vi.fn(),
-        destroy: destroyA,
-        contains: vi.fn().mockReturnValue(false)
+        destroy: destroyA
       })
       .mockReturnValueOnce({
         render: vi.fn(),
-        destroy: vi.fn(),
-        contains: vi.fn().mockReturnValue(false)
+        destroy: vi.fn()
       });
 
     const coordinator = new OverlayCoordinator(createSpy);
@@ -83,8 +80,7 @@ describe("OverlayCoordinator", () => {
     const destroySpy = vi.fn();
     const createSpy = vi.fn(() => ({
       render: vi.fn(),
-      destroy: destroySpy,
-      contains: vi.fn().mockReturnValue(false)
+      destroy: destroySpy
     }));
 
     const coordinator = new OverlayCoordinator(createSpy);

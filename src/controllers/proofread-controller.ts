@@ -78,7 +78,9 @@ import {
   refreshStaleness,
   resolveAnchor,
   revealRange,
+  mapSuggestions,
   settleStatuses,
+  type PositionMap,
   type Suggestion
 } from "../services/suggestion";
 import { GLOSSARY_CHANGED_EVENT } from "../utils/constants";
@@ -93,6 +95,7 @@ import {
 import { PromptModal } from "../ui/explorer-modals";
 import { TermPickerModal } from "../ui/term-picker";
 import { flashRevealIn } from "../processors/reveal-flash";
+import { isNoteEditor } from "../platform/overlay-host";
 
 export { GLOSSARY_FRONTMATTER_KEY };
 export type { PollSummary } from "../services/sync-summary";
@@ -246,6 +249,27 @@ export class ProofreadController {
       this.suggestions = refreshed;
       this.emit();
     }
+  }
+
+  /**
+   * An edit in an editor, with where it moved every position. The cards follow
+   * it, so a card on a word the note repeats keeps its own copy. Only the
+   * editor the queue applies to counts: a second pane on the same note is sent
+   * the same edit, and following both would move the cards twice.
+   *
+   * Runs inside the editor's update, before `editor-change` and in the middle
+   * of an accepted batch alike, so the staleness check is made here against
+   * the moved cards rather than left to whichever event comes second.
+   */
+  followEdit(path: string, editorDom: HTMLElement, map: PositionMap): void {
+    if (path !== this.filePath || this.suggestions.length === 0) return;
+    const view = this.resolveTargetView();
+    if (!view || !isNoteEditor(view, editorDom)) return;
+    const mapped = mapSuggestions(this.suggestions, map);
+    const refreshed = refreshStaleness(view.editor.getValue(), mapped);
+    const changed = refreshed.some((s, i) => s.status !== this.suggestions[i]?.status);
+    this.suggestions = refreshed;
+    if (changed) this.emit();
   }
 
   /** A glossary note changed on disk, so cached parses and the active matcher
@@ -487,6 +511,7 @@ export class ProofreadController {
       });
     }
 
+    // The transaction above has already moved the cards, through followEdit.
     const applied = new Set(plan.changes.map((change) => change.id));
     this.suggestions = settleStatuses(this.suggestions, plan, applied);
 
@@ -502,8 +527,7 @@ export class ProofreadController {
       });
     }
 
-    // Offsets recorded before this batch are now wrong by the size of it, so
-    // every remaining card is re-anchored against the new text at once.
+    // What no longer holds its text goes stale here.
     this.suggestions = refreshStaleness(editor.getValue(), this.suggestions);
 
     if (fromSource) {

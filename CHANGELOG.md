@@ -4,6 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+The bridge moves from 3.5.3 to 3.5.4: a publish that was cut off halfway no
+longer blocks the next one. The protocol is unchanged.
+
+### Changed
+
+- **A review card stays on its word while you write.** After typing in front of a card, a word that occurs twice close by could be replaced at the wrong occurrence. Every edit you make in the note now moves the open cards with it — typing, pasting, undoing and the changes you accept — so a card keeps naming the exact words it was found on and is applied there. Only when the note changed where the editor did not see it, on another device or with the note closed, and a nearby copy of the word makes the place uncertain, does a card go stale instead of being applied on a guess.
+- **Settings changed on one device stick on the others.** When another device saves its settings, this one takes them over instead of writing its own older values back at its next automatic save: changing the bridge address on the laptop while the phone was running was undone the next time the phone checked its sources. The time of the last check and the sources you allowed stay per device, a change you are making at that moment wins, and the language and whatever is set up at start apply the next time Obsidian starts.
+- **Printing, property sets and glossary definitions agree where a note's properties end.** A properties block closed with `...` instead of `---`, or with spaces after a fence, was already read as properties by the outline and picture descriptions; printing, property sets and glossary definitions still took it for text. Every reader now shares the one rule.
+- **A very large attachment stops a publish with a message.** A file over 100 MB was read whole into memory just to be fingerprinted, which on an iPhone ended with Obsidian being closed. The publish now stops before reading it and names the file. The bound protects the device; it is not the bridge's own limit.
+
+### Fixed
+
+- **Tidy done tasks no longer takes the rest of the note.** A code block left open inside a finished task counted as running to the end of the note, so deleting or archiving that task took the tasks, headings and paragraphs after it along. A block inside a task now ends where the task ends, and a fence line outside the task can no longer close it. Sending done tasks back moves such a task behind the open ones, as it does any other.
+- **Tidy done tasks leaves every Archive section alone.** Only the first "Archive" heading was protected; a second one further down was read as ordinary text, so its tasks were moved into the first or deleted. Finished tasks are still filed into the first, and the others are never touched.
+- **A damaged file-pane state is kept, not discarded.** When `explorer.json` cannot be read — after a half-finished sync, say — a copy is saved as `explorer.json.broken` before a new one is written, and renaming a file without an icon or pin no longer rewrites the file at all. One unreadable file and one rename could erase every icon and pin.
+- **Renamed files no longer leave their icon behind.** After a rename or a move the old path stops carrying the icon and the pin, so a new note created under the old name starts clean. The old entry came back from the state file at every save.
+- **A publish that stopped halfway no longer blocks the next one.** When a publish was cut off after writing some pages — a dropped connection, the time limit, a bridge restart — the next one refused those pages as "not written by the bridge" and ended in a path conflict. The bridge now notes the files it is about to create before writing them, so the next publish rewrites them, or removes the ones no note needs any more.
+- **Publishing no longer fails when two attachments are the same picture.** Two images with identical content under different names, such as `Pasted image 1.png` and `Pasted image 2.png`, were both uploaded under one name, so the site never got the other and every publish ended in `assets_missing`. Both now go up under their own names, and so do two diagrams that draw the same picture.
+- **Bullet lists of amounts add up.** A hyphen that starts a list item was read as a minus sign, so "- 300 €" and "- 20 €" came to −320 € in the status bar and in "Sum selection". A list marker is now ignored; "-20 €" with no space stays negative.
+- **A phone finds notes by meaning once the desktop's first index arrives.** A phone opened before the desktop's index had synced remembered "no file" as "cannot tell", never read the index when it came, and answered nothing by meaning until Obsidian restarted.
+- **A phone no longer writes the shared index on its own.** With no index from the desktop yet, an edit on the phone wrote an index of a note or two under the shared name, which a desktop could adopt in place of its own. A phone now writes its edits to the shared files only when it has read an index there — one it built itself, or one from before indexes were signed — and keeps them in memory while there is none it can read; it never needs Build now to keep its edits. A Build now that finishes inside its budget also keeps what the desktop wrote while it ran.
+- **A new note is found by meaning even when the index is at its note limit.** The limit keeps the newest notes, but a note created once the index was full was refused until the next launch, although it was the newest of all. It is now embedded at once; the index may grow a tenth past the limit, and the next full pass trims it back.
+- **Saying no to a source stops its embedding too.** A source refused while its first sync was embedding went on through every remaining item and wrote its file before it was removed. It now stops at the refusal, before the next item and before the write.
+- **A damaged Worker script is replaced.** A script on disk that had been cut short was kept under its name, and every model load fell back to the slower path on the main thread.
+- **A vault check no longer relists a note you just accepted.** Accepting a note's changes while a check of the whole vault was still running could be overwritten by that check's older result, and the note was listed as changed again.
+- **Importing a mail no longer overwrites text selected while it downloaded.** The mail is inserted after the selection, so a paragraph marked while the attachments came in stays where it is.
+- **A note that starts with a horizontal rule is proofread.** A first line of `---` with no closing `---` was taken for frontmatter and the whole note was skipped.
+
 ## 1.93.0 - 2026-11-13
 
 Two things are easier to find again. `markiert:` in the Explorer's search
