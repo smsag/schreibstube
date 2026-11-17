@@ -53,6 +53,10 @@ plugin before the bridge: 1.93.0 and older do not read the longer address.
 - **One large picture no longer stops a share.** A note with a picture over 10 MB could not be shared at all. The picture is now left out and named, like one past the 20 MB a share carries in total.
 - **"Create link" after "Update" keeps the note protected.** Pressing Update on a protected link emptied the password field to ask for the old password; "Create link" pressed next then made a link without one. The field now holds a newly drawn password.
 
+### Removed
+
+- **The start page for empty tabs.** The **Start page** setting, the **Open start page** command and the `schreibstube-home` block are gone. An empty tab shows Obsidian's own four buttons again, and the note you had named stays in the vault as an ordinary note, to open or bookmark like any other. A `schreibstube-home` block left in it now shows as plain code; delete it, and keep the bases embedded around it. The website start page of a published site (`schreibstubeHome`) is something else and is unchanged.
+
 ## 1.93.0 - 2026-11-13
 
 Two things are easier to find again. `markiert:` in the Explorer's search

@@ -435,7 +435,7 @@ schreibstubeDefaultSeverity: error
 - Match: `word` (default, tolerates German endings), `exact`, `prefix`.
 - German headers work too (`Konzept`, `Benennung`, `Treffer`, `Hinweis`).
 
-## 12. Bookmarks file and start page
+## 12. Bookmarks file
 
 `bookmarks.md` feeds the bookmark list in Schreibstube Explorer.
 
@@ -449,9 +449,6 @@ schreibstubeDefaultSeverity: error
 
 - `#` headings are folders, nested by level; linked list items are bookmarks; the rest is ignored.
 - Schemes: `https://`, `obsidian://`, `vault://folder`, `note://path`.
-- A ` ```schreibstube-home ` block on the start page (settings) lists one section per line, in
-  order: `actions`, `bookmarks`, `updated` (changed by a source), `due` (earliest first). `due 5`
-  caps rows; `actions new-note go-to-file` picks buttons, also `new-base`, `new-canvas`. Empty: all.
 
 ## 13. Print templates of your own
 
@@ -483,7 +480,6 @@ template's folder; a missing one is left out with a warning.
 | "Cost overview with total"             | a table with `=sum`; `=sum(fixed)` if it goes out      |
 | "Checklist for the handover"           | a `schreibstube-tasks` block, tasks under headings     |
 | "Exposé with a table of contents"      | a `schreibstube-index` block under the title           |
-| "A start page for my vault"            | a `schreibstube-home` block, bases embedded around it  |
 | "Publish this as a blog post"          | the note with `published: true`, `description`, `slug` |
 | "Something to share with a client"     | any note; the person shares it with a link             |
 | "Our house terms"                      | a glossary note                                        |

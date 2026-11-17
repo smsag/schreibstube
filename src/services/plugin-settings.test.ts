@@ -64,15 +64,6 @@ describe("normalizeSettings", () => {
     });
   });
 
-  it("keeps the start page off unless a usable path is named", () => {
-    expect(normalizeSettings(undefined).startPageFile).toBe("");
-    expect(normalizeSettings({ startPageFile: "/Home/Start.md" }).startPageFile).toBe(
-      "Home/Start.md"
-    );
-    expect(normalizeSettings({ startPageFile: ".obsidian/x.md" }).startPageFile).toBe("");
-    expect(normalizeSettings({ startPageFile: 7 as never }).startPageFile).toBe("");
-  });
-
   it("shows the Suggest tags control unless it was switched off", () => {
     expect(normalizeSettings({}).tagSuggestControl).toBe(true);
     expect(normalizeSettings({ tagSuggestControl: "no" as never }).tagSuggestControl).toBe(true);
@@ -711,10 +702,11 @@ describe("settings an earlier version wrote", () => {
   const OLD = {
     explorerLatestEnabled: true,
     explorerLatestCount: 5,
-    explorerLatestExcluded: "Privat"
+    explorerLatestExcluded: "Privat",
+    startPageFile: "Home/Start.md"
   };
 
-  it("leaves the former Latest section's settings out", () => {
+  it("leaves the former Latest section's and start page's settings out", () => {
     const settings = normalizeSettings(OLD as never) as unknown as Record<string, unknown>;
 
     for (const key of RETIRED_SETTING_KEYS) expect(key in settings).toBe(false);

@@ -20,7 +20,6 @@ import { normalizeTemplatePath } from "./highlight-note";
 import { normalizeTermFolder } from "./glossary-term-folder";
 import { LLM_PROVIDER_IDS, PROVIDER_MODELS } from "./llm-providers";
 import { DUE_KEY, normalizeDueProperty, normalizeDueSynonyms } from "./due-date";
-import { normalizeStartPagePath } from "./start-page";
 import {
   checkLanguage,
   DEFAULT_PUBLISH_KEYS,
@@ -153,7 +152,6 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   explorerDueDates: false,
   dueProperty: DUE_KEY,
   dueSynonyms: [],
-  startPageFile: "",
   iconShortcodes: true,
   mailBridgeUrl: "",
   mailTokenSecretName: "",
@@ -188,12 +186,14 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
 /**
  * Keys an earlier version wrote into `data.json` and nothing reads any more:
  * the settings of the pane's former "Latest" section, whose count and
- * exclusions went with the lists they shaped.
+ * exclusions went with the lists they shaped, and the file an empty tab once
+ * opened as a start page.
  */
 export const RETIRED_SETTING_KEYS: readonly string[] = [
   "explorerLatestEnabled",
   "explorerLatestCount",
-  "explorerLatestExcluded"
+  "explorerLatestExcluded",
+  "startPageFile"
 ];
 
 /**
@@ -382,7 +382,6 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
     explorerDueDates: loaded?.explorerDueDates === true,
     dueProperty,
     dueSynonyms: normalizeDueSynonyms(loaded?.dueSynonyms, dueProperty),
-    startPageFile: normalizeStartPagePath(loaded?.startPageFile),
     // On unless switched off: the shortcode is the whole point of the icons
     // being in a note at all, and a setting nobody finds is a feature nobody has.
     iconShortcodes: loaded?.iconShortcodes !== false,
