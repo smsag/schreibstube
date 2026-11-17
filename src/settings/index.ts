@@ -38,6 +38,10 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
   override display(): void {
     this.release();
     const { containerEl } = this;
+    // A changed setting redraws the whole tab, and the emptied page scrolls
+    // to its top: the setting just changed went out of sight. Opened anew the
+    // tab is at its top already, so this keeps the place only on a redraw.
+    const { scrollTop } = containerEl;
     containerEl.empty();
     containerEl.addClass("schreibstube-settings");
     const indexEl = containerEl.createDiv({ cls: "schreibstube-settings-index" });
@@ -75,6 +79,7 @@ export class SchreibstubeSettingTab extends PluginSettingTab {
     renderDiagnostics(ctx);
 
     renderIndex(indexEl, ctx.index);
+    containerEl.scrollTop = scrollTop;
   }
 
   override hide(): void {
