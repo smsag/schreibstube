@@ -73,6 +73,9 @@ class CheckFailed extends Error {}
 export class ReadingHistoryController {
   private running = false;
   private readonly deps: ReadingDeps;
+  /** How far a since-window too long for one check has been read, and
+   *  Instapaper's clock when its reading began. */
+  private readonly sinceProgress = new Map<string, { page: number; askedAt: number | null }>();
 
   constructor(
     private readonly app: App,
@@ -170,7 +173,7 @@ export class ReadingHistoryController {
     if (!force && !isReadingDue(checkedAt, every?.schedule ?? null, now)) return;
 
     const startedAt = Math.floor(now.getTime() / 1000);
-    const listed = await this.listBookmarks(source.section, sinceFor(checkedAt), token);
+    const listed = await this.listBookmarks(source.section, sinceFor(checkedAt), token, file.path);
     const selection = selectBookmarks({
       bookmarks: listed.bookmarks,
       section: source.section,
@@ -224,7 +227,8 @@ export class ReadingHistoryController {
   private async listBookmarks(
     section: ReadingSection,
     since: number | null,
-    token: string
+    token: string,
+    path: string
   ): Promise<{ bookmarks: Bookmark[]; complete: boolean; serverTime: number | null }> {
     const fetchPage = async (input: { since: number | null; offset: number; limit?: number }) => {
       const outcome = await this.deps.fetchBookmarks({ section, token, ...input });
@@ -237,13 +241,23 @@ export class ReadingHistoryController {
       return { bookmarks: newest.bookmarks, complete: true, serverTime: newest.serverTime };
     }
 
-    const first = await fetchPage({ since, offset: 0 });
+    // A window too long for one check is read on from where the last stopped.
+    // Kept in memory, not the note: a restart rereads from the start, which
+    // costs requests but loses nothing. Which end of the window a change made
+    // meanwhile lands on, no document says, so the pages already read may have
+    // missed it: the window is then answered for as of the time its reading
+    // began, and the next check asks again from there.
+    const key = `${path}\n${String(since)}`;
+    const resumed = this.sinceProgress.get(key);
+    const start = resumed?.page ?? 0;
+    const first = await fetchPage({ since, offset: start * SINCE_PAGE_LIMIT });
     const changed = [...first.bookmarks];
     let total = first.total;
     let complete = true;
-    for (let page = 1; page * SINCE_PAGE_LIMIT < total; page += 1) {
-      if (page >= MAX_SINCE_PAGES) {
+    for (let page = start + 1; page * SINCE_PAGE_LIMIT < total; page += 1) {
+      if (page - start >= MAX_SINCE_PAGES) {
         complete = false;
+        this.sinceProgress.set(key, { page, askedAt: resumed?.askedAt ?? first.serverTime });
         break;
       }
       const next = await fetchPage({ since, offset: page * SINCE_PAGE_LIMIT });
@@ -251,11 +265,12 @@ export class ReadingHistoryController {
       total = next.total;
     }
 
+    if (complete) this.sinceProgress.delete(key);
     const newest = await this.newestPage(fetchPage, RECENT_REFRESH_COUNT);
     return {
       bookmarks: [...newest.bookmarks, ...changed],
       complete,
-      serverTime: first.serverTime
+      serverTime: resumed?.askedAt ?? first.serverTime
     };
   }
 

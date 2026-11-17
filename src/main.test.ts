@@ -215,3 +215,81 @@ describe("onExternalSettingsChange", () => {
     expect(plugin.settings.recommendedCount).toBe(4);
   });
 });
+
+describe("a data file that cannot be read", () => {
+  function withDisk(disk: unknown) {
+    const plugin = pluginWith({});
+    const state = { disk, saves: 0 };
+    const p = plugin as unknown as Record<string, unknown>;
+    p.loadData = async () => state.disk;
+    p.saveData = async (data: unknown) => {
+      state.saves += 1;
+      state.disk = JSON.parse(JSON.stringify(data));
+    };
+    return { plugin, state };
+  }
+
+  it("is not written over with the defaults, and says so", async () => {
+    // What Obsidian answers for a file that is there and does not parse.
+    const { plugin, state } = withDisk(undefined);
+    await plugin.loadSettings();
+    await plugin.saveSettings();
+
+    expect(state.saves).toBe(0);
+    expect(Notice.shown.join(" ")).toContain("data.json");
+  });
+
+  it("is taken over, and saved to again, once it arrives whole", async () => {
+    const { plugin, state } = withDisk(undefined);
+    await plugin.loadSettings();
+    state.disk = { recommendedCount: 3, syncLastPollAt: 99 };
+    await plugin.onExternalSettingsChange();
+
+    expect(plugin.settings.recommendedCount).toBe(3);
+    expect(plugin.settings.syncLastPollAt).toBe(99);
+    await plugin.saveSettings();
+    expect(state.saves).toBe(1);
+  });
+
+  it("still starts from the defaults when there is no file at all", async () => {
+    const { plugin, state } = withDisk(null);
+    await plugin.loadSettings();
+    await plugin.saveSettings();
+
+    expect(state.saves).toBe(1);
+    expect(Notice.shown).toEqual([]);
+  });
+});
+
+describe("a sync record dropped while a save is being written", () => {
+  it("does not come back with the next save", async () => {
+    const record = { hash: "h", etag: "e", checkedAt: 1 };
+    const plugin = pluginWith({});
+    const p = plugin as unknown as {
+      settings: { syncState: Record<string, unknown> };
+      droppedSyncRecords: Map<string, number>;
+      loadData: () => Promise<unknown>;
+      saveData: (data: unknown) => Promise<void>;
+    };
+    p.settings = normalizeSettings({ syncState: { "a.md": record } }) as never;
+    let disk: unknown = { syncState: { "a.md": record } };
+    const second: Promise<void>[] = [];
+    p.loadData = async () => disk;
+    p.saveData = async (data) => {
+      const written: unknown = JSON.parse(JSON.stringify(data));
+      if (second.length === 0) {
+        // The note is deleted while the first save is on its way to the file.
+        p.settings.syncState = {};
+        p.droppedSyncRecords.set("a.md", Date.now());
+        second.push(plugin.saveSettings());
+      }
+      await Promise.resolve();
+      disk = written;
+    };
+
+    await plugin.saveSettings();
+    await Promise.all(second);
+
+    expect((disk as { syncState: object }).syncState).toEqual({});
+  });
+});

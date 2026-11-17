@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { toBase64 } from "./mail-protocol";
 import {
-  bytesToBase64,
   checkSharePassword,
   expiresAtFor,
   expiryForChoice,
@@ -11,6 +11,7 @@ import {
   linksOfNote,
   MAX_SHARE_ASSET_BYTES,
   MAX_SHARE_ASSETS,
+  MAX_SHARE_IMAGE_BYTES,
   parseSharedLink,
   parseSharedLinks,
   pickShareAssets,
@@ -86,11 +87,12 @@ describe("pickShareAssets", () => {
 
   it("stops at the bridge's budget, by weight and by count", () => {
     const heavy = pickShareAssets([
-      { path: "a.png", bytes: MAX_SHARE_ASSET_BYTES - 5 },
+      { path: "a.png", bytes: MAX_SHARE_IMAGE_BYTES },
+      { path: "z.png", bytes: MAX_SHARE_ASSET_BYTES - MAX_SHARE_IMAGE_BYTES - 5 },
       { path: "b.png", bytes: 10 },
       { path: "c.png", bytes: 5 }
     ]);
-    expect(heavy.carried.map((entry) => entry.path)).toEqual(["a.png", "c.png"]);
+    expect(heavy.carried.map((entry) => entry.path)).toEqual(["a.png", "z.png", "c.png"]);
     expect(heavy.left).toEqual(["b.png"]);
 
     const many = pickShareAssets(
@@ -99,13 +101,22 @@ describe("pickShareAssets", () => {
     expect(many.carried).toHaveLength(MAX_SHARE_ASSETS);
     expect(many.left).toEqual([`${MAX_SHARE_ASSETS}.png`, `${MAX_SHARE_ASSETS + 1}.png`]);
   });
+
+  it("leaves out a picture the bridge would refuse on its own, and carries the rest", () => {
+    const picked = pickShareAssets([
+      { path: "foto.jpg", bytes: MAX_SHARE_IMAGE_BYTES + 1 },
+      { path: "skizze.png", bytes: MAX_SHARE_IMAGE_BYTES }
+    ]);
+    expect(picked.carried.map((entry) => entry.path)).toEqual(["skizze.png"]);
+    expect(picked.left).toEqual(["foto.jpg"]);
+  });
 });
 
-describe("bytesToBase64", () => {
+describe("toBase64, as a share sends pictures", () => {
   it("encodes what Buffer encodes, across chunk boundaries", () => {
     const bytes = new Uint8Array(0x8000 * 2 + 3).map((_, i) => i % 256);
-    expect(bytesToBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));
-    expect(bytesToBase64(new Uint8Array())).toBe("");
+    expect(toBase64(bytes)).toBe(Buffer.from(bytes).toString("base64"));
+    expect(toBase64(new Uint8Array())).toBe("");
   });
 });
 

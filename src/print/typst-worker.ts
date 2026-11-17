@@ -52,34 +52,41 @@ self.onmessage = async (event) => {
       for (const font of baseFonts) await builder.add_raw_font(font);
       for (const font of payload.fonts) await builder.add_raw_font(font);
 
+      // The builder is spent by build(); the compiler, its fonts and its
+      // caches live in WebAssembly memory, which no collector reaches, and
+      // every print left one behind.
       const compiler = await builder.build();
-      for (const file of payload.sources) compiler.add_source(file.path, file.text);
-      for (const file of payload.binaries) compiler.map_shadow(file.path, file.bytes);
+      try {
+        for (const file of payload.sources) compiler.add_source(file.path, file.text);
+        for (const file of payload.binaries) compiler.map_shadow(file.path, file.bytes);
 
-      const result = await compiler.compile(payload.main, undefined, "pdf", 2);
-      const pdf = result instanceof Uint8Array ? result : result?.result;
-      if (pdf instanceof Uint8Array) {
-        // What the slides' fit recorded, read from the document just set:
-        // the query reuses that compile and takes milliseconds. A document
-        // with no slides answers an empty list; one that cannot be asked
-        // answers nothing, and the print goes on without the report.
-        let fits;
-        try {
-          fits = compiler.query(payload.main, undefined, "<schreibstube-fit>", "value");
-        } catch (queryError) {
-          fits = undefined;
+        const result = await compiler.compile(payload.main, undefined, "pdf", 2);
+        const pdf = result instanceof Uint8Array ? result : result?.result;
+        if (pdf instanceof Uint8Array) {
+          // What the slides' fit recorded, read from the document just set:
+          // the query reuses that compile and takes milliseconds. A document
+          // with no slides answers an empty list; one that cannot be asked
+          // answers nothing, and the print goes on without the report.
+          let fits;
+          try {
+            fits = compiler.query(payload.main, undefined, "<schreibstube-fit>", "value");
+          } catch (queryError) {
+            fits = undefined;
+          }
+          // Where each block of the note came to stand, when the converter
+          // marked them for the dialog; the same reuse, the same silence.
+          let blocks;
+          try {
+            blocks = compiler.query(payload.main, undefined, "<schreibstube-blocks>", "value");
+          } catch (queryError) {
+            blocks = undefined;
+          }
+          self.postMessage({ id, ok: true, pdf, fits, blocks }, [pdf.buffer]);
+        } else {
+          self.postMessage({ id, ok: true, diagnostics: result?.diagnostics ?? [] });
         }
-        // Where each block of the note came to stand, when the converter
-        // marked them for the dialog; the same reuse, the same silence.
-        let blocks;
-        try {
-          blocks = compiler.query(payload.main, undefined, "<schreibstube-blocks>", "value");
-        } catch (queryError) {
-          blocks = undefined;
-        }
-        self.postMessage({ id, ok: true, pdf, fits, blocks }, [pdf.buffer]);
-      } else {
-        self.postMessage({ id, ok: true, diagnostics: result?.diagnostics ?? [] });
+      } finally {
+        compiler.free();
       }
       return;
     }

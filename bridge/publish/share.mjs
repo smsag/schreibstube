@@ -14,7 +14,14 @@
  * inside the page, so the password covers them too; videos and diagrams are
  * named rather than shown.
  */
-import { createCipheriv, pbkdf2, randomBytes } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHash,
+  hkdfSync,
+  pbkdf2,
+  randomBytes
+} from "node:crypto";
 import { promisify } from "node:util";
 import { createRenderer, renderMarkdown } from "./render/markdown.mjs";
 import { escapeHtml, key } from "./render/obsidian.mjs";
@@ -31,13 +38,16 @@ const derive = promisify(pbkdf2);
 export const SHARE_DIRECTORY = "s";
 
 /**
- * A link's address is two words, `apple-cloud`, so it can be remembered and
- * said. That is about a million addresses, which is no key: for a link with a
- * password the password is the key, and the address only has to be one nobody
- * else holds. A link without a password has nothing else, so its address
- * carries a number as well, `apple-cloud-42`, ninety times as many.
+ * A link's address is words from a list of 1,119, so it can be remembered and
+ * said. Two different words, `apple-cloud`, are about 1.25 million addresses,
+ * which is no key: for a link with a password the password is the key, and
+ * the address only has to be one nobody else holds. A link without a password
+ * has nothing else, and its page is a static file nothing stops anyone from
+ * guessing at, so it gets three different words and a number,
+ * `apple-cloud-tiger-42`: about 126 billion addresses, 37 bits. The first such
+ * links had two words and a number, 113 million; they are still read.
  */
-const SHARE_CODE = /^[a-z]{3,8}-[a-z]{3,8}(?:-[1-9][0-9])?$/;
+const SHARE_CODE = /^[a-z]{3,8}-[a-z]{3,8}(?:(?:-[a-z]{3,8})?-[1-9][0-9])?$/;
 /** The ten characters the first shared links were given; still read, so they can be taken down. */
 const FIRST_SHARE_CODE = /^[A-HJ-NP-Za-km-z2-9]{10}$/;
 
@@ -95,14 +105,24 @@ export const SHARE_IMAGE_TYPES = new Map([
 export class ShareError extends Error {}
 
 /**
- * A fresh address: two different words, and a number from 10 to 99 for a link
- * without a password.
+ * A fresh address: two different words for a link with a password, three and
+ * a number from 10 to 99 for one without.
  */
 export function newShareCode({ open }, random = randomBytes) {
-  const first = SHARE_WORDS[draw(SHARE_WORDS.length, random)];
-  let second = first;
-  while (second === first) second = SHARE_WORDS[draw(SHARE_WORDS.length, random)];
-  return open ? `${first}-${second}-${10 + draw(90, random)}` : `${first}-${second}`;
+  const words = [];
+  while (words.length < (open ? 3 : 2)) {
+    const word = SHARE_WORDS[draw(SHARE_WORDS.length, random)];
+    if (!words.includes(word)) words.push(word);
+  }
+  return open ? `${words.join("-")}-${10 + draw(90, random)}` : words.join("-");
+}
+
+/**
+ * What the log calls a link: for one without a password the code is the
+ * whole key, so a log line names a hash of it, enough to tell its lines apart.
+ */
+export function codeFingerprint(code) {
+  return createHash("sha256").update(code).digest("hex").slice(0, 8);
 }
 
 /** An unbiased number below `size`: two bytes at a time, past the last whole multiple thrown back. */
@@ -262,7 +282,7 @@ export const MAX_SHARE_FILES = (MAX_SHARE_ASSETS + 1) * 4;
  * (`StateFileError`): dropped, its files were nobody's and stayed on the host
  * for good, and the link it named could not be taken down.
  */
-export function normalizeShares(raw) {
+export function normalizeShares(raw, namesKey) {
   const shares = new Map();
   if (raw === null || raw === undefined) return shares;
   const bad = (reason) => new StateFileError("shares.json", reason);
@@ -286,7 +306,7 @@ export function normalizeShares(raw) {
     ) {
       throw bad(`the files of ${entry.code} are not all its own`);
     }
-    for (const field of ["title", "sourcePath", "createdAt", "updatedAt"]) {
+    for (const field of ["title", "sourcePath", "sealed", "createdAt", "updatedAt"]) {
       if (entry[field] != null && typeof entry[field] !== "string") {
         throw bad(`the ${field} of ${entry.code} is not text`);
       }
@@ -299,10 +319,15 @@ export function normalizeShares(raw) {
         throw bad(`${field} of ${entry.code} is not true or false`);
       }
     }
+    if (entry.sealed != null && entry.sealed.length > MAX_SEALED_NAMES) {
+      throw bad(`the sealed names of ${entry.code} are too long`);
+    }
+    // A record from before names were sealed carries them in the clear.
+    const names = entry.sealed != null && namesKey ? openNames(entry.sealed, namesKey) : entry;
     shares.set(entry.code, {
       code: entry.code,
-      title: entry.title ?? "",
-      sourcePath: entry.sourcePath ?? "",
+      title: names.title ?? "",
+      sourcePath: names.sourcePath ?? "",
       createdAt: entry.createdAt ?? "",
       updatedAt: entry.updatedAt ?? "",
       expiresAt: entry.expiresAt ?? null,
@@ -315,8 +340,58 @@ export function normalizeShares(raw) {
   return shares;
 }
 
-export function serializeShares(target, shares) {
-  return JSON.stringify({ version: 1, target, shares: [...shares.values()] }, null, 2);
+/** A title and a path are a few hundred characters; this is room for both at their longest. */
+const MAX_SEALED_NAMES = 16_384;
+
+/**
+ * The key a protected link's title and note path are sealed under before the
+ * record goes to the host. Drawn from the bridge's token, which the host never
+ * holds. A token replaced since leaves the older names unreadable, and those
+ * links are listed by their address alone.
+ */
+export function shareNamesKey(token) {
+  return Buffer.from(hkdfSync("sha256", token, "", "schreibstube share names", 32));
+}
+
+function sealNames({ title, sourcePath }, namesKey) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", namesKey, iv);
+  const body = Buffer.concat([
+    cipher.update(JSON.stringify({ title, sourcePath }), "utf8"),
+    cipher.final()
+  ]);
+  return Buffer.concat([iv, cipher.getAuthTag(), body]).toString("base64");
+}
+
+function openNames(sealed, namesKey) {
+  try {
+    const raw = Buffer.from(sealed, "base64");
+    const decipher = createDecipheriv("aes-256-gcm", namesKey, raw.subarray(0, 12));
+    decipher.setAuthTag(raw.subarray(12, 28));
+    const names = JSON.parse(
+      Buffer.concat([decipher.update(raw.subarray(28)), decipher.final()]).toString("utf8")
+    );
+    return {
+      title: typeof names.title === "string" ? names.title : "",
+      sourcePath: typeof names.sourcePath === "string" ? names.sourcePath : ""
+    };
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The record as the host keeps it. A protected link's page keeps its title
+ * from the host, so the record does too, and the note's path with it: both
+ * are sealed, and left out when there is no key to seal them under. A record
+ * written before this held them in the clear, and loses them here.
+ */
+export function serializeShares(target, shares, namesKey) {
+  const kept = [...shares.values()].map(({ title, sourcePath, ...share }) => {
+    if (!share.protected) return { ...share, title, sourcePath };
+    return namesKey ? { ...share, sealed: sealNames({ title, sourcePath }, namesKey) } : share;
+  });
+  return JSON.stringify({ version: 1, target, shares: kept }, null, 2);
 }
 
 /** Whether a link is no longer to be read: taken down, or its time is up. */

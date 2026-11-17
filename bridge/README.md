@@ -27,29 +27,30 @@ compatible. `/health` reports what a deployment is actually running, and the
 plugin says plainly when the bridge is behind rather than failing later on a
 route that does not exist yet.
 
-| Bridge | Protocol | Plugin          | Notes                                                                                                |
-| ------ | -------- | --------------- | ---------------------------------------------------------------------------------------------------- |
-| 3.5.x  | 10       | 1.8.0 and later | Start page, footer note, page language, playing videos; render version 10; see Start page            |
-| 3.4.x  | 9        | 1.8.0 and later | `:folder:` in a link's words and in the index is drawn as the icon; render version 8                 |
-| 3.3.x  | 9        | 1.8.0 and later | A shared link's address is two words (and a number without a password); no-index and no-AI signals   |
-| 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links    |
-| 3.1.x  | 8        | 1.8.0 and later | A `schreibstube-index` block becomes a foldable list of the page's sections                          |
-| 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below |
-| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                                                   |
-| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                                                    |
-| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked                                             |
-| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments                                                |
-| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked                                     |
-| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                                                              |
-| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages                                          |
-| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish                                         |
-| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`                                               |
-| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds                                                   |
-| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree                                                 |
-| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                                                      |
-| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                                                                  |
-| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                                                    |
-| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                                                        |
+| Bridge | Protocol | Plugin          | Notes                                                                                                                                                         |
+| ------ | -------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.6.x  | 10       | 1.8.0 and later | A link without a password gets three words and a number, which a plugin up to 1.93.0 does not read; a protected link's title and path sealed in `shares.json` |
+| 3.5.x  | 10       | 1.8.0 and later | Start page, footer note, page language, playing videos; render version 10; see Start page                                                                     |
+| 3.4.x  | 9        | 1.8.0 and later | `:folder:` in a link's words and in the index is drawn as the icon; render version 8                                                                          |
+| 3.3.x  | 9        | 1.8.0 and later | A shared link's address is two words (and a number without a password); no-index and no-AI signals                                                            |
+| 3.2.x  | 9        | 1.8.0 and later | Shared links: one note at `s/<code>/`, optionally encrypted and closing on time; see Shared links                                                             |
+| 3.1.x  | 8        | 1.8.0 and later | A `schreibstube-index` block becomes a foldable list of the page's sections                                                                                   |
+| 3.0.x  | 8        | 1.8.0 and later | `/search` `exclude`, quiet `/health`; plan `conflicts`, diagnostics without the root path; see below                                                          |
+| 2.13.x | 7        | 1.8.0 and later | `:folder:` in a note is drawn as the plugin's icon                                                                                                            |
+| 2.12.x | 7        | 1.8.0 and later | `/attachments` hands over a received mail's files                                                                                                             |
+| 2.11.x | 6        | 1.8.0 and later | A commit reports `deleteFailed`; assets and SVGs checked                                                                                                      |
+| 2.10.x | 5        | 1.8.0 and later | A send may carry a note's diagrams as PNG attachments                                                                                                         |
+| 2.9.x  | 4        | 1.8.0 and later | Alias `from`, refused and unconfirmed sends, `MAIL_FROM` checked                                                                                              |
+| 2.8.x  | 3        | 1.8.0 and later | The site's tab icon, named by its theme                                                                                                                       |
+| 2.7.x  | 3        | 1.8.0 and later | Slideshows, filmstrip thumbnails, header tags and tag pages                                                                                                   |
+| 2.6.x  | 1        | 1.8.0 and later | Notes cached in memory, parallel SFTP, one login per publish                                                                                                  |
+| 2.5.x  | 1        | 1.8.0 and later | Sent folder by tag, state guard, absolute `STATE_ROOT`                                                                                                        |
+| 2.4.x  | 1        | 1.8.0 and later | Validated search body, fetch and asset byte bounds                                                                                                            |
+| 2.3.x  | 1        | 1.8.0 and later | `TRUST_PROXY`, Node 24, image without Mermaid's tree                                                                                                          |
+| 2.2.x  | 1        | 1.8.0 and later | Per-target switches, publish history, JSON logs                                                                                                               |
+| 2.1.x  | 1        | 1.8.0 and later | Mail and publishing                                                                                                                                           |
+| 2.0.x  | 1        | 1.8.0 and later | Mail only; `BRIDGE_TOKEN` renamed to `MAIL_TOKEN`                                                                                                             |
+| 1.0.x  | —        | 1.7.0           | Mail only, single token, no version handshake                                                                                                                 |
 
 ## Capabilities
 
@@ -461,14 +462,27 @@ rather than as part of it. Its files are recorded in `<state>/shares.json`, not
 in the manifest, so a publish neither sees nor removes them, and a share never
 waits for a publish; `s/index.html`, an empty page, keeps a host that lists
 directories from listing the codes, and no published note may take the slug
-`s`. An address is two different English words from a list of 1,119
-(`publish/share-words.mjs`), `apple-cloud`, so it can be remembered and read
-out: about 1.25 million addresses, which is why a link with a password gets
-only the words — the password is its key — and a link without one adds a
-number from 10 to 99, `apple-cloud-42`. A two-word link cannot be updated to
-go without its password (`409 share_needs_password`); it is shared anew.
-Codes are checked by their shape, so links made with the first, ten-character
-codes are still listed and taken down. Each target keeps at most 200.
+`s`. An address is different English words from a list of 1,119
+(`publish/share-words.mjs`), so it can be remembered and read out. Two words,
+`apple-cloud`, are about 1.25 million addresses, which is why only a link
+with a password gets them — the password is its key. A link without one gets
+three words and a number from 10 to 99, `apple-cloud-tiger-42`: about 126
+billion addresses (37 bits), since its page is a static file anyone may guess
+at. Links made before 3.6.0 had two words and the number, about 113 million;
+they still work. A two-word link cannot be updated to go without its password
+(`409 share_needs_password`); it is shared anew. Codes are checked by their
+shape, so links made with the first, ten-character codes are still listed and
+taken down. Each target keeps at most 200.
+
+`shares.json` keeps an open link's title and note path as they are. A
+protected link's are sealed (AES-256-GCM) under a key drawn from
+`PUBLISH_TOKEN`, which the host never holds, so the host cannot read them and
+the plugin is still told which note a link was made of. A record written
+before 3.6.0 held them in the clear and is sealed the next time the file is
+written. After `PUBLISH_TOKEN` is replaced the older names can no longer be
+read: those links are listed by their address, and can still be taken down.
+The log names a link by the first eight hex characters of its code's SHA-256,
+never by the code.
 
 Every share asks crawlers, search engines and AI to leave it alone:
 `noindex, nofollow, noarchive, nosnippet, noimageindex, notranslate, noai,
@@ -482,6 +496,8 @@ finds only what the password lets it read.
 The page is self-contained: the note rendered as a published page is, with
 links to other notes left as text and the pictures it carries (at most 50, 20
 MB together, each within `PUBLISH_MAX_IMAGE_BYTES`) folded in as data URLs.
+The plugin leaves out, and names, a picture past the default 10 MB, so one
+large photo does not stop the share.
 Diagrams stay their source and videos are named, since either would need a
 file or a script beside the page. A theme the plugin sends dresses it; KaTeX
 and the slideshow script are copied into the link's directory when it uses
@@ -497,7 +513,8 @@ under a key derived by PBKDF2-SHA256 with 600,000 rounds and a fresh salt, the
 title encrypted with the rest. `unlock.js` beside it derives the same key in
 the reader's browser and opens the page; nothing is sent anywhere, and a wrong
 password is known by the cipher's tag. The bridge keeps neither the password
-nor the plaintext. Without one, the code is the only key.
+nor the plaintext. Without one, the code is the only key: three words and a
+number, about 37 bits, with nothing to slow down guessing at it.
 
 `expiresAt`, at most 366 days ahead, closes the link. The bridge looks once a
 minute whether a link is due and logs in only when one is — once per target

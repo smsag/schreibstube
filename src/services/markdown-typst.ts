@@ -12,7 +12,7 @@ import { BLOCK_REPORT_LABEL } from "./print-breaks";
 import { parseSlideshow, SLIDESHOW_LANGUAGE } from "./slideshow";
 import { slideshowForPrint, type SlideshowPrintMode } from "./print-slideshow";
 import { buildHeadingIndex } from "./heading-index";
-import { isDraftCallout, stripDraftMarkers } from "./print-drafts";
+import { closingRun, isDraftCallout, runAt, stripDraftMarkers } from "./print-drafts";
 import { NOTE_INDEX_LANGUAGE, parseNoteIndexOptions, planNoteIndex } from "./note-index";
 import {
   groupSlides,
@@ -164,6 +164,14 @@ const CALLOUT_KINDS: Record<string, string> = {
   cite: "note"
 };
 
+/**
+ * How many footnotes may be set inside other footnotes in one print. Each
+ * citation repeats the cited text, so notes that cite each other twice doubled
+ * the document at every level; past this the inner citations are dropped, as
+ * one that cites itself is.
+ */
+const MAX_NESTED_FOOTNOTES = 200;
+
 /** Fences drawn by a plugin rather than typeset: captured, not converted. */
 const DIAGRAM_LANGUAGES = new Set(["mermaid", "vizardry"]);
 
@@ -247,6 +255,8 @@ interface Shared {
   warnings: string[];
   /** Footnotes being expanded right now, so one that cites itself ends. */
   expanding: Set<string>;
+  /** Footnotes set inside other footnotes so far, held to `MAX_NESTED_FOOTNOTES`. */
+  nestedFootnotes: number;
   slideshows: number;
   /** Working notes left out, `[TODO …]` markers and `[!todo]` callouts, for the one warning. */
   drafts: { markers: number; callouts: number };
@@ -267,6 +277,7 @@ export function markdownToTypst(source: string, options: ConvertOptions = {}): C
     diagrams: [],
     warnings: [],
     expanding: new Set(),
+    nestedFootnotes: 0,
     slideshows: 0,
     drafts: { markers: 0, callouts: 0 },
     printed: source,
@@ -708,7 +719,9 @@ class Converter {
       return null;
     }
     if (callout?.[1] !== undefined) {
-      const kind = CALLOUT_KINDS[callout[1].toLowerCase()] ?? "note";
+      const name = callout[1].toLowerCase();
+      // Own keys only: `[!constructor]` found Object's and failed the print.
+      const kind = Object.hasOwn(CALLOUT_KINDS, name) ? (CALLOUT_KINDS[name] ?? "note") : "note";
       const title = (callout[3] ?? "").trim() || titleCase(callout[1]);
       const body = this.nested(inner.slice(1).join("\n"));
       return `#schreibstube-callout(${typstString(kind)}, [${this.inline(title)}])[\n${body}]\n`;
@@ -757,13 +770,16 @@ class Converter {
       // list of its own whose marker is the box; a numbered task keeps its
       // number and draws the box beside it.
       const task = bullet ? TASK.exec(match[3] ?? "") : null;
-      const parts = [
-        task ? this.inline((match[3] ?? "").slice(task[0].length)) : this.item(match[3] ?? "")
-      ];
+      const head = task
+        ? this.inline((match[3] ?? "").slice(task[0].length))
+        : this.item(match[3] ?? "");
 
       // Everything indented past the marker belongs to this item: a nested
-      // list, a second paragraph, a fenced block.
-      parts.push(...this.blocks(indent + 2));
+      // list, a second paragraph, a fenced block. A blank line after the
+      // first stays one, or the second paragraph ran on into the first.
+      const loose = (this.lines[this.at] ?? "x").trim() === "";
+      const more = this.blocks(indent + 2);
+      const parts = [loose && more.length > 0 ? `${head}\n` : head, ...more];
 
       const text = indentContinuation(parts.join("\n").trimEnd(), indent + 2);
       out.push(
@@ -905,6 +921,7 @@ class Converter {
     // so text that begins with one of those is kept apart by a `;`, which
     // Typst reads as the end of the expression and does not print.
     let open = false;
+    const failed: Failed = new Map();
 
     const append = (markup: string, expression: boolean): void => {
       if (markup === "") return;
@@ -962,7 +979,9 @@ class Converter {
           // the tag is eaten with it: leaving it would end the paragraph, and
           // a person who wrote `<br>` asked for the next line, not the next
           // block — which is how a sender's address is written in one breath.
-          append(" \\\n", false);
+          // At the very end there is no next line, and the backslash would
+          // escape whatever bracket the caller closes the text with.
+          if (rest.slice(br[0].length).trim() !== "") append(" \\\n", false);
           i += br[0].length;
           continue;
         }
@@ -1075,7 +1094,7 @@ class Converter {
         }
       }
 
-      const emphasis = matchEmphasis(rest, plain.slice(-1) || text[i - 1] || "");
+      const emphasis = matchEmphasis(rest, plain.slice(-1) || text[i - 1] || "", failed);
       if (emphasis) {
         flush();
         append(`${emphasis.open}[${this.inline(emphasis.content)}${emphasis.close}`, true);
@@ -1160,6 +1179,10 @@ class Converter {
       return "";
     }
     if (this.shared.expanding.has(name)) return "";
+    if (this.shared.expanding.size > 0) {
+      if (this.shared.nestedFootnotes >= MAX_NESTED_FOOTNOTES) return "";
+      this.shared.nestedFootnotes += 1;
+    }
     this.shared.expanding.add(name);
     try {
       return `#footnote[${this.inline(note)}]`;
@@ -1193,7 +1216,7 @@ interface Emphasis {
  * the sentence. A code span is skipped whole on the way to the closer, because
  * the `*` inside one is a `*` and nothing else.
  */
-function matchEmphasis(rest: string, before: string): Emphasis | null {
+function matchEmphasis(rest: string, before: string, failed: Failed): Emphasis | null {
   const markers: [string, string, string][] = [
     // Two brackets opened, two closed. One of them used to be missing, and
     // Typst refuses the whole document for one bold italic word.
@@ -1210,7 +1233,7 @@ function matchEmphasis(rest: string, before: string): Emphasis | null {
   for (const [marker, open, close] of markers) {
     if (!rest.startsWith(marker)) continue;
     if (/^\s/.test(rest.slice(marker.length))) continue;
-    const end = findCloser(rest, marker);
+    const end = findCloser(rest, marker, failed);
     if (end === -1) continue;
     const content = rest.slice(marker.length, end);
     if (content.trim() === "") continue;
@@ -1227,10 +1250,24 @@ function matchEmphasis(rest: string, before: string): Emphasis | null {
   return null;
 }
 
+/**
+ * Where a search for each marker's closer already ran to the end and found
+ * none, counted from the end of the text: every `rest` searched in one pass is
+ * a suffix of the same text, and a search that reaches such a place goes on
+ * exactly as the failed one did. Without it every opener without a closer
+ * read to the end again, and a long note of stray asterisks took seconds.
+ */
+type Failed = Map<string, Set<number>>;
+
 /** Where `marker` closes what it opened at the start of `rest`, or -1. */
-function findCloser(rest: string, marker: string): number {
+function findCloser(rest: string, marker: string, failed: Failed): number {
+  const dead = failed.get(marker) ?? new Set<number>();
+  failed.set(marker, dead);
+  const seen: number[] = [];
   let at = marker.length;
   while (at < rest.length) {
+    if (dead.has(rest.length - at)) break;
+    seen.push(rest.length - at);
     if (rest[at] === "`") {
       const run = /^`+/.exec(rest.slice(at))?.[0] ?? "`";
       const close = rest.indexOf(run, at + run.length);
@@ -1242,7 +1279,7 @@ function findCloser(rest: string, marker: string): number {
       if (run.length > marker.length) {
         // A longer run opens a span of its own inside this one: `*a **b** c*`.
         // Its closer is found the same way, and skipped over.
-        const inner = findCloser(rest.slice(at), run);
+        const inner = findCloser(rest.slice(at), run, failed);
         at += inner === -1 ? run.length : inner + run.length;
         continue;
       }
@@ -1252,6 +1289,7 @@ function findCloser(rest: string, marker: string): number {
     }
     at += 1;
   }
+  for (const position of seen) dead.add(position);
   return -1;
 }
 
@@ -1269,7 +1307,8 @@ export function escapeText(text: string): string {
     // `//` opens a line comment in Typst, so a bare URL in prose used to take
     // the rest of its line off the page without a word about it. (`/*`, the
     // block comment, is already broken up by the escaped `*` above.)
-    .replace(/\/\//g, "\\//");
+    // Every slash that has another after it: `file:///` otherwise kept a `//`.
+    .replace(/\/(?=\/)/g, "\\/");
   // At the start of a line these would open a heading, a list or a term list.
   return escaped.replace(/^(\s*)([=+/-]|\d+[.)])/gm, (_all, space: string, token: string) => {
     return `${space}\\${token}`;
@@ -1371,6 +1410,17 @@ function scanComments(source: string): { out: string; openAt: boolean[] } {
       if (at === -1) {
         kept += rest;
         break;
+      }
+      // A code span before the marker holds it as characters, as on screen;
+      // backticks without their match are characters themselves.
+      const tick = rest.indexOf("`");
+      if (tick !== -1 && tick < at) {
+        const run = runAt(rest, tick);
+        const close = closingRun(rest, run, tick + run);
+        const end = close === -1 ? tick + run : close + run;
+        kept += rest.slice(0, end);
+        rest = rest.slice(end);
+        continue;
       }
       const opener = at === percent ? "%%" : "<!--";
       kept += rest.slice(0, at);

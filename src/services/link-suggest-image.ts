@@ -13,6 +13,7 @@
  */
 
 import { IMAGE_EXTENSIONS } from "./folder-images";
+import { isRecord } from "../utils/is-record";
 
 /**
  * The largest picture a row draws.
@@ -53,8 +54,4 @@ export function suggestedImage(item: unknown): SuggestedImage | null {
   if (typeof size === "number" && size > MAX_THUMBNAIL_BYTES) return null;
 
   return { path, fit: kind === "svg" ? "contain" : "cover" };
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }

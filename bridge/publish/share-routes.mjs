@@ -19,6 +19,7 @@ import { mapLimit, SFTP_CONCURRENCY } from "./pool.mjs";
 import { exclusive, guardState, openRemote, targetFor, withRemote } from "./routes.mjs";
 import {
   checkShareRequest,
+  codeFingerprint,
   describeShare,
   encryptShare,
   expiredShares,
@@ -33,6 +34,7 @@ import {
   openShares,
   renderShare,
   serializeShares,
+  shareNamesKey,
   SHARE_CSP,
   SHARE_DIRECTORY,
   SHARE_INDEX_GUARD,
@@ -91,16 +93,19 @@ export function createShareRoutes(
     timeoutMs
   });
 
+  const namesKey = shareNamesKey(publish.token);
+
   async function load(remote) {
     return normalizeShares(
-      await remote.readJson(remote.stateAbsolute(SHARES_FILE), { strict: true })
+      await remote.readJson(remote.stateAbsolute(SHARES_FILE), { strict: true }),
+      namesKey
     );
   }
 
   async function save(remote, target, shares) {
     await remote.writeAbsolute(
       remote.stateAbsolute(SHARES_FILE),
-      Buffer.from(serializeShares(target.name, shares), "utf8")
+      Buffer.from(serializeShares(target.name, shares, namesKey), "utf8")
     );
     due.set(target.name, nextSweep(shares, now(), SWEEP_RETRY_MS));
   }
@@ -133,7 +138,10 @@ export function createShareRoutes(
       const left = await removeFiles(remote, share.files);
       if (left.length === 0) shares.delete(code);
       else shares.set(code, { ...share, files: left });
-      say("info", `share ${target.name}/${code}: expired, ${left.length} file(s) left`);
+      say(
+        "info",
+        `share ${target.name}/${codeFingerprint(code)}: expired, ${left.length} file(s) left`
+      );
     }
     return codes.length;
   }
@@ -302,7 +310,7 @@ export function createShareRoutes(
 
             say(
               "info",
-              `share ${target.name}/${code}: ${existing ? "rewritten" : "written"}, ` +
+              `share ${target.name}/${codeFingerprint(code)}: ${existing ? "rewritten" : "written"}, ` +
                 `${files.size} file(s), ${record.protected ? "protected" : "open"}, ` +
                 `expires ${record.expiresAt ?? "never"}`
             );
@@ -332,7 +340,10 @@ export function createShareRoutes(
             if (left.length === 0) shares.delete(share.code);
             else shares.set(share.code, { ...share, files: left, revoked: true });
             await save(remote, target, shares);
-            say("info", `share ${target.name}/${share.code}: revoked, ${left.length} file(s) left`);
+            say(
+              "info",
+              `share ${target.name}/${codeFingerprint(share.code)}: revoked, ${left.length} file(s) left`
+            );
             return { code: share.code, revoked: left.length === 0 };
           })
         );

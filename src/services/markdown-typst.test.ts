@@ -84,6 +84,18 @@ describe("lists", () => {
     expect(out).toBe("- Werkzeuge\n  - Linear\n  - Jira\n- Sprachen");
   });
 
+  it("keeps a second paragraph in an item a paragraph of its own", () => {
+    expect(convert("- a\n\n  b")).toBe("- a\n\n  b");
+    expect(convert("- a\n  - b")).toBe("- a\n  - b");
+  });
+
+  it("drops a line break that ends a task, which would escape its bracket", () => {
+    expect(convert("- [ ] call him<br>")).toBe(
+      "#schreibstube-task-item(schreibstube-task(false))[call him]"
+    );
+    expect(convert("**a<br>**")).toBe("#strong[a]");
+  });
+
   it("reads the sample's mixed markers as one list", () => {
     // The CV writes one item with `*` and the rest with `-`; they are one list.
     const out = convert("* erste\n- zweite\n- dritte");
@@ -197,6 +209,14 @@ describe("inline", () => {
   });
 });
 
+describe("emphasis that never closes", () => {
+  it("is read once, not once for every opener", () => {
+    const started = performance.now();
+    markdownToTypst("*a ".repeat(8000));
+    expect(performance.now() - started).toBeLessThan(500);
+  });
+});
+
 describe("escapeText", () => {
   it("escapes every character Typst reads as markup", () => {
     expect(escapeText("#let $x$ *a* _b_ [c] <d> @e ~f `g`")).toBe(
@@ -209,6 +229,10 @@ describe("escapeText", () => {
     expect(escapeText("- keine Liste")).toBe("\\- keine Liste");
     expect(escapeText("1. keine Nummer")).toBe("\\1. keine Nummer");
     expect(escapeText("/ kein Begriff")).toBe("\\/ kein Begriff");
+  });
+
+  it("breaks up every pair of slashes, not every other one", () => {
+    expect(escapeText("file:///tmp/x")).toBe("file:\\/\\//tmp/x");
   });
 
   it("leaves the same characters alone inside a line", () => {
@@ -484,6 +508,10 @@ describe("what Typst would have read as a call or a field", () => {
 });
 
 describe("callouts and quotes, as part of the note around them", () => {
+  it("draws a kind named like an object's own property as a note", () => {
+    expect(convert("> [!constructor]\n> Text")).toContain('#schreibstube-callout("note"');
+  });
+
   it("gives a diagram inside a callout its own picture, not the note's first", () => {
     const source = "```mermaid\nA\n```\n\n> [!note]\n> ```mermaid\n> B\n> ```";
     const found = markdownToTypst(source).diagrams;
@@ -519,6 +547,15 @@ describe("footnotes", () => {
   it("ends a footnote that cites itself instead of expanding it for ever", () => {
     expect(convert("Text[^a]\n\n[^a]: siehe [^a]")).toBe("Text#footnote[siehe ]");
     expect(convert("x[^a]\n\n[^a]: A[^b]\n[^b]: B[^a]")).toBe("x#footnote[A#footnote[B]]");
+  });
+
+  it("stops footnotes that cite each other twice from doubling the document", () => {
+    const definitions = Array.from(
+      { length: 30 },
+      (_, n) => `[^f${n}]: ${n} [^f${n + 1}] [^f${n + 1}]`
+    ).join("\n");
+    const out = convert(`x[^f0]\n\n${definitions}\n[^f30]: Ende`);
+    expect(out.split("#footnote[").length).toBeLessThan(300);
   });
 
   it("says so when a footnote has no definition", () => {
@@ -796,6 +833,13 @@ describe("HTML comments", () => {
   it("mix with Obsidian's own comments", () => {
     expect(convert("a %%x%% b <!-- y --> c")).toBe("a  b  c");
     expect(convert("a <!-- %% --> b %% <!-- %% c")).toBe("a  b  c");
+  });
+
+  it("do not open inside a code span", () => {
+    const out = convert("Use `<!--` and `%%` to start one.\n\nNext\n\nThird");
+    expect(out).toContain('#raw("<!--")');
+    expect(out).toContain('#raw("%%")');
+    expect(out).toContain("Third");
   });
 });
 

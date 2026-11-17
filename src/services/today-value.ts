@@ -7,6 +7,8 @@
  * rather than losing what it held.
  */
 
+import { pad } from "./print-data";
+
 /** Obsidian's property types, plus "unknown" for a key it has not typed. */
 export type PropertyKind =
   | "text"
@@ -116,7 +118,6 @@ const DATE_TOKEN = /\[([^\]]*)\]|YYYY|YY|MMMM|MMM|MM|M|DD|D|dddd|ddd|HH|H|mm|ss/
  */
 export function formatDate(date: Date, format: string, locale: string): string {
   const name = (options: Intl.DateTimeFormatOptions) => date.toLocaleString(locale, options);
-  const pad = (n: number) => String(n).padStart(2, "0");
 
   return format.replace(DATE_TOKEN, (token, literal: string | undefined) => {
     if (literal !== undefined) return literal;

@@ -6,8 +6,8 @@ import { createShare, listShares, revokeShare } from "../platform/publish-client
 import type { PublishBridgeConfig } from "../services/publish-protocol";
 import { resolveNote } from "../services/publish-index";
 import { sourceForUpload } from "../services/publish-source";
+import { toBase64 } from "../services/mail-protocol";
 import {
-  bytesToBase64,
   linksOfNote,
   pickShareAssets,
   shareAccountFor,
@@ -134,7 +134,7 @@ export class ShareCommands {
         const target = this.app.vault.getAbstractFileByPath(candidate.path);
         if (!(target instanceof TFile)) continue;
         const bytes = new Uint8Array(await this.app.vault.readBinary(target));
-        assets.push({ sourcePath: candidate.path, data: bytesToBase64(bytes) });
+        assets.push({ sourcePath: candidate.path, data: toBase64(bytes) });
       }
       const themeCss = await this.publish.readTheme(account);
 

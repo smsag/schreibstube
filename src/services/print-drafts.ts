@@ -54,7 +54,9 @@ export function stripDraftMarkers(source: string): { text: string; markers: numb
     }
     const stripped = stripLine(line);
     markers += stripped.markers;
-    if (stripped.markers > 0 && stripped.text.trim() === "") continue;
+    // A list item or quote left with its marker alone goes too: a bare `-`
+    // under a paragraph is a setext underline and made it a heading.
+    if (stripped.markers > 0 && /^\s*(?:[-*+>]|\d+[.)])?\s*$/.test(stripped.text)) continue;
     out.push(stripped.text);
   }
   return { text: out.join("\n"), markers };
@@ -97,14 +99,14 @@ function stripLine(line: string): { text: string; markers: number } {
 }
 
 /** How many backticks stand in a row from `at`. */
-function runAt(line: string, at: number): number {
+export function runAt(line: string, at: number): number {
   let end = at;
   while (line[end] === "`") end += 1;
   return end - at;
 }
 
 /** Where a run of exactly `length` backticks starts, from `from` on, or -1. */
-function closingRun(line: string, length: number, from: number): number {
+export function closingRun(line: string, length: number, from: number): number {
   let at = line.indexOf("`", from);
   while (at !== -1) {
     const run = runAt(line, at);

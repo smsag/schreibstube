@@ -73,6 +73,9 @@ export const en = {
      *  gone from the workspace. Saying so beats a command that does nothing. */
     sidebarMissing: (pane: string) =>
       `no sidebar is available for ${pane}. Show the sidebar and run the command again.`,
+    /** Shown until dismissed: the settings in use are not the person's own. */
+    settingsUnreadable:
+      "data.json could not be read. The defaults are in use, and nothing is saved until it can be.",
     /** Work started without anyone waiting for it — a poll, a record written —
      *  that failed: said once rather than lost. */
     taskFailed: (detail: string) => `something failed in the background — ${detail}`

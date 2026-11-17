@@ -18,7 +18,7 @@
  * `Z` or an offset was written by a script from an instant, so it is due on
  * the local day that instant falls on, not on the day of its UTC spelling.
  */
-import { isoDate } from "./print-data";
+import { isoDate, pad } from "./print-data";
 
 /** Frontmatter a note carries to say when it is due, unless the settings name another. */
 export const DUE_KEY = "schreibstubeDue";
@@ -240,7 +240,6 @@ function calendarDay(year: number, month: number, day: number): DueDate | null {
   if (year < MIN_DUE_YEAR || month < 1 || month > 12 || day < 1 || day > daysIn(year, month)) {
     return null;
   }
-  const pad = (n: number) => String(n).padStart(2, "0");
   return { iso: `${year}-${pad(month)}-${pad(day)}`, year, month, day };
 }
 

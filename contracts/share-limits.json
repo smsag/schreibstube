@@ -11,12 +11,15 @@
       "tiger-garden-42",
       "owl-yak",
       "sapphire-sequoia-99",
+      "apple-cloud-tiger-42",
       "ABCDEFGHJK",
       "zz23456789"
     ],
     "invalid": [
       "apple",
       "apple-cloud-7",
+      "apple-cloud-tiger",
+      "apple-cloud-tiger-owl-42",
       "apple-cloud-100",
       "apple-cloud-05",
       "Apple-cloud",
@@ -29,5 +32,5 @@
       "ABCDEFGHJKL"
     ]
   },
-  "codeWords": "three to eight letters a to z, two of them joined by a hyphen, a number from 10 to 99 after a third hyphen for a link without a password"
+  "codeWords": "three to eight letters a to z, two of them joined by a hyphen for a link with a password; for one without, three of them and a number from 10 to 99, each after a hyphen (the first such links had two words and the number, still read)"
 }

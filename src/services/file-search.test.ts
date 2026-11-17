@@ -86,6 +86,14 @@ describe("matchStrength", () => {
 });
 
 describe("parseSearchScope", () => {
+  it("does not take a word every object knows for a prefix", () => {
+    expect(parseSearchScope("constructor: x")).toEqual({
+      scope: "all",
+      query: "constructor: x",
+      explicit: false
+    });
+  });
+
   it("reads a prefix in either language", () => {
     expect(parseSearchScope("tag:vertrag")).toEqual({
       scope: "tags",

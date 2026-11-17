@@ -34,6 +34,11 @@ describe("stripDraftMarkers", () => {
     expect(stripDraftMarkers("eins\n[TODO: prüfen]\nzwei").text).toBe("eins\nzwei");
   });
 
+  it("drops a list item that was only a marker, rather than leave its bullet", () => {
+    const source = "A paragraph of the chapter.\n- [TODO: check the date]\n\nNext.";
+    expect(stripDraftMarkers(source).text).toBe("A paragraph of the chapter.\n\nNext.");
+  });
+
   it("keeps lines that were blank to begin with", () => {
     expect(stripDraftMarkers("eins\n\nzwei").text).toBe("eins\n\nzwei");
   });

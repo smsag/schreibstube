@@ -9,7 +9,6 @@ import {
   DEFAULT_READING_EVERY_MINUTES,
   describeReadingCheck,
   diffEdit,
-  entryDate,
   entryTitle,
   entryUrl,
   formatCheckedAt,
@@ -86,10 +85,6 @@ describe("entryTitle and entryUrl", () => {
     );
     expect(entryUrl("https://example.com/a b")).toBe("https://example.com/a%20b");
     expect(entryUrl("HTTPS://Example.com")).toBe("https://example.com/");
-  });
-
-  it("dates an entry the local day", () => {
-    expect(entryDate(new Date(2026, 0, 5, 23, 59))).toBe("2026-01-05");
   });
 });
 

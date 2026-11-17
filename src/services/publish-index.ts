@@ -16,6 +16,7 @@ import {
 } from "./slideshow";
 import { splitFrontmatter } from "./frontmatter-block";
 import { fencedLines } from "./markdown-fence";
+import { isoDate as localDay } from "./print-data";
 import { printableText } from "./typst-value";
 import { checkTag, tagIncludes } from "./tag-pins";
 
@@ -201,9 +202,7 @@ export function stripFrontmatter(content: string): string {
 
 /** `2026-09-12`, in local time, because a publication date is a calendar date. */
 export function isoDate(epochMs: number): string {
-  const date = new Date(epochMs);
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  return localDay(new Date(epochMs));
 }
 
 export interface NoteInput {

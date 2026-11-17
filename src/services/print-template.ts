@@ -16,6 +16,7 @@
 
 import { t } from "../i18n";
 import { printableText } from "./typst-value";
+import { isRecord } from "../utils/is-record";
 
 /** The frontmatter flag that makes a note a template descriptor. */
 export const TEMPLATE_FLAG = "schreibstubePrintTemplate";
@@ -308,10 +309,6 @@ function chooseDefault(templates: readonly PrintTemplate[], preferred: string): 
 /** Whether a font file is one Typst can read. */
 export function isFontFile(name: string): boolean {
   return /\.(ttf|otf|ttc|otc)$/i.test(name);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function str(value: unknown): string {

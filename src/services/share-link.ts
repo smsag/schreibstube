@@ -18,6 +18,12 @@ export const MIN_SHARE_PASSWORD_LENGTH = 8;
 export const MAX_SHARE_PASSWORD_LENGTH = 256;
 export const MAX_SHARE_ASSETS = 50;
 export const MAX_SHARE_ASSET_BYTES = 20_000_000;
+/**
+ * The bridge's default bound on one picture (`PUBLISH_MAX_IMAGE_BYTES`). It
+ * refuses the whole share for a picture past it, so the picture is left out
+ * here instead, and named.
+ */
+export const MAX_SHARE_IMAGE_BYTES = 10_000_000;
 /** How many links one answer may list; the bridge keeps 200 per target. */
 const MAX_LISTED_SHARES = 500;
 
@@ -157,7 +163,8 @@ export interface ShareCandidate {
 
 /**
  * Which of a note's pictures the share carries, and which it leaves out —
- * a video, an attachment of another kind, a picture past the budget — so the
+ * a video, an attachment of another kind, a picture too large on its own or
+ * past the budget — so the
  * plugin can say so. Taken in the note's order until the budget is spent.
  */
 export function pickShareAssets(candidates: readonly ShareCandidate[]): {
@@ -172,6 +179,7 @@ export function pickShareAssets(candidates: readonly ShareCandidate[]): {
     const fits =
       isPublishableAttachment(candidate.path, SHARE_IMAGE_EXTENSIONS) &&
       carried.length < MAX_SHARE_ASSETS &&
+      candidate.bytes <= MAX_SHARE_IMAGE_BYTES &&
       total + candidate.bytes <= MAX_SHARE_ASSET_BYTES;
     if (fits) {
       carried.push(candidate);
@@ -181,16 +189,6 @@ export function pickShareAssets(candidates: readonly ShareCandidate[]): {
     }
   }
   return { carried, left };
-}
-
-/** Bytes as base64, in chunks: a phone's WebView has no Buffer, and spreading a
- *  large picture into one call overflows its stack. */
-export function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (let at = 0; at < bytes.length; at += 0x8000) {
-    binary += String.fromCharCode(...bytes.subarray(at, at + 0x8000));
-  }
-  return btoa(binary);
 }
 
 export interface ShareRequest {
@@ -216,8 +214,12 @@ export interface SharedLink {
   protected: boolean;
 }
 
-/** Two words, and a number for a link without a password; or the long code the first links had. */
-const CODE = /^(?:[a-z]{3,8}-[a-z]{3,8}(?:-[1-9][0-9])?|[A-HJ-NP-Za-km-z2-9]{10})$/;
+/**
+ * Two words for a link with a password; three and a number for one without,
+ * or two and a number as the first of those had; or the long code the very
+ * first links had.
+ */
+const CODE = /^(?:[a-z]{3,8}-[a-z]{3,8}(?:(?:-[a-z]{3,8})?-[1-9][0-9])?|[A-HJ-NP-Za-km-z2-9]{10})$/;
 
 /**
  * A link as the bridge describes it, or null when it is not one: the address
