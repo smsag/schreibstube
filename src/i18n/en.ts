@@ -18,7 +18,6 @@ export const en = {
     focusParagraph: "Focus: paragraph",
     switchReadingEditing: "Switch reading/editing",
     newNote: "New note",
-    openStartPage: "Open start page",
     nextSection: "Heading stack: next section",
     previousSection: "Heading stack: previous section",
     parentSection: "Heading stack: parent section",
