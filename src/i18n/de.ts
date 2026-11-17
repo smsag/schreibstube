@@ -69,6 +69,8 @@ export const de: Messages = {
     notice: (message: string) => `Schreibstube: ${message}`,
     sidebarMissing: (pane: string) =>
       `keine Seitenleiste für ${pane} verfügbar. Seitenleiste einblenden und den Befehl erneut ausführen.`,
+    settingsUnreadable:
+      "data.json ließ sich nicht lesen. Es gelten die Standardwerte, gespeichert wird erst, wenn sie lesbar ist.",
     taskFailed: (detail: string) => `im Hintergrund ist etwas fehlgeschlagen — ${detail}`
   },
 

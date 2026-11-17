@@ -25,6 +25,7 @@ import { checkEtag } from "./sync-request";
 import { formatUpdatedAt, SYNC_UPDATED_KEY } from "./sync-frontmatter";
 import { fileNameParts } from "./file-glyph";
 import { frontmatterLine, SYNC_FRONTMATTER_KEY } from "./sync-source";
+import { isRecord } from "../utils/is-record";
 
 /** Hash of the source as last written into the note. */
 export const DRAWING_HASH_KEY = "schreibstubeSourceHash";
@@ -337,8 +338,4 @@ function setFrontmatter(block: string, entries: Entry[]): string {
   }
 
   return ["---", ...inner, "---", ""].join("\n");
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

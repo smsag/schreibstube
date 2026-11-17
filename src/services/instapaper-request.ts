@@ -9,6 +9,7 @@
  */
 import { t } from "../i18n";
 import { exceedsBytes } from "./response-size";
+import { isRecord } from "../utils/is-record";
 
 /** The only host the Instapaper token is ever sent to. */
 export const INSTAPAPER_API = "https://www.instapaper.com/api/2/";
@@ -293,7 +294,5 @@ function readBody(response: InstapaperResponse, maxBytes: number): BodyResult {
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : {};
+  return isRecord(value) ? value : {};
 }

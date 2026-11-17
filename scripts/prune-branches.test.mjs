@@ -33,10 +33,22 @@ describe("decide", () => {
   });
 
   it("deletes a branch whose pull request was merged, squashed or rebased", () => {
-    const prs = [{ number: 391, state: "closed", mergedAt: daysAgo(0), closedAt: daysAgo(0) }];
-    expect(decide({ ...base, prs })).toEqual({
+    const prs = [
+      { number: 391, state: "closed", headSha: "abc", mergedAt: daysAgo(0), closedAt: daysAgo(0) }
+    ];
+    expect(decide({ ...base, prs, tip: "abc" })).toEqual({
       action: "delete",
       reason: "pull request #391 merged"
+    });
+  });
+
+  it("keeps a merged branch that was pushed to afterwards", () => {
+    const prs = [
+      { number: 391, state: "closed", headSha: "abc", mergedAt: daysAgo(9), closedAt: daysAgo(9) }
+    ];
+    expect(decide({ ...base, prs, tip: "def" })).toEqual({
+      action: "keep",
+      reason: "commits after pull request #391 merged"
     });
   });
 

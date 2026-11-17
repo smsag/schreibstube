@@ -88,7 +88,8 @@ export function createLeafBySplit(
     logger.warn("workspace.createLeafBySplit is unavailable; cannot open link in a side pane.");
     return null;
   }
-  return split(sourceLeaf, direction, before);
+  // Called on the workspace: Obsidian's method reads `this`, and threw without it.
+  return split.call(workspace, sourceLeaf, direction, before);
 }
 
 interface MenuItemInternals {

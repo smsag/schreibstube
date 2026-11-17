@@ -25,7 +25,11 @@ function setup() {
     getLeavesOfType: () => [sourceLeaf],
     getMostRecentLeaf: () => sourceLeaf,
     iterateAllLeaves: (visit: (leaf: WorkspaceLeaf) => void) => visit(sourceLeaf),
-    createLeafBySplit: vi.fn(() => side),
+    // Obsidian's own reads `this`, and throws when called off the workspace.
+    createLeafBySplit: vi.fn(function (this: { setActiveLeaf?: unknown } | undefined) {
+      if (typeof this?.setActiveLeaf !== "function") throw new TypeError("no workspace");
+      return side;
+    }),
     setActiveLeaf: vi.fn()
   };
   const app = {

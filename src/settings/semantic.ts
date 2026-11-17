@@ -49,7 +49,10 @@ export function renderSemantic(ctx: SettingsContext): void {
       text.inputEl.max = String(MAX_SEMANTIC_NOTES);
       text.inputEl.style.width = "80px";
       text.inputEl.addEventListener("blur", async () => {
-        await ctx.update({ semanticMaxNotes: Number(text.inputEl.value) });
+        // An emptied field is no number. Read as zero it became the minimum,
+        // and the next full pass cut the index down to it.
+        const typed = text.inputEl.value.trim();
+        if (typed !== "") await ctx.update({ semanticMaxNotes: Number(typed) });
         text.setValue(String(ctx.plugin.settings.semanticMaxNotes));
         engine.settingsChanged();
       });

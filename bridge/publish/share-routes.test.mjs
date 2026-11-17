@@ -71,6 +71,8 @@ function setup({ htaccess = false, stateInsideRoot = false, fail } = {}) {
   const host = memoryHost({ fail });
   const clock = { at: Date.parse("2026-10-19T12:00:00Z") };
   const logged = [];
+  // What the routes log, apart from the sweep.
+  const said = [];
   const config = {
     requestTimeoutMs: 30_000,
     publish: {
@@ -99,13 +101,14 @@ function setup({ htaccess = false, stateInsideRoot = false, fail } = {}) {
       body: input.body,
       query: new URLSearchParams(input.query ?? {}),
       authorization: input.authorization ?? AUTH,
-      log: () => {}
+      log: (level, message) => said.push({ level, message })
     });
   };
   return {
     host,
     clock,
     logged,
+    said,
     shares,
     share: (body) => call("POST", "/publish/share", { body: { target: "blog", ...body } }),
     list: () => call("GET", "/publish/shares", { query: { target: "blog" } }),
@@ -141,7 +144,7 @@ describe("POST /publish/share", () => {
     expect(host.files.has(`/site/s/${answer.code}/unlock.js`)).toBe(false);
     expect(host.text("/site/s/index.html")).toBe(SHARE_INDEX_GUARD);
     expect(host.text("/site/robots.txt")).toBe(SHARE_ROBOTS_TXT);
-    expect(answer.code).toMatch(/^[a-z]+-[a-z]+-[1-9][0-9]$/);
+    expect(answer.code).toMatch(/^[a-z]+-[a-z]+-[a-z]+-[1-9][0-9]$/);
     expect(record().shares[0]).toMatchObject({
       code: answer.code,
       sourcePath: "Kunden/Angebot.md",
@@ -161,6 +164,25 @@ describe("POST /publish/share", () => {
     const opened = await decryptPayload(payload, "korrekt-pferd");
     expect(opened.html).toContain("<h1");
     expect(opened.title).toBe("Angebot");
+  });
+
+  it("keeps a protected link's title and path off the host and its code out of the log", async () => {
+    const { host, said, share, list, record, revoke } = setup();
+    const open = await share(note);
+    const closed = await share({ ...note, password: "korrekt-pferd" });
+
+    expect(closed).toMatchObject({ title: "Angebot", sourcePath: "Kunden/Angebot.md" });
+    expect(host.text(`/state/${SHARES_FILE}`).match(/Kunden\/Angebot\.md/g)).toHaveLength(1);
+    expect(record().shares.find((entry) => entry.code === closed.code)).not.toHaveProperty("title");
+    // Sealed, not gone: any device asking the bridge still learns which note it was.
+    const listed = (await list()).shares.find((entry) => entry.code === closed.code);
+    expect(listed).toMatchObject({ title: "Angebot", sourcePath: "Kunden/Angebot.md" });
+    await revoke(open.code);
+    for (const { message } of said) {
+      expect(message).not.toContain(open.code);
+      expect(message).not.toContain(closed.code);
+    }
+    expect(said).toHaveLength(3);
   });
 
   it("gives a link with a password two words, and refuses to take the password off them", async () => {

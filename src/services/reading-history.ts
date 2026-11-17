@@ -24,6 +24,7 @@ import {
   type Bookmark,
   type ReadingSection
 } from "./instapaper-request";
+import { isoDate } from "./print-data";
 import { formatUpdatedAt } from "./sync-frontmatter";
 import { isNoteDue, type SyncSchedule } from "./sync-interval";
 
@@ -242,7 +243,8 @@ export function buildReadingUpdate(input: {
   highlightCounts: ReadonlyMap<number, number>;
   summaries: ReadonlyMap<number, string>;
 }): ReadingUpdate {
-  const date = entryDate(input.now);
+  // The local day: the one the person saw the entry arrive on.
+  const date = isoDate(input.now);
   const added = input.selection.added.map((bookmark) => ({
     title: bookmark.title,
     url: bookmark.url,
@@ -448,13 +450,6 @@ export function entryTitle(raw: string): string {
  */
 export function entryUrl(raw: string): string {
   return new URL(raw).href.replace(/\(/g, "%28").replace(/\)/g, "%29").replace(/ /g, "%20");
-}
-
-/** Local `YYYY-MM-DD`: the day the person saw the entry arrive. */
-export function entryDate(now: Date): string {
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${String(now.getFullYear())}-${month}-${day}`;
 }
 
 /** The first line after the frontmatter, so a list in the properties is no list of entries. */

@@ -244,6 +244,10 @@ export default class SchreibstubePlugin extends Plugin {
   /** Saves asked for and not yet on disk; their values are newer than the file's. */
   private savesPending = 0;
   private savesStarted = 0;
+  /** The data file was there at load and did not parse — half-synced, most
+   *  likely. Nothing is written until it does: a save would put the defaults
+   *  over every setting, and the other device would then adopt them. */
+  private settingsUnreadable = false;
   private mail: MailCommands | null = null;
   private publish: PublishCommands | null = null;
   private share: ShareCommands | null = null;
@@ -1854,8 +1858,15 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   async loadSettings(): Promise<void> {
-    const loaded = await this.loadData();
-    this.settings = normalizeSettings(loaded);
+    const loaded: unknown = await this.loadData();
+    // Obsidian answers null for no file and nothing at all for one it could
+    // not parse, having only logged the error.
+    this.settingsUnreadable = loaded === undefined;
+    this.settings = normalizeSettings(loaded as never);
+    if (this.settingsUnreadable) {
+      new Notice(t().common.notice(t().common.settingsUnreadable), 0);
+      return;
+    }
     if (holdsRetiredSettings(loaded)) await this.saveSettings();
   }
 
@@ -1894,6 +1905,7 @@ export default class SchreibstubePlugin extends Plugin {
    * device forget what the others had fetched and accepted.
    */
   private async writeSettings(): Promise<void> {
+    if (this.settingsUnreadable) return;
     const disk = await this.readDiskSyncState();
     if (disk !== null) {
       this.settings.syncState = mergeSyncState({
@@ -1902,8 +1914,14 @@ export default class SchreibstubePlugin extends Plugin {
         dropped: this.droppedSyncRecords
       });
     }
+    // Only the marks this save wrote out are done with. A record dropped
+    // while the file was being written is still in it, and the next save
+    // would read it back.
+    const written = new Map(this.droppedSyncRecords);
     await this.saveData(this.settings);
-    this.droppedSyncRecords.clear();
+    for (const [path, at] of written) {
+      if (this.droppedSyncRecords.get(path) === at) this.droppedSyncRecords.delete(path);
+    }
   }
 
   /** The sync records as the data file holds them, or null when it cannot be
@@ -1936,6 +1954,15 @@ export default class SchreibstubePlugin extends Plugin {
       loaded = await this.loadData();
     } catch (error) {
       this.logger.debug("Could not read the data file after another device saved:", error);
+      return;
+    }
+    if (this.settingsUnreadable) {
+      // The file this device could not read at start has arrived whole.
+      if (adoptDiskSettings(this.settings, loaded) === null) return;
+      this.settings = normalizeSettings(loaded as never);
+      this.settingsUnreadable = false;
+      this.refreshAfterSettings();
+      this.sections?.invalidateLatest();
       return;
     }
     // A save that began while the file was being read makes that read stale.

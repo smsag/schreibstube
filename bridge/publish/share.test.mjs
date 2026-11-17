@@ -3,6 +3,7 @@ import { StateFileError } from "./state-file.mjs";
 import {
   apacheTime,
   checkShareRequest,
+  codeFingerprint,
   describeShare,
   encryptShare,
   expiredShares,
@@ -25,6 +26,8 @@ import {
   ShareError,
   shareHtaccess,
   sharePage,
+  serializeShares,
+  shareNamesKey,
   sharePlaintext,
   shareUrl
 } from "./share.mjs";
@@ -58,24 +61,28 @@ describe("newShareCode", () => {
     }
   });
 
-  it("adds a number from 10 to 99 for a link without one", () => {
+  it("draws three different words and a number from 10 to 99 for a link without one", () => {
     for (let i = 0; i < 50; i += 1) {
       const code = newShareCode({ open: true });
-      expect(code).toMatch(/^[a-z]+-[a-z]+-[1-9][0-9]$/);
+      expect(code).toMatch(/^[a-z]+-[a-z]+-[a-z]+-[1-9][0-9]$/);
+      expect(new Set(code.split("-")).size).toBe(4);
+      expect(isShareCode(code)).toBe(true);
       expect(fitsOpenLink(code)).toBe(true);
     }
   });
 
-  it("throws back draws past the last whole multiple, and draws a second word again when it repeats", () => {
+  it("throws back draws past the last whole multiple, and draws a word again when it repeats", () => {
     // 65535 lies past the last whole multiple of the list and is skipped;
-    // the second draw repeats the first word, so a third is taken.
-    const values = [65_535, 0, 0, 1, 0];
+    // a draw that repeats a word already taken is drawn again.
+    const values = [65_535, 0, 0, 1, 0, 2, 0];
     const random = () => {
       const buffer = Buffer.alloc(2);
       buffer.writeUInt16BE(values.shift() ?? 0);
       return buffer;
     };
-    expect(newShareCode({ open: true }, random)).toBe(`${SHARE_WORDS[0]}-${SHARE_WORDS[1]}-10`);
+    expect(newShareCode({ open: true }, random)).toBe(
+      `${SHARE_WORDS[0]}-${SHARE_WORDS[1]}-${SHARE_WORDS[2]}-10`
+    );
   });
 });
 
@@ -83,6 +90,8 @@ describe("isShareCode and fitsOpenLink", () => {
   it("reads word codes and the first links' long codes, and nothing that could leave the directory", () => {
     expect(isShareCode("apple-cloud")).toBe(true);
     expect(isShareCode("apple-cloud-42")).toBe(true);
+    expect(isShareCode("apple-cloud-tiger-42")).toBe(true);
+    expect(isShareCode("apple-cloud-tiger")).toBe(false);
     expect(isShareCode("ABCDEFGHJK")).toBe(true);
     expect(isShareCode("apple-cloud-7")).toBe(false);
     expect(isShareCode("../../etc1")).toBe(false);
@@ -92,8 +101,53 @@ describe("isShareCode and fitsOpenLink", () => {
 
   it("lets a link be read without a password only at an address with a number, or a long one", () => {
     expect(fitsOpenLink("apple-cloud-42")).toBe(true);
+    expect(fitsOpenLink("apple-cloud-tiger-42")).toBe(true);
     expect(fitsOpenLink("ABCDEFGHJK")).toBe(true);
     expect(fitsOpenLink("apple-cloud")).toBe(false);
+  });
+});
+
+describe("codeFingerprint", () => {
+  it("names a code in the log without giving it away", () => {
+    expect(codeFingerprint("apple-cloud-tiger-42")).toMatch(/^[0-9a-f]{8}$/);
+    expect(codeFingerprint("apple-cloud-tiger-42")).toBe(codeFingerprint("apple-cloud-tiger-42"));
+    expect(codeFingerprint("apple-cloud-tiger-43")).not.toBe(
+      codeFingerprint("apple-cloud-tiger-42")
+    );
+  });
+});
+
+describe("serializeShares", () => {
+  it("keeps a protected link's title and note path off the host, an open link's on it", () => {
+    const shares = normalizeShares({
+      shares: [
+        { code: "apple-cloud", title: "Geheim", sourcePath: "Privat/Brief.md", protected: true },
+        { code: "apple-cloud-tiger-42", title: "Offen", sourcePath: "Blog/Offen.md" }
+      ]
+    });
+    const written = serializeShares("blog", shares);
+    expect(written).not.toContain("Geheim");
+    expect(written).not.toContain("Privat/Brief.md");
+    const [closed, open] = normalizeShares(JSON.parse(written)).values();
+    expect(closed).toMatchObject({ code: "apple-cloud", title: "", sourcePath: "" });
+    expect(open).toMatchObject({ title: "Offen", sourcePath: "Blog/Offen.md" });
+  });
+
+  it("seals them under the bridge's key, so the bridge alone reads them back", () => {
+    const names = { title: "Geheim", sourcePath: "Privat/Brief.md" };
+    const shares = normalizeShares({
+      shares: [{ code: "apple-cloud", ...names, protected: true }]
+    });
+    const key = shareNamesKey("a-token-the-host-never-sees");
+    const written = serializeShares("blog", shares, key);
+    expect(written).not.toContain("Geheim");
+    expect(written).not.toContain("Privat/Brief.md");
+
+    const read = (using) => [...normalizeShares(JSON.parse(written), using).values()][0];
+    expect(read(key)).toMatchObject(names);
+    // A token replaced since: the link is still there, by its address alone.
+    expect(read(shareNamesKey("another-token"))).toMatchObject({ title: "", sourcePath: "" });
+    expect(read(undefined)).toMatchObject({ code: "apple-cloud", title: "", sourcePath: "" });
   });
 });
 

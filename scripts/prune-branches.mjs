@@ -32,6 +32,7 @@ export const CLOSED_GRACE_DAYS = 7;
  *
  * `compare` is how the branch's tip relates to the default branch, as the
  * compare API says it: `identical` or `behind` mean every commit is there.
+ * `tip` is the branch's current commit; each of `prs` records the head it had.
  * `prs` are the pull requests whose head was this branch, open ones included.
  */
 export function decide({
@@ -39,6 +40,7 @@ export function decide({
   defaultBranch,
   protectedBranch,
   compare,
+  tip,
   prs,
   now,
   graceDays = CLOSED_GRACE_DAYS
@@ -50,8 +52,13 @@ export function decide({
     return { action: "delete", reason: "contained in the default branch" };
   }
 
-  const merged = prs.find((pr) => pr.mergedAt !== null);
-  if (merged) return { action: "delete", reason: `pull request #${merged.number} merged` };
+  // Commits pushed after the merge are on no pull request: only a tip the merged one carried is safe.
+  const merged = prs.filter((pr) => pr.mergedAt !== null);
+  const landed = merged.find((pr) => pr.headSha === tip);
+  if (landed) return { action: "delete", reason: `pull request #${landed.number} merged` };
+  if (merged.length > 0) {
+    return { action: "keep", reason: `commits after pull request #${merged[0].number} merged` };
+  }
 
   if (prs.length > 0) {
     const lastClosed = Math.max(...prs.map((pr) => Date.parse(pr.closedAt ?? "") || 0));
@@ -134,6 +141,7 @@ async function main() {
     list.push({
       number: pr.number,
       state: pr.state,
+      headSha: pr.head.sha,
       mergedAt: pr.merged_at,
       closedAt: pr.closed_at
     });
@@ -141,7 +149,7 @@ async function main() {
   }
 
   const results = [];
-  for (const { name, protected: protectedBranch } of branches) {
+  for (const { name, protected: protectedBranch, commit } of branches) {
     const prs = prsOf.get(name) ?? [];
     const compare =
       name !== defaultBranch && !protectedBranch && needsCompare(prs)
@@ -153,6 +161,7 @@ async function main() {
       defaultBranch,
       protectedBranch,
       compare,
+      tip: commit.sha,
       prs,
       now: new Date()
     });

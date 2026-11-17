@@ -385,7 +385,9 @@ export function parseSearchScope(raw: string): ParsedQuery {
   const match = /^([\p{L}\p{M}]+):\s*(.*)$/su.exec(text);
   const prefix = match?.[1];
   if (prefix !== undefined) {
-    const scope = SCOPE_PREFIXES[prefix.normalize("NFC").toLowerCase()];
+    const name = prefix.normalize("NFC").toLowerCase();
+    // Its own names only: every object also answers to `constructor`.
+    const scope = Object.hasOwn(SCOPE_PREFIXES, name) ? SCOPE_PREFIXES[name] : undefined;
     if (scope) return { scope, query: (match?.[2] ?? "").trim(), explicit: true };
   }
   return { scope: "all", query: text, explicit: false };

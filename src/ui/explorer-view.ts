@@ -1048,18 +1048,15 @@ export class ExplorerPaneView extends ItemView {
     const filtered = this.collectMatches();
     this.matches = filtered?.all ?? null;
     this.ranked = filtered?.ranked ?? null;
-    // A selected row that is gone — deleted, moved, filtered out — is not
-    // selected any more; the next "delete the selection" must not reach for
-    // rows nobody can see. Folded folders are another matter: their rows are
-    // one press away, so outside a filter only what is gone is dropped.
-    this.selection = selectionPruned(this.selection, (path) => {
-      const file = this.app.vault.getAbstractFileByPath(path);
-      if (!file) return false;
-      if (this.matches === null) return true;
-      // A folder is on screen through the filter only as a pinned row, which
-      // is matched by its name.
-      return file instanceof TFolder ? this.matchesQuery(file.name) : this.matches.has(path);
-    });
+    // A selected row that is gone — deleted, moved — is not selected any
+    // more; the next "delete the selection" must not reach for rows nobody
+    // can see. Folded folders are another matter: their rows are one press
+    // away, so outside a filter only what is gone is dropped. Under a filter
+    // the rows it left out go too, once they are drawn (below).
+    this.selection = selectionPruned(
+      this.selection,
+      (path) => this.app.vault.getAbstractFileByPath(path) !== null
+    );
     this.drawnListings = listingScopesOf(this.query);
     this.drawnDueKey = this.dueKeyNow();
     host.empty();
@@ -1075,6 +1072,17 @@ export class ExplorerPaneView extends ItemView {
     // Only a vault that mirrors sources has anything to show here.
     if (settings.syncEnabled) this.renderLatest(host);
     this.renderFiles(host);
+    // A filter draws only the best of its matches. One held back by the cap,
+    // or not matched at all, is not shown as selected, and "delete the
+    // selection" took it anyway.
+    if (this.matches !== null) {
+      const drawn = new Set(
+        Array.from(this.containerEl.querySelectorAll("[data-path]"), (row) =>
+          row.getAttribute("data-path")
+        )
+      );
+      this.selection = selectionPruned(this.selection, (path) => drawn.has(path));
+    }
 
     // A new query is a new list, read from the top; the place in the old one
     // said nothing about where to look in this one.

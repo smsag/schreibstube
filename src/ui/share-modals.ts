@@ -150,8 +150,10 @@ export class ShareModal extends Modal {
       ...(link ? { link } : {})
     });
     if (password === null) {
-      this.password = "";
-      this.field?.setValue("");
+      // A fresh draw rather than an empty field: "Create link" pressed next
+      // would otherwise make an open link of a note meant to be protected.
+      this.password = generateSharePassword();
+      this.field?.setValue(this.password);
       this.warning?.setText(t().share.updatePassword);
       return;
     }
@@ -250,7 +252,7 @@ export class ShareListModal extends Modal {
     }
     for (const link of this.links) {
       new Setting(contentEl)
-        .setName(link.title || link.sourcePath)
+        .setName(link.title || link.sourcePath || link.code)
         .setDesc(`${link.url} · ${linkSummary(link)}`)
         .addButton((button) =>
           button

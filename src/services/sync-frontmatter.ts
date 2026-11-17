@@ -22,6 +22,7 @@
  */
 import { buildHeadingIndex } from "./heading-index";
 import { frontmatterTitle } from "./note-title";
+import { pad } from "./print-data";
 
 /** The keys a check maintains. Plain names, because other tools read them. */
 export const SYNC_TITLE_KEY = "title";
@@ -93,8 +94,6 @@ export function firstHeading(markdown: string | null): string | null {
  * having to parse it first.
  */
 export function formatUpdatedAt(date: Date): string {
-  const pad = (value: number): string => String(value).padStart(2, "0");
-
   return (
     `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
     `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`

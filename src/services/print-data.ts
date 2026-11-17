@@ -181,6 +181,7 @@ export function noteTitle(source: string, fallback: string): string {
   return fallback;
 }
 
-function pad(value: number): string {
+/** Two digits, as a month, a day or an hour is written. */
+export function pad(value: number): string {
   return String(value).padStart(2, "0");
 }

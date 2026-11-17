@@ -47,7 +47,7 @@ function setup({
   archive?: Bookmark[];
   /** What a since-check answers. */
   changed?: Bookmark[];
-  serverTime?: number | null;
+  serverTime?: number | null | (() => number);
   highlights?: Record<number, Highlight[]>;
   settings?: Partial<ReturnType<typeof normalizeSettings>>;
   summarize?: ReadingDeps["summarize"];
@@ -79,7 +79,7 @@ function setup({
         ok: true as const,
         bookmarks: list.slice(input.offset, input.offset + size),
         total: list.length,
-        serverTime
+        serverTime: typeof serverTime === "function" ? serverTime() : serverTime
       };
     }),
     fetchHighlights: vi.fn(async (id: number) => ({
@@ -210,6 +210,28 @@ describe("ReadingHistoryController", () => {
     ]);
     expect(summary.added).toBe(2000);
     expect(text()).toContain(`${READING_CHECKED_KEY}: ${formatCheckedAt(last)}\n`);
+  });
+
+  it("catches a note ten pages behind up over repeated checks, without rereading", async () => {
+    const last = NOW_S - 30 * DAY;
+    const changed = Array.from({ length: 5000 }, (_, index) => bookmark(index + 1));
+    // Instapaper's clock, an hour on with every answer.
+    let clock = NOW_S - 100 * 3600;
+    const { controller, requests, text } = setup({
+      content: `${frontmatter(formatCheckedAt(last))}\n${listBlock()}`,
+      changed,
+      archive: [],
+      serverTime: () => (clock += 3600)
+    });
+
+    let added = 0;
+    for (let check = 0; check < 3; check += 1) added += (await controller.checkAll(true)).added;
+    expect(added).toBe(5000);
+    const offsets = requests.filter((r) => r.since !== null).map((r) => r.offset);
+    expect(offsets).toEqual([0, 500, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500]);
+    // As of the first answer: what changed while the window was being read
+    // may sit on a page already passed, and is asked for again from there.
+    expect(text()).toContain(`${READING_CHECKED_KEY}: ${formatCheckedAt(NOW_S - 99 * 3600)}\n`);
   });
 
   it("moves a 1.88.0 note over: its marker's time is asked from, and every comment goes", async () => {

@@ -4,8 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-The bridge moves from 3.5.3 to 3.5.4: a publish that was cut off halfway no
-longer blocks the next one. The protocol is unchanged.
+The bridge moves from 3.5.3 to 3.6.0: a publish that was cut off halfway no
+longer blocks the next one, a shared link without a password gets a longer
+address, link codes stay out of the log, and a protected link's title and note
+path are sealed on the web host. The protocol is unchanged, but update the
+plugin before the bridge: 1.93.0 and older do not read the longer address.
 
 ### Changed
 
@@ -13,6 +16,8 @@ longer blocks the next one. The protocol is unchanged.
 - **Settings changed on one device stick on the others.** When another device saves its settings, this one takes them over instead of writing its own older values back at its next automatic save: changing the bridge address on the laptop while the phone was running was undone the next time the phone checked its sources. The time of the last check and the sources you allowed stay per device, a change you are making at that moment wins, and the language and whatever is set up at start apply the next time Obsidian starts.
 - **Printing, property sets and glossary definitions agree where a note's properties end.** A properties block closed with `...` instead of `---`, or with spaces after a fence, was already read as properties by the outline and picture descriptions; printing, property sets and glossary definitions still took it for text. Every reader now shares the one rule.
 - **A very large attachment stops a publish with a message.** A file over 100 MB was read whole into memory just to be fingerprinted, which on an iPhone ended with Obsidian being closed. The publish now stops before reading it and names the file. The bound protects the device; it is not the bridge's own limit.
+- **A shared link without a password gets a longer address.** Its address is its only key, and two words with a number were about 113 million possibilities on a page nothing stops anyone from guessing at. New open links get three words and a number, `apple-cloud-tiger-42`, about 126 billion. Links you already sent keep working, and a link with a password keeps its two words. Comes with bridge 3.6.0; update the plugin first, since 1.93.0 and older do not read the longer address.
+- **The web host no longer reads which note a protected link was made of.** The bridge kept the title and vault path of every shared note in a plain file on the host, although the page itself was encrypted. For a link with a password both are now sealed under a key only the bridge holds, and the bridge's log names a link by a fingerprint instead of its code — which, for a link without a password, was the key. After `PUBLISH_TOKEN` is replaced, older protected links are listed by their address alone. Comes with bridge 3.6.0.
 
 ### Fixed
 
@@ -31,6 +36,22 @@ longer blocks the next one. The protocol is unchanged.
 - **A vault check no longer relists a note you just accepted.** Accepting a note's changes while a check of the whole vault was still running could be overwritten by that check's older result, and the note was listed as changed again.
 - **Importing a mail no longer overwrites text selected while it downloaded.** The mail is inserted after the selection, so a paragraph marked while the attachments came in stays where it is.
 - **A note that starts with a horizontal rule is proofread.** A first line of `---` with no closing `---` was taken for frontmatter and the whole note was skipped.
+- **A settings file that cannot be read is left as it is.** When `data.json` did not parse at start — half-synced, most likely — Schreibstube started on the defaults and its next save wrote them over every setting, and the other device then took them over too. It now says so, saves nothing, and takes the file over as soon as it arrives whole. If it never does, repair or delete the file.
+- **Deleting a selection under a filter takes only what is shown.** A filter lists the best 200 matches, but a file selected earlier stayed selected when it matched further down, and "delete" took it along unseen. Under a filter only the rows that are drawn stay selected.
+- **Links open beside the note again.** With the link mode set to open to the left or right, a click on a link opened nothing at all.
+- **A source you removed stays removed.** A note deleted, renamed or unbound at the moment the settings were being written kept its sync record, which the next save read back from the file.
+- **A reading note that fell far behind catches up.** After more than 2,000 changes in Instapaper a check read the same 2,000 again every time and never reached the rest. Each check now reads on from where the last one stopped.
+- **Clearing the note limit keeps the limit.** An emptied "max notes" field was saved as the minimum of 100, and the next full pass cut the index for finding by meaning down to 100 notes.
+- **`constructor` is an ordinary word.** `:constructor:` in a note drew program text as an icon, `constructor: x` in the file filter was read as a search scope that found nothing, and a `> [!constructor]` callout stopped the print.
+- **A line break at the end of a task no longer stops the print.** `- [ ] call him<br>` ended the whole document with "unclosed delimiter"; so did a `<br>` closing bold text, a table cell or a footnote.
+- **Three slashes in a row are printed.** In `file:///…` the rest of the line vanished from the printout, and inside a task or bold text the print failed.
+- **A comment marker inside inline code no longer cuts the printout short.** A sentence that showed `%%` or `<!--` as code was printed up to that point, and the rest of the note was taken for a comment.
+- **A `[TODO …]` list item no longer turns the paragraph above into a heading.** With the marker removed for print a lone `-` was left, which Markdown reads as the underline of a heading.
+- **A second paragraph in a list item is printed as one.** It ran on into the first.
+- **Stray asterisks no longer freeze the print dialog.** Every `*` or `_` without a partner made the converter read to the end of the paragraph again — seconds for a long one — and footnotes that cite each other could double the document until memory ran out.
+- **Printing gives its memory back.** Every compile, one for each change in the print dialog, left its compiler and fonts behind in the background worker; a long session could end with Obsidian being closed on a phone.
+- **One large picture no longer stops a share.** A note with a picture over 10 MB could not be shared at all. The picture is now left out and named, like one past the 20 MB a share carries in total.
+- **"Create link" after "Update" keeps the note protected.** Pressing Update on a protected link emptied the password field to ask for the old password; "Create link" pressed next then made a link without one. The field now holds a newly drawn password.
 
 ## 1.93.0 - 2026-11-13
 

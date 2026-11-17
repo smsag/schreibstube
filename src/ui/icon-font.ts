@@ -42,7 +42,8 @@ export const ICON_FONT_FAMILY = "schreibstube-icons";
 
 /** The character `name` is drawn as, or undefined for a name the font does not have. */
 export function iconGlyph(name: string): string | undefined {
-  return ICON_CODEPOINTS[name];
+  // Its own names only: every object also answers to `constructor`.
+  return Object.hasOwn(ICON_CODEPOINTS, name) ? ICON_CODEPOINTS[name] : undefined;
 }
 
 export interface IconGroup {
@@ -117,7 +118,7 @@ export function applyIcon(el: HTMLElement, name: string | undefined): boolean {
   el.addClass("schreibstube-icon");
   el.setAttribute("aria-hidden", "true");
 
-  const glyph = name ? ICON_CODEPOINTS[name] : undefined;
+  const glyph = name ? iconGlyph(name) : undefined;
   el.setText(glyph ?? "");
   return glyph !== undefined;
 }
