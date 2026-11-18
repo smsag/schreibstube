@@ -30,14 +30,6 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings(valid)).toEqual(valid);
   });
 
-  it("defaults overlayEnabled to true when absent", () => {
-    expect(normalizeSettings({}).overlayEnabled).toBe(true);
-  });
-
-  it("preserves an explicit overlayEnabled=false", () => {
-    expect(normalizeSettings({ overlayEnabled: false }).overlayEnabled).toBe(false);
-  });
-
   it("keeps the task counts in the file pane off unless switched on", () => {
     expect(normalizeSettings({}).explorerTaskCounts).toBe(false);
     expect(normalizeSettings({ explorerTaskCounts: "on" as never }).explorerTaskCounts).toBe(false);

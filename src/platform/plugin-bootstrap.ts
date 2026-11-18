@@ -7,11 +7,9 @@ import { registerTaskRibbon } from "../processors/task-ribbon";
 import { registerNoteIndex } from "../processors/note-index";
 import { setTextWithIcons } from "../processors/icon-shortcode";
 import { registerSlideshow, type SlideshowPictureActions } from "../processors/slideshow";
-import type { EditorViewportUpdate } from "../processors/editor-extension";
 import type { SchreibstubeSettings } from "../types";
 
 export interface BootstrapHandlers {
-  onViewportFromEditor: (update: EditorViewportUpdate) => void;
   getSettings: () => SchreibstubeSettings;
   onActiveLeafChange: () => void;
   /** The picture's own buttons for a slideshow, once the plugin has made them. */
@@ -19,14 +17,7 @@ export interface BootstrapHandlers {
 }
 
 export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: BootstrapHandlers): void {
-  plugin.registerEditorExtension(
-    createEditorExtension({
-      onViewportUpdate: (update) => {
-        handlers.onViewportFromEditor(update);
-      },
-      getSettings: handlers.getSettings
-    })
-  );
+  plugin.registerEditorExtension(createEditorExtension({ getSettings: handlers.getSettings }));
 
   plugin.registerEditorExtension(createTaskBadgeExtension());
   plugin.registerEditorExtension(createTaskFoldExtension());
@@ -37,8 +28,6 @@ export function bootstrapSchreibstubeRuntime(plugin: Plugin, handlers: Bootstrap
   );
   registerSlideshow(plugin, handlers.pictureActions);
 
-  // Switching a note to reading view is a layout change, and takes the
-  // overlay down; switching back puts it up again.
   plugin.registerEvent(
     plugin.app.workspace.on("layout-change", () => {
       handlers.onActiveLeafChange();

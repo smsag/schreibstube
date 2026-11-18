@@ -9,7 +9,7 @@ tags:
 # Markdown Elements
 
 A single note that exercises every Markdown construct the plugin has to survive:
-headings for the heading stack, tables and code blocks for the correction pass
+headings for the note index, tables and code blocks for the correction pass
 exclusions, and inline constructs for the masking round-trip.
 
 ## Headings
@@ -87,8 +87,8 @@ Numbers do not have to be sequential in the source:
 
 - [x] Write the sample note
 - [ ] Run it through the proof-read sidebar
-- [ ] Check the heading stack overlay
-  - [ ] Scroll past a level 3 heading
+- [ ] Check the note index
+  - [ ] Insert one below a level 3 heading
 
 ### Definition list
 

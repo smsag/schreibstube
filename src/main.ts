@@ -14,14 +14,6 @@ import {
   type TAbstractFile,
   type WorkspaceLeaf
 } from "obsidian";
-import { resolveStackUnderOverlay } from "./services/ancestor-stack";
-import { buildHeadingIndex } from "./services/heading-index";
-import { sameHeadings, sectionCommandTarget, type SectionMove } from "./services/heading-tree";
-import { remeasureEditorsIn } from "./processors/editor-extension";
-import { scrollViewToLine, viewTopLine } from "./platform/view-scroll";
-import { RefreshScheduler } from "./services/refresh-scheduler";
-import { OverlayCoordinator } from "./platform/overlay-coordinator";
-import { findOverlayHost, isNoteEditor } from "./platform/overlay-host";
 import { bootstrapSchreibstubeRuntime } from "./platform/plugin-bootstrap";
 import {
   DEFAULT_SETTINGS,
@@ -162,7 +154,7 @@ import { PrintCommands } from "./controllers/print-commands";
 import type { PrintTemplate } from "./services/print-template";
 import { SchreibstubeSettingTab } from "./settings/index";
 import { setLanguage, t } from "./i18n";
-import type { FocusMode, HeadingEntry, SchreibstubeSettings } from "./types";
+import type { FocusMode, SchreibstubeSettings } from "./types";
 
 /** How often the poll ticker wakes. Well under a minute so a scheduled minute
  *  is never stepped over by a late tick. */
@@ -190,18 +182,9 @@ const RECOMMEND_LIMIT = 20;
 export default class SchreibstubePlugin extends Plugin {
   override settings: SchreibstubeSettings = DEFAULT_SETTINGS;
   private logger: Logger = createLogger(() => this.settings.debugLogging);
-  private currentView: MarkdownView | null = null;
   /** Set first thing in `onunload`, so a frame or a callback that was already
    *  queued when the plugin went away finds nothing left to draw on. */
   private unloaded = false;
-  /** The top line and the line under the overlay; see `resolveStackUnderOverlay`. */
-  private edgeLines: readonly [number, number] = [0, 0];
-  private headingIndex: HeadingEntry[] = [];
-  private lastIndexedContent = "";
-  private ancestorStack: HeadingEntry[] = [];
-  private lastRenderSignature = "";
-  private overlayCoordinator = new OverlayCoordinator();
-  private refreshScheduler: RefreshScheduler | null = null;
   private linkMode: LinkModeController | null = null;
   private linkSuggestThumbnails: LinkSuggestThumbnails | null = null;
   private llm: LlmCommands | null = null;
@@ -263,11 +246,6 @@ export default class SchreibstubePlugin extends Plugin {
     // Before the ribbon, the pane's tab or any row asks for it by name.
     registerSchreibstubeIcon();
     this.logger.debug("Loading Schreibstube.");
-
-    this.refreshScheduler = new RefreshScheduler(
-      (callback) => window.requestAnimationFrame(callback),
-      ({ edgeLines }) => this.refreshForActiveView(edgeLines)
-    );
 
     this.linkMode = new LinkModeController(this.app, this.logger);
     this.linkSuggestThumbnails = new LinkSuggestThumbnails(this.app, this.logger);
@@ -541,17 +519,8 @@ export default class SchreibstubePlugin extends Plugin {
 
     bootstrapSchreibstubeRuntime(this, {
       pictureActions: () => this.pictureActions,
-      onViewportFromEditor: ({ edgeLines, editorDom }) => {
-        // Every open editor reports its scroll, the hidden one behind a
-        // note in reading view and those nested in a note included; only the
-        // note being edited counts.
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view?.getMode() !== "source" || !isNoteEditor(view, editorDom)) return;
-        this.queueRefreshForActiveView(edgeLines);
-      },
       getSettings: () => this.settings,
       onActiveLeafChange: () => {
-        this.requestOverlayRefresh();
         void this.proofread?.syncActiveFile();
       }
     });
@@ -670,7 +639,6 @@ export default class SchreibstubePlugin extends Plugin {
       void this.activateExplorerPane();
     });
     this.addSettingTab(new SchreibstubeSettingTab(this.app, this));
-    this.requestOverlayRefresh();
   }
 
   /**
@@ -931,8 +899,6 @@ export default class SchreibstubePlugin extends Plugin {
     this.semantic?.dispose();
     // A caller holding the object finds it answering nothing; one asking the
     // registry again finds no API at all.
-    this.api = null;
-    this.clearOverlay();
   }
 
   /** The picture a description note describes, when the vault still has it. */
@@ -1965,10 +1931,6 @@ export default class SchreibstubePlugin extends Plugin {
     this.sections?.invalidateLatest();
   }
 
-  requestOverlayRefresh(): void {
-    this.queueRefreshForActiveView();
-  }
-
   async updateExchangeRates(): Promise<void> {
     await this.sums?.updateRates(true);
   }
@@ -2100,10 +2062,6 @@ export default class SchreibstubePlugin extends Plugin {
   }
 
   private registerCommands(): void {
-    this.addSectionCommand("heading-next-section", t().commands.nextSection, "next");
-    this.addSectionCommand("heading-previous-section", t().commands.previousSection, "previous");
-    this.addSectionCommand("heading-parent-section", t().commands.parentSection, "parent");
-
     this.addCommand({
       id: "create-untitled-note",
       name: t().commands.newNote,
@@ -2540,128 +2498,5 @@ export default class SchreibstubePlugin extends Plugin {
 
   private notifyFocusSettingsChanged(): void {
     window.dispatchEvent(new Event(FOCUS_SETTINGS_CHANGED));
-  }
-
-  private queueRefreshForActiveView(edgeLines?: readonly [number, number]): void {
-    if (!this.refreshScheduler) {
-      this.refreshForActiveView(edgeLines);
-      return;
-    }
-    this.refreshScheduler.enqueue(edgeLines);
-  }
-
-  private refreshForActiveView(edgeLines?: readonly [number, number]): void {
-    // A scroll queues a frame; disabling the plugin does not cancel it. The
-    // frame used to arrive after `onunload` had cleared the overlay and draw a
-    // fresh one into a live view, with no owner left to take it down.
-    if (this.unloaded || !this.settings.overlayEnabled) {
-      this.clearOverlay();
-      return;
-    }
-
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) {
-      this.clearOverlay();
-      return;
-    }
-
-    if (this.currentView !== view) {
-      this.currentView = view;
-      // Until its editor measures, a note opened already scrolled shows the
-      // stack of the line it opened at, not of its first line.
-      const top = viewTopLine(view) ?? 0;
-      this.edgeLines = [top, top];
-      this.lastRenderSignature = "";
-      // The estimate does not see under the overlay; the editor does.
-      remeasureEditorsIn(view.contentEl);
-    }
-
-    if (edgeLines) {
-      this.edgeLines = edgeLines;
-    }
-
-    const content = view.editor.getValue();
-    if (content !== this.lastIndexedContent) {
-      this.lastIndexedContent = content;
-      // Most edits leave the headings as they were. The same index is kept
-      // then, and the overlay is not drawn again for every keystroke; when
-      // they change, the crumbs' menus and the position read the new ones.
-      const index = buildHeadingIndex(content);
-      if (!sameHeadings(index, this.headingIndex)) {
-        this.headingIndex = index;
-        this.lastRenderSignature = "";
-      }
-    }
-
-    this.ancestorStack = resolveStackUnderOverlay(this.headingIndex, ...this.edgeLines);
-    this.renderOverlay(view);
-  }
-
-  private renderOverlay(view: MarkdownView | null = this.currentView): void {
-    if (!view) {
-      this.clearOverlay();
-      return;
-    }
-
-    const sig = this.ancestorStack.map((e) => `${e.level}:${e.lineNumber}:${e.text}`).join("|");
-    if (sig === this.lastRenderSignature) return;
-
-    const rendered = this.overlayCoordinator.renderForView(
-      view,
-      { ancestorStack: this.ancestorStack, headingIndex: this.headingIndex },
-      (lineNumber) => this.navigateToLine(lineNumber)
-    );
-
-    if (!rendered) {
-      this.clearOverlay();
-      return;
-    }
-
-    this.lastRenderSignature = sig;
-  }
-
-  private clearOverlay(): void {
-    this.overlayCoordinator.clear();
-    this.lastRenderSignature = "";
-    this.currentView = null;
-  }
-
-  private sectionTarget(move: SectionMove): number | null {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    return sectionCommandTarget({
-      active:
-        view !== null &&
-        view === this.currentView &&
-        this.settings.overlayEnabled &&
-        findOverlayHost(view) !== null,
-      headingIndex: this.headingIndex,
-      ancestorStack: this.ancestorStack,
-      move
-    });
-  }
-
-  private addSectionCommand(id: string, name: string, move: SectionMove): void {
-    this.addCommand({
-      id,
-      name,
-      checkCallback: (checking) => {
-        const line = this.sectionTarget(move);
-        if (line === null) return false;
-        if (!checking) this.navigateToLine(line);
-        return true;
-      }
-    });
-  }
-
-  private navigateToLine(lineNumber: number): void {
-    const view = this.currentView ?? this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return;
-
-    scrollViewToLine(view, lineNumber);
-    // The heading is now at the top. Until the editor measures again, the
-    // stack goes by that, so a command pressed again in the meantime moves
-    // on from the heading just reached, not from the one before it.
-    this.edgeLines = [lineNumber, lineNumber];
-    this.queueRefreshForActiveView();
   }
 }
