@@ -89,6 +89,18 @@ describe("in the editor, beside the line (Source mode)", () => {
     expect(view.state.selection.main.head).toBe(9);
   });
 
+  it("works a sum out with the lines above it, and writes it in with Tab", () => {
+    const doc = "3000€ + 4500 =\ndavor + 4.500 =\nSumme =";
+    const view = editor(doc, doc.length);
+
+    const shown = Array.from(view.dom.querySelectorAll(".schreibstube-calc-result")).map(
+      (span) => span.textContent
+    );
+    expect(shown).toEqual(["7.500,00 €", "12.000,00 €", "19.500,00 €"]);
+    expect(pressTab(view)).toBe(true);
+    expect(view.state.doc.line(3).text).toBe("Summe = 19.500,00 €");
+  });
+
   it("leaves Tab to indent anywhere else on the line", () => {
     const view = editor("2 + 2 =", 3);
 
@@ -230,6 +242,15 @@ describe("in Reading view", () => {
       '<p>Grundpreis 12,5 * 8 + 3 =<span class="schreibstube-calc-result">103</span><br>' +
         'und 2<em>3</em>4 =<span class="schreibstube-calc-result">24</span><br>Seite 5 =</p>'
     );
+  });
+
+  it("sums a section with the lines above it in the note", () => {
+    const el = document.body.createDiv();
+    el.innerHTML = "<p>Summe =</p>";
+
+    drawSectionResults(el, "1 + 1 =\n2 + 2 =\nSumme =", 2, 2, CTX);
+
+    expect(el.querySelector(".schreibstube-calc-result")?.textContent).toBe("6");
   });
 
   it("draws nothing when the rendered lines do not match the source one to one", () => {

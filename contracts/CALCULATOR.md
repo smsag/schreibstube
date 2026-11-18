@@ -155,6 +155,48 @@ is 3.000. The result is `((value * factor + offset) - offset₂) / factor₂`, w
 the target's factor and offset second, and the same limit as above. The table is `units` in the cases file; it holds the
 factors Apple's Foundation uses, so the quick-note app's results did not move.
 
+## 4a. Lines that use the lines above
+
+**Block.** A line's block is the lines above it, up to the nearest blank line
+(empty once trimmed), heading (`#`–`######` and a space, after leading
+whitespace), line that section 1 does not read as prose because it opens,
+closes or lies in a block (frontmatter, fence, math, comment), or the start of
+the note. A heading uses no lines above it. A line with inline code has no
+value and does not end a block.
+
+**A line's value.** A candidate line with a result (section 4) has that result
+as its value, as written (section 5): rounded to cents, so accepting it does
+not change what it is worth. A line whose text, trimmed, is at most 500 UTF-16
+code units long and has after its final `=` whitespace and an amount, alone,
+optionally after a `-` (sections 2 and 3: `103`, `-5,00 €`, `€37,50`,
+`EUR 37,50`) — an accepted line — has that amount as its value. Other lines
+have no value; a converted result Schreibstube accepted (`≈ … · ECB …`) is not
+an amount alone.
+
+**Sum lines.** The sum words are `summe`, `gesamt`, `total`, `sum`, in any
+case. A candidate or an accepted line is a sum line when its text before the
+final `=`, with section 1's Markdown prefix removed and trimmed, is a sum word
+or ends in whitespace and one (`Summe =`, `Kosten gesamt =`,
+`Summe = 19.500,00 €`). A candidate sum line needs no digit; its result is the
+sum of the values of the lines in its block, from the line above it upwards,
+stopping at a sum line (which is not counted, whether it shows a result or
+not) or at the block's end. The values are added top to bottom, by section
+4's `+`: a value without a currency joins any currency, and the result writes
+the currency as the topmost value carrying it wrote it. No value in that
+range, or values with different currencies, and it shows nothing
+(Schreibstube may convert, section 6). Section 4's limit applies to the sum.
+
+**`davor` / `prev`.** In `primary`, the word `davor` or `prev` (any case) is
+the value of the nearest line above in the block that has one, a sum line
+included. Without such a line the tail fails. The grammar becomes
+`primary = amount | previous | "(" sum ")"`, `previous = "davor" | "prev"`.
+The label rule is unchanged: `davor` is a value only where the tail it starts
+evaluates, so `davor 5 + 3 =` still shows `8` when no line above has a value,
+and `davor =` alone shows nothing, as a tail without an operator does.
+
+Results are found top to bottom, so every line above is known when a line is
+read.
+
 ## 5. Writing the result
 
 A result `v` is written from its cents, `c = round(|v| * 100)`: the double
@@ -188,6 +230,9 @@ That line no longer ends in `=` and is no longer a calculation.
   the European Central Bank's daily rates, into its default currency. Such a
   result starts with `≈ ` and ends with ` · ECB` and the rates' day, so it is
   plain whose numbers they are; the quick-note app shows nothing for that line.
+  A sum line (section 4a) over values in different currencies converts the
+  same way, added top to bottom as one line's `+` would, and so does a line
+  whose `davor` meets a value in another currency.
 - **Schreibstube's editor** shows the lines CodeMirror made of the note, and
   CodeMirror also ends a line at a lone `\r`; Reading view reads the file's
   text and follows section 1. Only a note with a lone `\r` in it can tell the

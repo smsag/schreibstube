@@ -27,9 +27,8 @@ import {
 import type { MarkdownPostProcessorContext, Plugin } from "obsidian";
 import { touchesRange } from "../services/cursor-touch";
 import {
-  acceptedLine,
   calculationLines,
-  calculationSpan,
+  forEachCalculation,
   forEachProseLine,
   type CalculationContext
 } from "../services/line-calculator";
@@ -50,18 +49,18 @@ function contextKey(ctx: CalculationContext | null): string {
 
 /**
  * Writes a line's result into it, the way the contract accepts: one space and
- * the result after the `=`, in place of whatever whitespace followed it.
+ * the result after the `=`, in place of whatever whitespace followed it. The
+ * result is the one found with the lines above, which the line alone may not
+ * know: `Summe =` has none of its own.
  */
-function accept(view: EditorView, lineNumber: number, ctx: CalculationContext): boolean {
+function accept(view: EditorView, lineNumber: number, result: string): boolean {
   if (lineNumber > view.state.doc.lines) return false;
   const line = view.state.doc.line(lineNumber);
-  const accepted = acceptedLine(line.text, ctx);
-  if (accepted === null) return false;
-  const kept = line.text.trimEnd().length;
-  const end = line.from + accepted.length;
+  const from = line.from + line.text.trimEnd().length;
+  const insert = ` ${result}`;
   view.dispatch({
-    changes: { from: line.from + kept, to: line.to, insert: accepted.slice(kept) },
-    selection: { anchor: end },
+    changes: { from, to: line.to, insert },
+    selection: { anchor: from + insert.length },
     userEvent: "input.complete"
   });
   return true;
@@ -98,8 +97,7 @@ class ResultWidget extends WidgetType {
     span.addEventListener("mousedown", (event) => event.preventDefault());
     span.addEventListener("click", (event) => {
       event.preventDefault();
-      const ctx = this.source();
-      if (ctx) accept(view, this.lineNumber, ctx);
+      if (this.source()) accept(view, this.lineNumber, this.result);
     });
     return span;
   }
@@ -158,9 +156,10 @@ interface FoundLine {
 
 /**
  * The editor: results for the lines on screen, and Tab at the end of one to
- * accept it. Lines are walked from the top so a fence that opened above the
- * screen is known, and evaluated only on screen; the cap on a note's length
- * keeps the walk the cost of a keystroke in prose.
+ * accept it. Lines are walked and evaluated from the top, so a fence that
+ * opened above the screen is known and a sum on screen has the lines above it;
+ * only a line ending in `=` costs more than a glance, and the cap on a note's
+ * length keeps the walk the cost of a keystroke in prose.
  *
  * Reading the lines and drawing them are apart, as for the icon shortcodes:
  * a cursor move only decides again which of the lines it is on.
@@ -212,11 +211,9 @@ export function createCalculationExtension(
         const onScreen = (number: number): boolean =>
           visible.some((range) => number >= range.from && number <= range.to);
 
-        forEachProseLine(doc.sliceString(0, doc.line(last).to), (text, index) => {
+        forEachCalculation(doc.sliceString(0, doc.line(last).to), ctx, (found, text, index) => {
           const number = index + 1;
           if (!onScreen(number)) return;
-          const found = calculationSpan(text, ctx);
-          if (!found) return;
           const line = doc.line(number);
           this.results.set(number, found.text);
           this.lines.push({
@@ -277,8 +274,8 @@ export function createCalculationExtension(
           // At the end of the line, whitespace after the `=` aside: anywhere
           // else Tab indents, as it always did.
           if (selection.main.head < line.from + line.text.trimEnd().length) return false;
-          if (!found.results.has(line.number)) return false;
-          return accept(view, line.number, ctx);
+          const result = found.results.get(line.number);
+          return result !== undefined && accept(view, line.number, result);
         }
       }
     ])

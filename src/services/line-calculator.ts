@@ -151,17 +151,94 @@ export function calculationLines(
   ctx: CalculationContext
 ): { line: number; result: string }[] {
   const found: { line: number; result: string }[] = [];
-  forEachProseLine(text, (line, index) => {
-    const result = calculateLine(line, ctx);
-    if (result) found.push({ line: index, result: result.text });
+  forEachCalculation(text, ctx, (span, _line, index) => {
+    found.push({ line: index, result: span.text });
   });
   return found;
 }
 
+/** A line above in the block: its value, and whether it is a sum line. */
+interface Above {
+  value: Value | null;
+  sum: boolean;
+}
+
+const HEADING = /^\s*#{1,6} /;
+const SUM_WORD = /^(?:summe|gesamt|total|sum)$/i;
+const ENDS_IN_SUM_WORD = /(?:^|\s)(?:summe|gesamt|total|sum)$/i;
+
 /**
- * Calls `visit` with each line that is prose, by index. Exported for the
- * editor and Reading view, which walk the same lines and evaluate only those
- * they have on screen.
+ * Calls `visit` with every line that shows a result, top to bottom, each
+ * worked out with the lines above it in its block (contract section 4a): a
+ * blank line, a heading or a code, math or comment block starts a new one.
+ * The editor and Reading view both go through here, so a sum is the same in
+ * both.
+ */
+export function forEachCalculation(
+  text: string,
+  ctx: CalculationContext,
+  visit: (span: CalculationSpan, line: string, index: number) => void
+): void {
+  let block: Above[] = [];
+  forEachProseLine(
+    text,
+    (line, index) => {
+      const trimmed = line.trim();
+      if (trimmed === "") {
+        block = [];
+        return;
+      }
+      const heading = HEADING.test(line);
+      if (heading) block = [];
+      const found = findCalculation(line, ctx, block);
+      if (found) visit(found.span, line, index);
+      if (heading || trimmed.length > MAX_CALCULATION_LINE) return;
+      const candidate = trimmed.endsWith("=") && !trimmed.endsWith("==");
+      const value = found ? rounded(found.value) : candidate ? null : acceptedValue(trimmed, ctx);
+      if (!candidate && !value) return;
+      const before = trimmed.slice(0, trimmed.lastIndexOf("=")).replace(PREFIX, "").trim();
+      block.push({ value, sum: ENDS_IN_SUM_WORD.test(before) });
+    },
+    () => {
+      block = [];
+    }
+  );
+}
+
+/** The value a line passes on: its result as written, to the cent, so accepting it changes nothing below. */
+function rounded(value: Value): Value {
+  const sign = value.value < 0 ? -1 : 1;
+  return { ...value, value: (sign * cents(value.value)) / 100 };
+}
+
+/** The amount after an accepted line's final `=`, or null when there is none alone. */
+function acceptedValue(trimmed: string, ctx: CalculationContext): Value | null {
+  const rest = trimmed.slice(trimmed.lastIndexOf("=") + 1);
+  if (!/^\s+\S/.test(rest)) return null;
+  const tokens = tokenize(rest.trim(), ctx);
+  return tokens ? new Parser(tokens, ctx, null).amountAlone() : null;
+}
+
+/** A sum line's result: the values above it, up to the sum line before it, added top to bottom. */
+function sumAbove(block: readonly Above[], ctx: CalculationContext): Value | null {
+  const values: Value[] = [];
+  for (let i = block.length - 1; i >= 0; i--) {
+    const above = block[i];
+    if (!above || above.sum) break;
+    if (above.value) values.unshift(above.value);
+  }
+  let total: Value | null = values[0] ?? null;
+  for (const value of values.slice(1)) {
+    if (!total) return null;
+    total = addValues(total, value, 1, ctx);
+  }
+  return total;
+}
+
+/**
+ * Calls `visit` with each line that is prose, by index, and `boundary` with
+ * each line of a code, math, comment or properties block. Exported for
+ * Reading view, which matches its rendered lines against the same ones.
  *
  * A document is split at `\n` only, and one `\r` directly before it goes: a
  * file with Windows line ends has the lines it looks like it has. U+2028,
@@ -169,7 +246,12 @@ export function calculationLines(
  * this the text of its own lines joined with `\n`, so its line numbers are
  * these indexes plus one.
  */
-export function forEachProseLine(text: string, visit: (line: string, index: number) => void): void {
+export function forEachProseLine(
+  text: string,
+  visit: (line: string, index: number) => void,
+  /** Called for each line that opens, closes or lies in a block: it ends a calculation's block. */
+  boundary: (index: number) => void = () => undefined
+): void {
   const lines = text.split(/\r?\n/);
   let fence: { char: string; length: number } | null = null;
   let block: "math" | "comment" | null = null;
@@ -184,32 +266,39 @@ export function forEachProseLine(text: string, visit: (line: string, index: numb
     const trimmed = line.trim();
     if (frontmatter) {
       if (index > 0 && rule(line, "---", "...")) frontmatter = false;
+      boundary(index);
       return;
     }
     if (fence) {
       const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
       if (close?.[1] && close[1][0] === fence.char && close[1].length >= fence.length) fence = null;
+      boundary(index);
       return;
     }
     if (block === "math") {
       if (trimmed === "$$") block = null;
+      boundary(index);
       return;
     }
     if (block === "comment") {
       if (trimmed.includes("%%")) block = null;
+      boundary(index);
       return;
     }
     const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
     if (open?.[1]) {
       fence = { char: open[1][0] ?? "`", length: open[1].length };
+      boundary(index);
       return;
     }
     if (trimmed === "$$") {
       block = "math";
+      boundary(index);
       return;
     }
     if (trimmed.startsWith("%%") && !trimmed.slice(2).includes("%%")) {
       block = "comment";
+      boundary(index);
       return;
     }
     if (line.includes("`")) return;
@@ -225,26 +314,39 @@ export interface CalculationSpan extends CalculationResult {
 }
 
 /**
- * Finds a line's calculation: the result, and where in the line it stands.
+ * Finds a line's calculation on its own, without the lines above it: a sum
+ * line or `davor` shows nothing here. A note goes through `forEachCalculation`.
  *
  * What stands before `from` — a list or heading marker, a label — is not part
  * of the calculation and stays as written; what stands after `to` is only
  * whitespace.
  */
 export function calculationSpan(raw: string, ctx: CalculationContext): CalculationSpan | null {
+  return findCalculation(raw, ctx, [])?.span ?? null;
+}
+
+function findCalculation(
+  raw: string,
+  ctx: CalculationContext,
+  block: readonly Above[]
+): { span: CalculationSpan; value: Value } | null {
   const line = raw.trim();
   if (line.length > MAX_CALCULATION_LINE) return null;
   if (!line.endsWith("=") || line.endsWith("==")) return null;
   const body = line.slice(0, -1).replace(PREFIX, "");
-  if (!/\d/.test(body)) return null;
+  if (!/\d/.test(body) && !ENDS_IN_SUM_WORD.test(body.trim())) return null;
 
   const lead = raw.length - raw.trimStart().length;
   const prefix = line.length - 1 - body.length;
+  const previous = [...block].reverse().find((above) => above.value)?.value ?? null;
   for (const start of wordStarts(body)) {
     const tail = body.slice(start).trim();
     if (/^[+*/%]/.test(tail)) continue;
-    const result = evaluateTail(tail, ctx);
-    if (result) return { ...result, from: lead + prefix + start, to: lead + line.length };
+    const value = SUM_WORD.test(tail) ? sumAbove(block, ctx) : evaluateTail(tail, ctx, previous);
+    if (value && Number.isFinite(value.value) && Math.abs(value.value) < MAX_RESULT) {
+      const text = formatValue(value, ctx);
+      return { span: { text, from: lead + prefix + start, to: lead + line.length }, value };
+    }
   }
   return null;
 }
@@ -298,7 +400,8 @@ type Token =
   | { kind: "number"; value: number }
   | { kind: "currency"; code: string; token: string }
   | { kind: "op"; op: "+" | "-" | "*" | "/" | "%" | "(" | ")" }
-  | { kind: "of" };
+  | { kind: "of" }
+  | { kind: "previous" };
 
 const OPERATORS: Record<string, "+" | "-" | "*" | "/" | "%" | "(" | ")"> = {
   "+": "+",
@@ -318,18 +421,16 @@ const OPERATORS: Record<string, "+" | "-" | "*" | "/" | "%" | "(" | ")"> = {
 const CONVERSION =
   /^([-−–]?\d[\d.,'’\u00a0\u202f]*)\s*([A-Za-zµ°]+)\s+(?:in|to|nach|->|→)\s+([A-Za-zµ°]+)$/i;
 
-function evaluateTail(tail: string, ctx: CalculationContext): CalculationResult | null {
+function evaluateTail(tail: string, ctx: CalculationContext, previous: Value | null): Value | null {
   if (tail === "" || !/\d/.test(tail)) return null;
   const converted = convertUnits(tail, ctx);
-  if (converted !== null) return { text: formatPlain(converted, ctx.format) };
+  if (converted !== null) return { value: converted, currency: null, rateDate: null };
 
   const tokens = tokenize(tail, ctx);
   if (!tokens) return null;
-  const parser = new Parser(tokens, ctx);
+  const parser = new Parser(tokens, ctx, previous);
   const value = parser.parse();
-  if (!value || !parser.sawOperator) return null;
-  if (!Number.isFinite(value.value) || Math.abs(value.value) >= MAX_RESULT) return null;
-  return { text: formatValue(value, ctx) };
+  return value && parser.sawOperator ? value : null;
 }
 
 function convertUnits(tail: string, ctx: CalculationContext): number | null {
@@ -387,6 +488,11 @@ function tokenize(text: string, ctx: CalculationContext): Token[] | null {
       i += 3;
       continue;
     }
+    if (/^(?:davor|prev)$/i.test(word)) {
+      tokens.push({ kind: "previous" });
+      i += word.length;
+      continue;
+    }
     if (/^(?:von|of)$/i.test(word)) {
       tokens.push({ kind: "of" });
       i += word.length;
@@ -423,8 +529,20 @@ class Parser {
 
   constructor(
     private readonly tokens: Token[],
-    private readonly ctx: CalculationContext
+    private readonly ctx: CalculationContext,
+    /** What `davor` stands for: the nearest value above in the block. */
+    private readonly previous: Value | null
   ) {}
+
+  /** An accepted line's amount: `[-] amount`, nothing before or after it. */
+  amountAlone(): Value | null {
+    const minus = this.takeOp("-");
+    const first = this.peek()?.kind;
+    if (first !== "number" && first !== "currency") return null;
+    const value = this.primary();
+    if (!value || this.at !== this.tokens.length) return null;
+    return minus ? { ...value, value: -value.value } : value;
+  }
 
   parse(): Value | null {
     const value = this.sum();
@@ -460,28 +578,9 @@ class Parser {
         left = { ...base, value: base.value * (op === "+" ? 1 + share : 1 - share) };
         continue;
       }
-      left = this.add(base, right, op === "+" ? 1 : -1);
+      left = addValues(base, right, op === "+" ? 1 : -1, this.ctx);
       if (!left) return null;
     }
-  }
-
-  private add(a: Value, b: Value, sign: 1 | -1): Value | null {
-    const rateDate = a.rateDate ?? b.rateDate;
-    if (!a.currency || !b.currency || a.currency.code === b.currency.code) {
-      return { value: a.value + sign * b.value, currency: a.currency ?? b.currency, rateDate };
-    }
-    const conversion = this.ctx.conversion;
-    if (!conversion) return null;
-    const left = convert(a.value, a.currency.code, conversion.into, conversion.rates);
-    const right = convert(b.value, b.currency.code, conversion.into, conversion.rates);
-    if (left === null || right === null) return null;
-    const into =
-      a.currency.code === conversion.into
-        ? a.currency
-        : b.currency.code === conversion.into
-          ? b.currency
-          : { code: conversion.into, token: conversion.into, before: false };
-    return { value: left + sign * right, currency: into, rateDate: conversion.day };
   }
 
   private product(): Value | Percent | null {
@@ -536,6 +635,10 @@ class Parser {
   }
 
   private primary(): Value | null {
+    if (this.peek()?.kind === "previous") {
+      this.at++;
+      return this.previous;
+    }
     if (this.takeOp("(")) {
       if (++this.depth > MAX_DEPTH) return null;
       const inner = this.sum();
@@ -569,6 +672,26 @@ class Parser {
     }
     return { value: negative ? -number.value : number.value, currency, rateDate: null };
   }
+}
+
+/** `+` and `-` on two values: a number joins a currency, two currencies only convert. */
+function addValues(a: Value, b: Value, sign: 1 | -1, ctx: CalculationContext): Value | null {
+  const rateDate = a.rateDate ?? b.rateDate;
+  if (!a.currency || !b.currency || a.currency.code === b.currency.code) {
+    return { value: a.value + sign * b.value, currency: a.currency ?? b.currency, rateDate };
+  }
+  const conversion = ctx.conversion;
+  if (!conversion) return null;
+  const left = convert(a.value, a.currency.code, conversion.into, conversion.rates);
+  const right = convert(b.value, b.currency.code, conversion.into, conversion.rates);
+  if (left === null || right === null) return null;
+  const into =
+    a.currency.code === conversion.into
+      ? a.currency
+      : b.currency.code === conversion.into
+        ? b.currency
+        : { code: conversion.into, token: conversion.into, before: false };
+  return { value: left + sign * right, currency: into, rateDate: conversion.day };
 }
 
 function asValue(value: Value | Percent): Value {
