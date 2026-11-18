@@ -468,7 +468,11 @@ A template is a folder in the vault with `template.md` and `template.typ`
 A value naming a picture (`logo.png`, `photo.jpg`) must be a file in the
 template's folder; a missing one is left out with a warning.
 
-## 14. Requests and what to produce
+## 14. Searching in Schreibstube Explorer
+
+A prefix at the start of the search box narrows it: `tag:` or `#`, `pfad:` (`path:`, `ordner:`, `folder:`), `name:` (`datei:`, `file:`) and `text:` (`inhalt:`, `body:`) search that field alone; `alle:` searches everything. `sync:` (`synced:`, `synchron:`), `aufgaben:` (`tasks:`), `fällig:` (`due:`, `deadline:`) and `markiert:` (`highlights:`) list the synced notes, those with open tasks, those with a due day, those with highlights; words after `markiert:` are searched in the highlights only, and a second prefix may follow (`sync: pfad:Kunden`, `fällig: aufgaben:`). There is no AND, OR, `-` or quoting; any other word before a colon is plain text.
+
+## 15. Requests and what to produce
 
 | The person asks                        | Produce                                                |
 | -------------------------------------- | ------------------------------------------------------ |
@@ -485,7 +489,7 @@ template's folder; a missing one is left out with a warning.
 | "Our house terms"                      | a glossary note                                        |
 | "My CV for this job ad"                | a `Lebenslauf` note in the `###`/`####`/`#####` levels |
 
-## 15. Common mistakes
+## 16. Common mistakes
 
 - `####` for columns — columns are `###`; the count makes the layout.
 - Speaker text on the slide — put it in `> [!notes]`.
