@@ -49,7 +49,6 @@ export type ExplorerForeignMenu = "submenu" | "inline" | "off";
 export interface SchreibstubeSettings {
   /** Interface language; "auto" follows Obsidian's own. */
   language: LanguagePreference;
-  overlayEnabled: boolean;
   focusMode: FocusMode;
   focusDimOpacity: number;
   llmProvider: LlmProvider;

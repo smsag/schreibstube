@@ -54,7 +54,7 @@ export function selectUnmerged(messages: MailMessage[], mergedIds: string[]): Ma
  *
  * The body is quoted rather than inlined. That is not decoration: an email line
  * starting with `#` or `-` would otherwise be parsed as a heading or list and
- * pollute the note's own structure — including the heading-stack overlay this
+ * pollute the note's own structure — its outline and the note index this
  * plugin renders.
  */
 export function formatMessage(message: MailMessage): string {

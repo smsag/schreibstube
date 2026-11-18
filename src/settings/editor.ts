@@ -1,5 +1,5 @@
 /**
- * The small helpers: the heading stack, focus mode, the link that opens a new
+ * The small helpers: focus mode, the link that opens a new
  * doc from outside Obsidian, icons in the text, properties, Bases and the
  * commands that need no settings — each a short section of its own.
  */
@@ -18,18 +18,6 @@ import { section } from "./layout";
 
 export function renderHelpers(ctx: SettingsContext): void {
   const words = t().settings;
-  section(ctx, { name: words.overlayHeading });
-
-  new Setting(ctx.containerEl)
-    .setName(t().settings.overlayEnabled)
-    .setDesc(t().settings.overlayEnabledDesc)
-    .addToggle((toggle) => {
-      toggle.setValue(ctx.plugin.settings.overlayEnabled).onChange(async (value) => {
-        await ctx.update({ overlayEnabled: value });
-        ctx.plugin.requestOverlayRefresh();
-      });
-    });
-
   section(ctx, { name: words.iconShortcodesHeading });
 
   new Setting(ctx.containerEl)

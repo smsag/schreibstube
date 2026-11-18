@@ -66,7 +66,7 @@ export function planSyncFrontmatter(input: SyncFrontmatterInput): SyncFrontmatte
 /**
  * The document's own name: its first level-one heading.
  *
- * Read through the same index the heading stack uses, so a `#` inside a code
+ * Read through the same index the note index uses, so a `#` inside a code
  * fence is not mistaken for a title and the formatting around one — a link, an
  * emphasis, a piece of code — is stripped the same way.
  */

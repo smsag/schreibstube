@@ -7,37 +7,12 @@ import {
   Decoration
 } from "@codemirror/view";
 import { RangeSetBuilder, type Extension } from "@codemirror/state";
-import { editorLivePreviewField } from "obsidian";
 import { resolveFocusRange, type FocusRange } from "../services/focus-range";
-import { topEdgeLine } from "../services/editor-top-edge";
 import { isCommentLine } from "../services/comment-line";
 import { visibleLineRuns } from "../services/visible-lines";
 import type { SchreibstubeSettings } from "../types";
 
-export interface EditorViewportUpdate {
-  /** The zero-based line at the top edge, and the one just under the overlay. */
-  edgeLines: readonly [number, number];
-  /** The editor that scrolled: every open editor reports, and only the active note's counts. */
-  editorDom: HTMLElement;
-}
-
-/** Each open editor's way to measure again, by its element. */
-const remeasureByEditor = new Map<HTMLElement, () => void>();
-
-/**
- * Ask the editors inside `container` to measure and report their top lines
- * again. An editor reports when it scrolls or changes; a note switched to
- * does neither, and its stack would otherwise go by an estimate until the
- * reader scrolled.
- */
-export function remeasureEditorsIn(container: HTMLElement): void {
-  for (const [dom, remeasure] of remeasureByEditor) {
-    if (container.contains(dom)) remeasure();
-  }
-}
-
 interface EditorExtensionOptions {
-  onViewportUpdate: (update: EditorViewportUpdate) => void;
   getSettings: () => SchreibstubeSettings;
 }
 
@@ -110,24 +85,17 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
     class {
       private view: EditorView;
       decorations: DecorationSet = Decoration.none;
-      private measurePending = false;
-      private lastEdgeLines = "";
       private lastFocusSignature = "";
       private settingsChanged = false;
       /** Whether the editor wears the mode's classes and variable right now. */
       private dressed = false;
-      private onViewportUpdate: (update: EditorViewportUpdate) => void;
       private getSettings: () => SchreibstubeSettings;
 
       constructor(view: EditorView) {
         this.view = view;
-        this.onViewportUpdate = options.onViewportUpdate;
         this.getSettings = options.getSettings;
-        this.view.scrollDOM.addEventListener("scroll", this.handleScroll, { passive: true });
         window.addEventListener(FOCUS_SETTINGS_CHANGED, this.handleFocusSettingsChanged);
-        remeasureByEditor.set(view.dom, () => this.queueViewportUpdate(true));
         this.syncFocus(this.getSettings(), true);
-        this.queueViewportUpdate(true);
       }
 
       update(update: ViewUpdate): void {
@@ -144,29 +112,12 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
           this.settingsChanged = false;
           this.syncFocus(this.getSettings(), moved);
         }
-
-        // Turning Live Preview on or off puts the heading overlay up or takes
-        // it down, and moves no line of the note.
-        const livePreviewToggled =
-          update.startState.field(editorLivePreviewField, false) !==
-          update.state.field(editorLivePreviewField, false);
-        if (!update.viewportChanged && !update.docChanged && !livePreviewToggled) {
-          return;
-        }
-
-        this.queueViewportUpdate(update.docChanged || livePreviewToggled);
       }
 
       destroy(): void {
-        remeasureByEditor.delete(this.view.dom);
-        this.view.scrollDOM.removeEventListener("scroll", this.handleScroll);
         window.removeEventListener(FOCUS_SETTINGS_CHANGED, this.handleFocusSettingsChanged);
         this.undress();
       }
-
-      private handleScroll = (): void => {
-        this.queueViewportUpdate(false);
-      };
 
       private handleFocusSettingsChanged = (): void => {
         this.settingsChanged = true;
@@ -275,48 +226,9 @@ function createFocusExtension(options: EditorExtensionOptions): Extension {
 
         this.decorations = builder.finish();
       }
-
-      private queueViewportUpdate(force: boolean): void {
-        if (this.measurePending) {
-          return;
-        }
-
-        this.measurePending = true;
-        this.view.requestMeasure({
-          read: () => resolveEdgeLines(this.view),
-          write: (edgeLines) => {
-            this.measurePending = false;
-
-            const signature = edgeLines.join(",");
-            if (!force && signature === this.lastEdgeLines) {
-              return;
-            }
-
-            this.lastEdgeLines = signature;
-            this.onViewportUpdate({ edgeLines, editorDom: this.view.dom });
-          }
-        });
-      }
     },
     {
       decorations: (value) => value.decorations
     }
   );
-}
-
-/**
- * The overlay's height as last drawn, kept for the frames in which it is
- * hidden; until it has been drawn once, the stylesheet's.
- */
-let overlayHeight = 31;
-
-function resolveEdgeLines(view: EditorView): [number, number] {
-  // This editor's own overlay: it sits beside the editor in the note's source
-  // view, never inside the scroller, and asking the whole document found the
-  // first overlay anywhere — another pane's, or none at all.
-  const overlay = view.dom
-    .closest(".markdown-source-view")
-    ?.querySelector<HTMLElement>(":scope > .schreibstube-overlay");
-  if (overlay && overlay.offsetHeight > 0) overlayHeight = overlay.offsetHeight;
-  return [topEdgeLine(view, 0), topEdgeLine(view, overlayHeight)];
 }

@@ -46,7 +46,6 @@ function editor(
       extensions: [
         ...(hide ? [hiddenStretch(hide[0], hide[1])] : []),
         createEditorExtension({
-          onViewportUpdate: () => undefined,
           getSettings: () => ({ ...DEFAULT_SETTINGS, ...settings })
         })
       ]
@@ -92,7 +91,6 @@ describe("focus mode on a transaction that changes nothing it draws", () => {
       state: EditorState.create({
         doc: "Ein Absatz.",
         extensions: createEditorExtension({
-          onViewportUpdate: () => undefined,
           getSettings: () => ({
             ...DEFAULT_SETTINGS,
             focusMode: "paragraph",

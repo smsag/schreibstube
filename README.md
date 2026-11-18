@@ -1,6 +1,6 @@
 # <img src="assets/logo.svg" alt="" width="28"> Schreibstube
 
-A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a sticky heading-stack overlay, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a Recommended panel of notes, pictures and conversations, and side-pane link opening.
+A writing-focused Obsidian plugin: a proof-read review sidebar with glossary support, document sync from remote Markdown sources, email send/query/merge over IMAP and SMTP, a distraction-reducing focus mode, property icons and one-click dates in the Properties view, a task summary ribbon with per-heading counts, LLM-powered file renaming, text-to-table conversion, image slideshows in six layouts, a Recommended panel of notes, pictures and conversations, and side-pane link opening.
 
 ## Features
 
@@ -165,10 +165,6 @@ If the source is deleted or moved, the panel reports it and the note is left exa
 - A mirrored note shows what the source writes, images included. A remote image is fetched from its host each time the note is shown, which tells whoever runs that host when the note was opened, and from where. An update that brings in code another plugin runs carries a **runs code** badge and is left out of **Alle übernehmen**, so it is read before it is accepted; a picture is not held back, because it is ordinary Markdown.
 - The binding is a frontmatter key, and any note that reaches the vault can carry one: a note synced from another device, imported, or pasted in. With sync and the background poll on, the plugin then requests that URL on the schedule, so the URL's owner sees the requests. Nothing is written into the note without your accepting it.
 - Obsidian's request API follows redirects. The checks that a source is HTTPS and ends in a Markdown extension apply to the URL the note names, not to wherever its server redirects the request. The GitHub token is attached only to requests the plugin addresses to `api.github.com`, whatever the note names.
-
-### Heading stack overlay
-
-Keeps a sticky, context-aware heading breadcrumb at the top of the active note as you scroll. Shows the ancestor headings above the current viewport position, so you always see where you are in the document's hierarchy. Click an ancestor to jump to that heading. The overlay can be turned off entirely in settings.
 
 ### Focus mode
 
@@ -1012,12 +1008,6 @@ Commands are named after what they act on, so related ones sort together in the 
 A command that cannot do anything where you are is not offered at all: the image rename without a picture open, `Notiz aktualisieren` on a note bound to nothing, `Einfügen: KI-Zusammenfassung der Auswahl` with nothing selected, `Explorer: Ordner zuklappen` with the pane closed. Only conditions visible on screen hide anything — a command that needs a setting filled in stays listed and says so when it is run, because a command missing for a reason three tabs away reads as a plugin that broke.
 
 ## Settings
-
-### Heading stack
-
-| Setting                      | Description                                 | Default |
-| ---------------------------- | ------------------------------------------- | ------- |
-| Enable heading stack overlay | Show or hide the sticky ancestor breadcrumb | On      |
 
 ### Focus mode
 

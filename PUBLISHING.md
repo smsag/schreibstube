@@ -29,7 +29,7 @@ way. `bridge/README.md` and the plugin README document what was built.
 
 Obsidian on mobile runs in a WebView with no Node runtime and no raw sockets,
 so the plugin cannot open an SSH connection. A direct SFTP implementation would
-force `isDesktopOnly: true` and cost the heading overlay and focus mode on
+force `isDesktopOnly: true` and cost focus mode on
 mobile. The mail bridge already solved this for IMAP and SMTP.
 
 Rendering moved to the bridge once the bridge existed. Obsidian's own renderer

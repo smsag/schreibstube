@@ -32,7 +32,6 @@ describe("the bare new note", () => {
   it.each([
     ".schreibstube-draft-bare > .view-header",
     ".schreibstube-draft-bare .embedded-backlinks",
-    ".schreibstube-draft-bare .schreibstube-overlay",
     ".schreibstube-draft-bare .cm-gutters",
     ".schreibstube-draft-bare-window .mobile-navbar",
     ".schreibstube-draft-bare .cm-scroller::-webkit-scrollbar"

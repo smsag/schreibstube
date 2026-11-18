@@ -105,7 +105,6 @@ export const MAX_SEMANTIC_NOTES = 20000;
 export const DEFAULT_SETTINGS: SchreibstubeSettings = {
   language: "auto",
   ...DEFAULT_FOCUS_SETTINGS,
-  overlayEnabled: true,
   llmProvider: "anthropic",
   llmModel: "claude-haiku-4-5-20251001",
   llmModelCustom: "",
@@ -186,14 +185,15 @@ export const DEFAULT_SETTINGS: SchreibstubeSettings = {
 /**
  * Keys an earlier version wrote into `data.json` and nothing reads any more:
  * the settings of the pane's former "Latest" section, whose count and
- * exclusions went with the lists they shaped, and the file an empty tab once
- * opened as a start page.
+ * exclusions went with the lists they shaped, the file an empty tab once
+ * opened as a start page, and the switch of the heading stack above a note.
  */
 export const RETIRED_SETTING_KEYS: readonly string[] = [
   "explorerLatestEnabled",
   "explorerLatestCount",
   "explorerLatestExcluded",
-  "startPageFile"
+  "startPageFile",
+  "overlayEnabled"
 ];
 
 /**
@@ -238,10 +238,6 @@ export function normalizeSettings(loaded: LoadedSettings): SchreibstubeSettings 
   return {
     ...focus,
     language: languageOrDefault(loaded?.language),
-    overlayEnabled:
-      typeof loaded?.overlayEnabled === "boolean"
-        ? loaded.overlayEnabled
-        : DEFAULT_SETTINGS.overlayEnabled,
     llmProvider: provider,
     llmModel: model,
     llmModelCustom,

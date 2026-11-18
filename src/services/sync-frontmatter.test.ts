@@ -54,7 +54,7 @@ describe("the title a check writes", () => {
     expect(plan({ remoteBody: "Nur Text, keine Überschrift.\n", noteBody: "" })).toEqual({});
   });
 
-  it("ignores a heading inside a code fence, as the heading stack does", () => {
+  it("ignores a heading inside a code fence, as the note index does", () => {
     const fenced = plan({ remoteBody: "```bash\n# nur ein Kommentar\n```\n\n# Der Titel\n" });
 
     expect(fenced[SYNC_TITLE_KEY]).toBe("Der Titel");

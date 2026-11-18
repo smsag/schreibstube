@@ -147,31 +147,30 @@ everything over `requestUrl` — and the build proves the first half. The second
 half is worth ten minutes on a phone, once per release:
 
 1. Open a vault on iOS or Android and confirm the plugin loads with no error.
-2. Scroll a long note: the heading stack appears and follows.
-3. Turn on focus mode, type a paragraph, turn it off.
-4. Run **Proof-read note** on a short note and accept one suggestion.
-5. Run **Publish folder** on a small folder against a throwaway target, and open the
+2. Turn on focus mode, type a paragraph, turn it off.
+3. Run **Proof-read note** on a short note and accept one suggestion.
+4. Run **Publish folder** on a small folder against a throwaway target, and open the
    site in the phone's browser.
-6. Send one note as an email and confirm it arrives.
-7. Open the file pane: the icons draw (an empty square means the font did not
+5. Send one note as an email and confirm it arrives.
+6. Open the file pane: the icons draw (an empty square means the font did not
    load), a long press opens the menu, and "More actions" opens as a drill-down
    rather than doing nothing.
-8. Print a note with the letter example. The first print downloads the
+7. Print a note with the letter example. The first print downloads the
    typesetter and its fonts, about 35 MB and the one step that needs the
    network; the second should be a second or two with nothing fetched. The
    letter's text must be there: a template without fonts is set in the
    standard fonts, and a blank page means they were not loaded.
-9. Print a note holding a Mermaid diagram and a Vizardry canvas, with Vizardry
+8. Print a note holding a Mermaid diagram and a Vizardry canvas, with Vizardry
    0.65.0 or later installed. Three things this cannot be checked for anywhere
    else: a wide canvas comes out as a picture rather than as its source, the
    canvas's own title row is absent while the drawing's column headers are
    there, and the same print with the device offline still draws everything.
-10. Switch on **Search by meaning** and focus the Explorer search. The first
-    load downloads the search runtime from the release (14 MB) and the model;
-    the status line ends at a count of notes, not at "Failed". The plugin
-    folder then holds `search-runtime-<version>.wasm`, and a second start
-    fetches nothing from the release. On a desktop, the settings name the
-    backend that started: a worker, not the iframe.
+9. Switch on **Search by meaning** and focus the Explorer search. The first
+   load downloads the search runtime from the release (14 MB) and the model;
+   the status line ends at a count of notes, not at "Failed". The plugin
+   folder then holds `search-runtime-<version>.wasm`, and a second start
+   fetches nothing from the release. On a desktop, the settings name the
+   backend that started: a worker, not the iframe.
 
 Record the result in the release notes. A claim that has not been checked on a
 phone since the last release is a claim about the code, not about the app.

@@ -95,7 +95,7 @@ import {
 import { PromptModal } from "../ui/explorer-modals";
 import { TermPickerModal } from "../ui/term-picker";
 import { flashRevealIn } from "../processors/reveal-flash";
-import { isNoteEditor } from "../platform/overlay-host";
+import { isNoteEditor } from "../platform/note-editor";
 
 export { GLOSSARY_FRONTMATTER_KEY };
 export type { PollSummary } from "../services/sync-summary";
