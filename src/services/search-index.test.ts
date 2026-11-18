@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { HighlightIndex } from "./highlight-index";
 import {
   FileSearchIndex,
   MAX_ALIASES,
@@ -6,6 +7,7 @@ import {
   type IndexedFile,
   type SearchSource
 } from "./search-index";
+import { findOpenTaskSpans } from "./task-summary";
 
 interface FakeFile {
   path: string;
@@ -361,12 +363,17 @@ describe("the aufgaben: prefix", () => {
     expect(index.search("tasks:", 10).hits).toHaveLength(2);
   });
 
-  it("narrows by words or a second prefix without reordering", () => {
-    const index = new FileSearchIndex(source);
+  it("narrows by words in the open tasks, or by a second prefix, without reordering", () => {
+    const tasks = new HighlightIndex(findOpenTaskSpans);
+    tasks.set("Objekte/Objekt 12.md", "- [ ] Seeblick fotografieren");
+    tasks.set("Objekte/Mietvertrag Seeblick.md", "- [ ] Seeblick im Exposé nennen");
+    const index = new FileSearchIndex(source, undefined, undefined, tasks);
     expect(index.search("aufgaben: seeblick", 10).hits.map((hit) => hit.path)).toEqual([
       "Objekte/Mietvertrag Seeblick.md",
       "Objekte/Objekt 12.md"
     ]);
+    // The name says Mietvertrag; no open task does.
+    expect(index.search("aufgaben: mietvertrag", 10).hits).toEqual([]);
     expect(index.search("aufgaben: #vertrag", 10).hits.map((hit) => hit.path)).toEqual([
       "Objekte/Mietvertrag Seeblick.md"
     ]);

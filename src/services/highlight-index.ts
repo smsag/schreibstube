@@ -11,6 +11,10 @@
  *
  * Filled by the same reads as the text index (`BodyLoader`), so turning this
  * on costs no second pass over the vault. Nothing here knows what Obsidian is.
+ *
+ * The open tasks are held the same way, for `aufgaben:`: a task is a line a
+ * writer means to come back to, found by its words and opened where it stands.
+ * Only what is kept differs, so it is the same index with another finder.
  */
 import { forwardMatchStrength, tokenize, type HighlightMatcher } from "./file-search";
 import { MAX_NOTE_CHARS } from "./note-text";
@@ -44,17 +48,23 @@ export interface HighlightSnippets {
   more: number;
 }
 
+/** A note's highlights; the default of what a `HighlightIndex` keeps. */
+function highlightsOf(text: string): HighlightSpan[] {
+  // Most notes have none, and the scan for spans is not free.
+  return text.includes("==") ? findHighlightSpans(text) : [];
+}
+
 export class HighlightIndex implements HighlightMatcher {
   /** Only notes that have highlights; a note without any is simply absent. */
   private readonly notes = new Map<string, HeldHighlight[]>();
 
+  /** `find` picks out what is kept: the highlights, or the open tasks. */
+  constructor(private readonly find: (text: string) => HighlightSpan[] = highlightsOf) {}
+
   /** Read one note's highlights, replacing what it held before. */
   set(path: string, markdown: unknown): void {
     const text = typeof markdown === "string" ? markdown.slice(0, MAX_NOTE_CHARS) : "";
-    // Most notes have none, and the scan for spans is not free.
-    const spans = text.includes("==")
-      ? findHighlightSpans(text).slice(0, MAX_HIGHLIGHTS_PER_NOTE)
-      : [];
+    const spans = this.find(text).slice(0, MAX_HIGHLIGHTS_PER_NOTE);
     if (spans.length === 0) {
       this.notes.delete(path);
       return;
@@ -177,6 +187,27 @@ export function locateHighlight(doc: string, span: HighlightSpan): HighlightRang
     if (close === -1 || (lineEnd !== -1 && close > lineEnd)) continue;
     const range = { from: at, to: close + 2 };
     if (best === null || Math.abs(at - expected) < Math.abs(best.from - expected)) best = range;
+  }
+  return best;
+}
+
+/**
+ * Find an open task in the note's text as it is when the note opens: its words
+ * on the line it was read at, or else the line holding them nearest to it, as
+ * for a highlight. A task whose words are gone answers null.
+ */
+export function locateTask(doc: string, span: HighlightSpan): HighlightRange | null {
+  let best: HighlightRange | null = null;
+  let bestDistance = Infinity;
+  let offset = 0;
+  for (const [line, text] of doc.split("\n").entries()) {
+    const at = text.indexOf(span.text);
+    const distance = Math.abs(line - span.line);
+    if (at !== -1 && distance < bestDistance) {
+      best = { from: offset + at, to: offset + at + span.text.length };
+      bestDistance = distance;
+    }
+    offset += text.length + 1;
   }
   return best;
 }

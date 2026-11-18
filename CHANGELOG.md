@@ -12,6 +12,7 @@ plugin before the bridge: 1.93.0 and older do not read the longer address.
 
 ### Added
 
+- **`aufgaben:` searches the tasks themselves.** Words after `aufgaben:` in the Explorer's search are now looked for in the open tasks alone, not in the note's name or text, so `aufgaben: angebot` finds the notes where sending the offer is still to do. Up to three matching tasks stand under each note, or its first open ones when nothing follows the prefix, and pressing one opens the note at that task and marks it for a moment. The list keeps its order, the notes with the most open tasks first.
 - **A calculation can use the lines above it.** `Summe =` adds up the results of the calculation lines above it in the same paragraph, and `davor` in a calculation stands for the result just above: `3000€ + 4500 =`, then `davor + 4.500 =` shows `12.000,00 €`. A blank line, a heading or a code block starts afresh, an earlier `Summe` ends the next one so subtotals are not counted twice, and a line whose result you already wrote in (`2 * 3 = 6`) counts with that number. `Gesamt`, `Total`, `Sum` and `prev` work too. Amounts in two currencies show no sum unless **Convert currencies** is on. A line starting with `+ ` stays a list item, as in Obsidian. The rule is shared with the quick-note app.
 
 ### Removed

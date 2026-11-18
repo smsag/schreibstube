@@ -4,6 +4,7 @@ import { MarkdownView, TFile } from "../testing/obsidian-stub";
 import { ExplorerController } from "./explorer-controller";
 import { NULL_LOGGER } from "../services/logger";
 import { DEFAULT_SETTINGS } from "../services/plugin-settings";
+import { locateTask } from "../services/highlight-index";
 
 /** A controller over a workspace whose active view is whatever `view` returns. */
 function setup(view: () => unknown) {
@@ -75,5 +76,17 @@ describe("ExplorerController.openHighlight", () => {
     const { controller, openFile } = setup(() => null);
     await controller.openHighlight(file, span, false);
     expect(openFile).toHaveBeenCalledOnce();
+  });
+
+  it("finds an open task again with the locator it is given", async () => {
+    const task = { line: 1, start: 6, end: 13, text: "Rückruf" };
+    const { view, scrollIntoView } = editorView("a.md", "Kopf\nneu\n- [ ] Rückruf");
+    const { controller } = setup(() => view);
+    await controller.openHighlight(file, task, false, locateTask);
+    const from = "Kopf\nneu\n- [ ] ".length;
+    expect(scrollIntoView).toHaveBeenCalledWith(
+      { from: { line: 0, ch: from }, to: { line: 0, ch: from + 7 } },
+      true
+    );
   });
 });

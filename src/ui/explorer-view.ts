@@ -40,7 +40,7 @@ import { syncBadgeIcon, type SyncBadge } from "../services/explorer-badge";
 import type { PublishMark } from "../services/publish-mark";
 import {
   hasSearchWords,
-  highlightWords,
+  snippetWords,
   listingScopesOf,
   type ListingScope,
   matchesText,
@@ -53,7 +53,8 @@ import { folderOf } from "../services/path-follow";
 import { FileSearchIndex } from "../services/search-index";
 import { FilterTimers } from "../services/filter-timers";
 import { BodyIndex, BodyLoader } from "../services/body-index";
-import { HighlightIndex } from "../services/highlight-index";
+import { HighlightIndex, locateTask } from "../services/highlight-index";
+import { findOpenTaskSpans } from "../services/task-summary";
 import type { HighlightSpan } from "../services/passages";
 import { fuseRankings, meaningQuery, meaningRows } from "../services/semantic/search-fusion";
 import { ITEM_RESULTS_PER_SOURCE } from "../services/semantic/conversation-search";
@@ -301,6 +302,8 @@ export class ExplorerPaneView extends ItemView {
   private readonly bodies = new BodyIndex();
   /** The notes' `==highlights==`, from the same reads, for `markiert:`. */
   private readonly highlights = new HighlightIndex();
+  /** The notes' open tasks, from the same reads, for `aufgaben:`. */
+  private readonly tasks = new HighlightIndex(findOpenTaskSpans);
   private readonly bodyLoader = new BodyLoader(this.bodies, {
     paths: () => this.app.vault.getMarkdownFiles().map((file) => file.path),
     read: async (path) => {
@@ -309,7 +312,9 @@ export class ExplorerPaneView extends ItemView {
       return this.app.vault.cachedRead(file);
     },
     exists: (path) => this.app.vault.getAbstractFileByPath(path) instanceof TFile
-  }).also(this.highlights);
+  })
+    .also(this.highlights)
+    .also(this.tasks);
   /**
    * The vault as the filter reads it: names, titles, aliases and tags, read
    * once per file and kept until the vault says that file changed.
@@ -367,7 +372,8 @@ export class ExplorerPaneView extends ItemView {
         dueDateOf(this.markdownCache(file.path)?.frontmatter, this.dueKeys())?.iso ?? null
     },
     this.bodies,
-    this.highlights
+    this.highlights,
+    this.tasks
   );
   /** How many files the filter matched, so a capped list can say what it is
    *  holding back. */
@@ -1635,8 +1641,8 @@ export class ExplorerPaneView extends ItemView {
   private renderResults(body: HTMLElement, host: HTMLElement): void {
     const controller = this.host?.explorer;
     const results = body.createDiv({ cls: "schreibstube-explorer-results" });
-    // Under `markiert:` each note shows the highlights that answered.
-    const words = highlightWords(this.query);
+    // Under `markiert:` or `aufgaben:` each note shows the lines that answered.
+    const snippets = snippetWords(this.query);
 
     let drawn = 0;
     for (const hit of this.ranked ?? []) {
@@ -1668,7 +1674,7 @@ export class ExplorerPaneView extends ItemView {
       label.addEventListener("click", (event) => {
         void controller?.open(file, openTargetOf(Keymap.isModEvent(event)));
       });
-      if (words !== null) this.renderHighlightSnippets(result, file, words);
+      if (snippets !== null) this.renderSnippets(result, file, snippets.scope, snippets.words);
       drawn += 1;
     }
 
@@ -1704,19 +1710,27 @@ export class ExplorerPaneView extends ItemView {
   }
 
   /**
-   * The highlights under a note that `markiert:` found: the ones that answered
-   * the words typed, or its first ones when none were, each a line of its own
-   * that opens the note at it. A note with more says how many more, so a list
-   * cut at three is not taken for all there is.
+   * The highlights under a note that `markiert:` found, or the open tasks
+   * under one `aufgaben:` found: the ones that answered the words typed, or
+   * its first ones when none were, each a line of its own that opens the note
+   * at it. A note with more says how many more, so a list cut at three is not
+   * taken for all there is.
    */
-  private renderHighlightSnippets(result: HTMLElement, file: TFile, words: string[]): void {
+  private renderSnippets(
+    result: HTMLElement,
+    file: TFile,
+    scope: "highlights" | "tasks",
+    words: string[]
+  ): void {
     const controller = this.host?.explorer;
     if (!controller) return;
-    const { shown, more } = this.highlights.snippets(file.path, words);
+    const tasks = scope === "tasks";
+    const { shown, more } = (tasks ? this.tasks : this.highlights).snippets(file.path, words);
     if (shown.length === 0) return;
     const list = result.createDiv({ cls: "schreibstube-explorer-highlights" });
     const open = (span: HighlightSpan, event: MouseEvent | KeyboardEvent): void => {
-      void controller.openHighlight(file, span, openTargetOf(Keymap.isModEvent(event)));
+      const where = openTargetOf(Keymap.isModEvent(event));
+      void controller.openHighlight(file, span, where, tasks ? locateTask : undefined);
     };
     for (const span of shown) {
       const line = list.createDiv({
@@ -1725,7 +1739,9 @@ export class ExplorerPaneView extends ItemView {
         attr: {
           role: "link",
           tabindex: "-1",
-          "aria-label": t().explorer.openAtHighlight(span.text)
+          "aria-label": tasks
+            ? t().explorer.openAtTask(span.text)
+            : t().explorer.openAtHighlight(span.text)
         }
       });
       line.addEventListener("click", (event) => open(span, event));
@@ -1739,7 +1755,7 @@ export class ExplorerPaneView extends ItemView {
     if (more > 0) {
       list.createDiv({
         cls: "schreibstube-explorer-highlight-more",
-        text: t().explorer.moreHighlights(more)
+        text: tasks ? t().explorer.moreTasks(more) : t().explorer.moreHighlights(more)
       });
     }
   }

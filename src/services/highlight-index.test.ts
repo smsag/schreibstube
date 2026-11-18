@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { BodyIndex, BodyLoader } from "./body-index";
-import { highlightWords, rankFiles, searchFields, type SearchCandidate } from "./file-search";
+import { rankFiles, snippetWords, searchFields, type SearchCandidate } from "./file-search";
 import {
   HighlightIndex,
   locateHighlight,
+  locateTask,
   MAX_HIGHLIGHT_CHARS,
   MAX_HIGHLIGHTS_PER_NOTE
 } from "./highlight-index";
 import { findHighlightSpans } from "./passages";
 import { FileSearchIndex } from "./search-index";
+import { findOpenTaskSpans } from "./task-summary";
 
 describe("findHighlightSpans", () => {
   it("finds each highlight with the columns of its marks", () => {
@@ -197,13 +199,15 @@ describe("markiert: in the search", () => {
   });
 
   it("names the words to pick snippets by", () => {
-    expect(highlightWords("markiert: Kaution offen")).toEqual(["kaution", "offen"]);
-    expect(highlightWords("markiert:")).toEqual([]);
-    expect(highlightWords("markiert: pfad:Kunden")).toEqual([]);
-    expect(highlightWords("sync: highlight: miete")).toEqual(["miete"]);
-    expect(highlightWords("text: miete")).toBeNull();
-    expect(highlightWords("sync: miete")).toBeNull();
-    expect(highlightWords("aufgaben: fällig: sync: aufgaben: markiert: x")).toBeNull();
+    const marked = (words: string[]) => ({ scope: "highlights", words });
+    expect(snippetWords("markiert: Kaution offen")).toEqual(marked(["kaution", "offen"]));
+    expect(snippetWords("markiert:")).toEqual(marked([]));
+    expect(snippetWords("markiert: pfad:Kunden")).toEqual(marked([]));
+    expect(snippetWords("sync: highlight: miete")).toEqual(marked(["miete"]));
+    expect(snippetWords("aufgaben: Angebot")).toEqual({ scope: "tasks", words: ["angebot"] });
+    expect(snippetWords("markiert: aufgaben: x")).toEqual({ scope: "tasks", words: ["x"] });
+    expect(snippetWords("text: miete")).toBeNull();
+    expect(snippetWords("sync: miete")).toBeNull();
   });
 
   it("reaches the index through FileSearchIndex", () => {
@@ -290,5 +294,89 @@ describe("BodyLoader feeding the highlights", () => {
     ).also(marks);
     await loader.ensure();
     expect(marks.count("old.md")).toBe(0);
+  });
+});
+
+describe("findOpenTaskSpans", () => {
+  it("keeps each open task's words with the columns they stand at", () => {
+    const note = "# Kopf\n- [ ] Angebot schicken\n  - [/] Preise prüfen  \n1. [ ] Rückruf";
+    expect(findOpenTaskSpans(note)).toEqual([
+      { line: 1, start: 6, end: 22, text: "Angebot schicken" },
+      { line: 2, start: 8, end: 21, text: "Preise prüfen" },
+      { line: 3, start: 7, end: 14, text: "Rückruf" }
+    ]);
+  });
+
+  it("leaves out finished tasks, empty ones and tasks in code", () => {
+    const note = "- [x] erledigt\n- [-] gestrichen\n- [ ]\n```\n- [ ] Beispiel\n```\nText";
+    expect(findOpenTaskSpans(note)).toEqual([]);
+  });
+});
+
+describe("aufgaben: in the search", () => {
+  const fields = (path: string) => searchFields({ path, name: path.split("/").pop() ?? path });
+  const tasks = new HighlightIndex(findOpenTaskSpans);
+  tasks.set("Kunden/Meier.md", "- [ ] Angebot schicken\n- [ ] Kaution prüfen\n- [x] Rechnung");
+  tasks.set("Kunden/Abel.md", "Angebot im Text\n- [ ] Rückruf");
+  tasks.set("Notizen/Idee.md", "- [ ] Angebot entwerfen");
+  const candidates: SearchCandidate[] = [
+    ["Kunden/Meier.md", 2],
+    ["Kunden/Abel.md", 1],
+    ["Notizen/Idee.md", 1]
+  ].map(([path, open]) => ({
+    path: path as string,
+    fields: fields(path as string),
+    openTasks: open as number
+  }));
+  const paths = (raw: string) =>
+    rankFiles(raw, candidates, undefined, undefined, undefined, tasks).map((hit) => hit.path);
+
+  it("finds a word in the open tasks alone, keeping the most open first", () => {
+    expect(paths("aufgaben: angebot")).toEqual(["Kunden/Meier.md", "Notizen/Idee.md"]);
+    // Every word by some task of the note, not all by one.
+    expect(paths("aufgaben: angebot kaution")).toEqual(["Kunden/Meier.md"]);
+    expect(paths("aufgaben: kaution")).toEqual(["Kunden/Meier.md"]);
+    expect(paths("aufgaben: rechnung")).toEqual([]);
+  });
+
+  it("still narrows by a second prefix", () => {
+    expect(paths("aufgaben: pfad:Kunden")).toEqual(["Kunden/Meier.md", "Kunden/Abel.md"]);
+  });
+
+  it("shows the tasks that answered under each note", () => {
+    expect(tasks.snippets("Kunden/Meier.md", ["kaution"]).shown.map((s) => s.text)).toEqual([
+      "Kaution prüfen"
+    ]);
+    expect(tasks.snippets("Kunden/Meier.md", []).shown).toHaveLength(2);
+  });
+
+  it("reaches the task index through FileSearchIndex", () => {
+    const search = new FileSearchIndex(
+      {
+        files: () => candidates.map(({ path }) => ({ path, name: path.split("/").pop() ?? path })),
+        metadata: () => ({}),
+        openTasks: (file) => candidates.find((c) => c.path === file.path)?.openTasks ?? 0
+      },
+      undefined,
+      undefined,
+      tasks
+    );
+    expect(search.search("aufgaben: rückruf", 10).hits.map((hit) => hit.path)).toEqual([
+      "Kunden/Abel.md"
+    ]);
+  });
+});
+
+describe("locateTask", () => {
+  const span = { line: 1, start: 6, end: 13, text: "Rückruf" };
+
+  it("finds the task's words on its line, or on the nearest line that has them", () => {
+    expect(locateTask("Kopf\n- [ ] Rückruf", span)).toEqual({ from: 11, to: 18 });
+    const moved = "Kopf\nneu\nneu\n- [ ] Rückruf";
+    expect(locateTask(moved, span)).toEqual({ from: moved.indexOf("Rückruf"), to: moved.length });
+  });
+
+  it("answers null when the words are gone", () => {
+    expect(locateTask("Kopf\n- [ ] Anruf", span)).toBeNull();
   });
 });

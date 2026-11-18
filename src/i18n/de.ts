@@ -1371,6 +1371,8 @@ export const de: Messages = {
     openAtHighlight: (text: string) => `Notiz bei der Markierung „${text}“ öffnen`,
     moreHighlights: (count: number) =>
       count === 1 ? "1 weitere Markierung" : `${count} weitere Markierungen`,
+    openAtTask: (text: string) => `Notiz bei der Aufgabe „${text}“ öffnen`,
+    moreTasks: (count: number) => (count === 1 ? "1 weitere Aufgabe" : `${count} weitere Aufgaben`),
     rootFolder: "Vault-Wurzel",
     collapseAll: "Alle zuklappen",
     expandAll: "Alle aufklappen",

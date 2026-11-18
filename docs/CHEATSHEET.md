@@ -470,7 +470,7 @@ template's folder; a missing one is left out with a warning.
 
 ## 14. Searching in Schreibstube Explorer
 
-A prefix at the start of the search box narrows it: `tag:` or `#`, `pfad:` (`path:`, `ordner:`, `folder:`), `name:` (`datei:`, `file:`) and `text:` (`inhalt:`, `body:`) search that field alone; `alle:` searches everything. `sync:` (`synced:`, `synchron:`), `aufgaben:` (`tasks:`), `fällig:` (`due:`, `deadline:`) and `markiert:` (`highlights:`) list the synced notes, those with open tasks, those with a due day, those with highlights; words after `markiert:` are searched in the highlights only, and a second prefix may follow (`sync: pfad:Kunden`, `fällig: aufgaben:`). There is no AND, OR, `-` or quoting; any other word before a colon is plain text.
+A prefix at the start of the search box narrows it: `tag:` or `#`, `pfad:` (`path:`, `ordner:`, `folder:`), `name:` (`datei:`, `file:`) and `text:` (`inhalt:`, `body:`) search that field alone; `alle:` searches everything. `sync:` (`synced:`, `synchron:`), `aufgaben:` (`tasks:`), `fällig:` (`due:`, `deadline:`) and `markiert:` (`highlights:`) list the synced notes, those with open tasks, those with a due day, those with highlights; words after `markiert:` or `aufgaben:` are searched in the highlights or open tasks only, and a second prefix may follow (`sync: pfad:Kunden`, `fällig: aufgaben:`). There is no AND, OR, `-` or quoting; any other word before a colon is plain text.
 
 ## 15. Requests and what to produce
 
