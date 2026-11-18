@@ -10,6 +10,10 @@ address, link codes stay out of the log, and a protected link's title and note
 path are sealed on the web host. The protocol is unchanged, but update the
 plugin before the bridge: 1.93.0 and older do not read the longer address.
 
+### Added
+
+- **A calculation can use the lines above it.** `Summe =` adds up the results of the calculation lines above it in the same paragraph, and `davor` in a calculation stands for the result just above: `3000€ + 4500 =`, then `davor + 4.500 =` shows `12.000,00 €`. A blank line, a heading or a code block starts afresh, an earlier `Summe` ends the next one so subtotals are not counted twice, and a line whose result you already wrote in (`2 * 3 = 6`) counts with that number. `Gesamt`, `Total`, `Sum` and `prev` work too. Amounts in two currencies show no sum unless **Convert currencies** is on. A line starting with `+ ` stays a list item, as in Obsidian. The rule is shared with the quick-note app.
+
 ### Changed
 
 - **A review card stays on its word while you write.** After typing in front of a card, a word that occurs twice close by could be replaced at the wrong occurrence. Every edit you make in the note now moves the open cards with it — typing, pasting, undoing and the changes you accept — so a card keeps naming the exact words it was found on and is applied there. Only when the note changed where the editor did not see it, on another device or with the note closed, and a nearby copy of the word makes the place uncertain, does a card go stale instead of being applied on a guess.
