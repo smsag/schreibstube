@@ -157,7 +157,9 @@ export class FileSearchIndex {
     /** The words of the notes' text, when the view keeps them. */
     private readonly body?: BodyMatcher,
     /** The notes' highlights, when the view keeps them. */
-    private readonly marks?: HighlightMatcher
+    private readonly marks?: HighlightMatcher,
+    /** The notes' open tasks, when the view keeps them. */
+    private readonly tasks?: HighlightMatcher
   ) {}
 
   /** Read one file's fields, from the cache when they are still good. */
@@ -222,7 +224,7 @@ export class FileSearchIndex {
       ...(wants.has("highlights") ? { highlights: this.marks?.count(file.path) ?? 0 } : {})
     }));
 
-    const hits = rankFiles(query, candidates, undefined, this.body, this.marks);
+    const hits = rankFiles(query, candidates, undefined, this.body, this.marks, this.tasks);
     const shown = hits.slice(0, Math.max(0, limit));
     return { hits, shown, held: hits.length - shown.length, searched: candidates.length };
   }

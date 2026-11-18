@@ -45,7 +45,7 @@ import {
 import { topLevelOnly } from "../services/explorer-selection";
 import type { PaneTarget } from "../services/pane-target";
 import { openInPane } from "../platform/open-in-pane";
-import { locateHighlight } from "../services/highlight-index";
+import { type HighlightRange, locateHighlight } from "../services/highlight-index";
 import type { HighlightSpan } from "../services/passages";
 import { flashRevealIn } from "../processors/reveal-flash";
 import { planImport, type DroppedFile, type ImportRefusal } from "../services/import-plan";
@@ -1245,13 +1245,19 @@ export class ExplorerController {
    * the editor the highlight is then found in the text as it is now — the
    * index may have read it before a line was typed above — and marked the way
    * "Show passage" marks a passage, leaving the cursor where it was. Reading
-   * view has no editor to mark; the line is where it lands.
+   * view has no editor to mark; the line is where it lands. An open task is
+   * opened the same way, found again by `locateTask`.
    */
-  async openHighlight(file: TFile, span: HighlightSpan, where: PaneTarget): Promise<void> {
+  async openHighlight(
+    file: TFile,
+    span: HighlightSpan,
+    where: PaneTarget,
+    locate: (doc: string, span: HighlightSpan) => HighlightRange | null = locateHighlight
+  ): Promise<void> {
     await openInPane(this.app, file, where, { eState: { line: span.line } });
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (view?.file?.path !== file.path || view.getMode() !== "source") return;
-    const range = locateHighlight(view.editor.getValue(), span);
+    const range = locate(view.editor.getValue(), span);
     if (!range) return;
     view.editor.scrollIntoView(
       { from: view.editor.offsetToPos(range.from), to: view.editor.offsetToPos(range.to) },

@@ -8,6 +8,7 @@
  * with the Explorer and **Tidy up done tasks**.
  */
 import { closesFence, fenceMarker } from "./markdown-fence";
+import type { HighlightSpan } from "./passages";
 import { isOpenTask, taskState } from "./task-state";
 
 export const TASK_SUMMARY_LANGUAGE = "schreibstube-tasks";
@@ -91,6 +92,28 @@ export function listTasks(content: string): TaskLine[] {
     if (kind === "task") tasks.push({ line: lineNumber, open: isOpenTask(detail) });
   });
   return tasks;
+}
+
+/**
+ * The open tasks' own words, each with the line and columns it stands at, for
+ * searching them under `aufgaben:` and opening a note at the one found. A
+ * task with no words after its box has nothing to be found by.
+ */
+export function findOpenTaskSpans(content: string): HighlightSpan[] {
+  // Most notes have no task, and the walk over every line is not free.
+  if (!content.includes("[")) return [];
+  const lines = content.split(/\r?\n/);
+  const spans: HighlightSpan[] = [];
+  for (const task of listTasks(content)) {
+    if (!task.open) continue;
+    const written = lines[task.line] ?? "";
+    const box = TASK_PATTERN.exec(written)?.[0];
+    const text = box === undefined ? "" : written.slice(box.length).trim();
+    if (box === undefined || text.length === 0) continue;
+    const start = written.indexOf(text, box.length);
+    spans.push({ line: task.line, start, end: start + text.length, text });
+  }
+  return spans;
 }
 
 export function summarizeTasks(content: string): TaskSummary {

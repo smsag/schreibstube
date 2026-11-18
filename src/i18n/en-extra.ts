@@ -830,6 +830,8 @@ export const enExtra = {
     openAtHighlight: (text: string) => `Open the note at the highlight “${text}”`,
     moreHighlights: (count: number) =>
       count === 1 ? "1 more highlight" : `${count} more highlights`,
+    openAtTask: (text: string) => `Open the note at the task “${text}”`,
+    moreTasks: (count: number) => (count === 1 ? "1 more task" : `${count} more tasks`),
     rootFolder: "Vault root",
     collapseAll: "Collapse all",
     expandAll: "Expand all",
